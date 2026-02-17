@@ -1,0 +1,428 @@
+{
+  "version": "2.0",
+  "project": "Archon",
+  "started_at": null,
+  "current_phase": 0,
+  "status": "scaffolding",
+  "agents": {
+    "agent-01": {
+      "name": "Core Backend Builder",
+      "status": "pending",
+      "phase": 1,
+      "started_at": null,
+      "completed_at": null,
+      "blockers": [],
+      "dependencies": [],
+      "outputs": [],
+      "test_results": null,
+      "iteration": 0
+    },
+    "agent-02": {
+      "name": "UI Builder + Visual Debugger",
+      "status": "pending",
+      "phase": 1,
+      "started_at": null,
+      "completed_at": null,
+      "blockers": [],
+      "dependencies": [
+        "agent-01"
+      ],
+      "outputs": [],
+      "test_results": null,
+      "iteration": 0
+    },
+    "agent-03": {
+      "name": "NL Wizard",
+      "status": "pending",
+      "phase": 1,
+      "started_at": null,
+      "completed_at": null,
+      "blockers": [],
+      "dependencies": [
+        "agent-01"
+      ],
+      "outputs": [],
+      "test_results": null,
+      "iteration": 0
+    },
+    "agent-04": {
+      "name": "Template Curator",
+      "status": "pending",
+      "phase": 1,
+      "started_at": null,
+      "completed_at": null,
+      "blockers": [],
+      "dependencies": [
+        "agent-01",
+        "agent-02"
+      ],
+      "outputs": [],
+      "test_results": null,
+      "iteration": 0
+    },
+    "agent-05": {
+      "name": "Sandbox + Arena + Benchmarks",
+      "status": "pending",
+      "phase": 1,
+      "started_at": null,
+      "completed_at": null,
+      "blockers": [],
+      "dependencies": [
+        "agent-01"
+      ],
+      "outputs": [],
+      "test_results": null,
+      "iteration": 0
+    },
+    "agent-06": {
+      "name": "Version Control",
+      "status": "pending",
+      "phase": 1,
+      "started_at": null,
+      "completed_at": null,
+      "blockers": [],
+      "dependencies": [
+        "agent-01"
+      ],
+      "outputs": [],
+      "test_results": null,
+      "iteration": 0
+    },
+    "agent-07": {
+      "name": "Intelligent Router + Explainability",
+      "status": "pending",
+      "phase": 2,
+      "started_at": null,
+      "completed_at": null,
+      "blockers": [],
+      "dependencies": [
+        "agent-01"
+      ],
+      "outputs": [],
+      "test_results": null,
+      "iteration": 0
+    },
+    "agent-08": {
+      "name": "Lifecycle Manager + Anomaly Detection",
+      "status": "pending",
+      "phase": 2,
+      "started_at": null,
+      "completed_at": null,
+      "blockers": [],
+      "dependencies": [
+        "agent-01",
+        "agent-07"
+      ],
+      "outputs": [],
+      "test_results": null,
+      "iteration": 0
+    },
+    "agent-09": {
+      "name": "Cost Engine",
+      "status": "pending",
+      "phase": 2,
+      "started_at": null,
+      "completed_at": null,
+      "blockers": [],
+      "dependencies": [
+        "agent-01",
+        "agent-07"
+      ],
+      "outputs": [],
+      "test_results": null,
+      "iteration": 0
+    },
+    "agent-10": {
+      "name": "Red-Team Commander",
+      "status": "pending",
+      "phase": 3,
+      "started_at": null,
+      "completed_at": null,
+      "blockers": [],
+      "dependencies": [
+        "agent-01",
+        "agent-05"
+      ],
+      "outputs": [],
+      "test_results": null,
+      "iteration": 0
+    },
+    "agent-11": {
+      "name": "DLP Guardian + NL Policy Engine",
+      "status": "pending",
+      "phase": 3,
+      "started_at": null,
+      "completed_at": null,
+      "blockers": [],
+      "dependencies": [
+        "agent-01",
+        "agent-07"
+      ],
+      "outputs": [],
+      "test_results": null,
+      "iteration": 0
+    },
+    "agent-12": {
+      "name": "Governance + Compliance + Risk",
+      "status": "pending",
+      "phase": 3,
+      "started_at": null,
+      "completed_at": null,
+      "blockers": [],
+      "dependencies": [
+        "agent-01",
+        "agent-02"
+      ],
+      "outputs": [],
+      "test_results": null,
+      "iteration": 0
+    },
+    "agent-13": {
+      "name": "Connector Hub (3-Tier + Permissions)",
+      "status": "pending",
+      "phase": 4,
+      "started_at": null,
+      "completed_at": null,
+      "blockers": [],
+      "dependencies": [
+        "agent-01"
+      ],
+      "outputs": [],
+      "test_results": null,
+      "iteration": 0
+    },
+    "agent-14": {
+      "name": "DocForge Processor",
+      "status": "pending",
+      "phase": 4,
+      "started_at": null,
+      "completed_at": null,
+      "blockers": [],
+      "dependencies": [
+        "agent-01",
+        "agent-13"
+      ],
+      "outputs": [],
+      "test_results": null,
+      "iteration": 0
+    },
+    "agent-15": {
+      "name": "Live Components",
+      "status": "pending",
+      "phase": 5,
+      "started_at": null,
+      "completed_at": null,
+      "blockers": [],
+      "dependencies": [
+        "agent-01",
+        "agent-02"
+      ],
+      "outputs": [],
+      "test_results": null,
+      "iteration": 0
+    },
+    "agent-16": {
+      "name": "Mobile Builder",
+      "status": "pending",
+      "phase": 5,
+      "started_at": null,
+      "completed_at": null,
+      "blockers": [],
+      "dependencies": [
+        "agent-01"
+      ],
+      "outputs": [],
+      "test_results": null,
+      "iteration": 0
+    },
+    "agent-17": {
+      "name": "Deployment Commander",
+      "status": "pending",
+      "phase": 5,
+      "started_at": null,
+      "completed_at": null,
+      "blockers": [],
+      "dependencies": [
+        "agent-01",
+        "agent-02",
+        "agent-03",
+        "agent-04",
+        "agent-05",
+        "agent-06",
+        "agent-07",
+        "agent-08",
+        "agent-09",
+        "agent-10",
+        "agent-11",
+        "agent-12",
+        "agent-13",
+        "agent-14",
+        "agent-15",
+        "agent-16",
+        "agent-18",
+        "agent-19",
+        "agent-20",
+        "agent-21",
+        "agent-22",
+        "agent-23"
+      ],
+      "outputs": [],
+      "test_results": null,
+      "iteration": 0
+    },
+    "agent-18": {
+      "name": "SentinelScan Engine",
+      "status": "pending",
+      "phase": 3,
+      "started_at": null,
+      "completed_at": null,
+      "blockers": [],
+      "dependencies": [
+        "agent-01",
+        "agent-12"
+      ],
+      "outputs": [],
+      "test_results": null,
+      "iteration": 0
+    },
+    "agent-19": {
+      "name": "A2A Protocol",
+      "status": "pending",
+      "phase": 4,
+      "started_at": null,
+      "completed_at": null,
+      "blockers": [],
+      "dependencies": [
+        "agent-01",
+        "agent-07",
+        "agent-13"
+      ],
+      "outputs": [],
+      "test_results": null,
+      "iteration": 0
+    },
+    "agent-20": {
+      "name": "MCP Security Guardian",
+      "status": "pending",
+      "phase": 3,
+      "started_at": null,
+      "completed_at": null,
+      "blockers": [],
+      "dependencies": [
+        "agent-01",
+        "agent-15",
+        "agent-11"
+      ],
+      "outputs": [],
+      "test_results": null,
+      "iteration": 0
+    },
+    "agent-21": {
+      "name": "Security Proxy Gateway",
+      "status": "pending",
+      "phase": 3,
+      "started_at": null,
+      "completed_at": null,
+      "blockers": [],
+      "dependencies": [
+        "agent-01",
+        "agent-11",
+        "agent-07"
+      ],
+      "outputs": [],
+      "test_results": null,
+      "iteration": 0
+    },
+    "agent-22": {
+      "name": "Marketplace & Creator Program",
+      "status": "pending",
+      "phase": 5,
+      "started_at": null,
+      "completed_at": null,
+      "blockers": [],
+      "dependencies": [
+        "agent-01",
+        "agent-02",
+        "agent-04",
+        "agent-06"
+      ],
+      "outputs": [],
+      "test_results": null,
+      "iteration": 0
+    },
+    "agent-23": {
+      "name": "Multi-Tenant & Billing Engine",
+      "status": "pending",
+      "phase": 2,
+      "started_at": null,
+      "completed_at": null,
+      "blockers": [],
+      "dependencies": [
+        "agent-01",
+        "agent-09"
+      ],
+      "outputs": [],
+      "test_results": null,
+      "iteration": 0
+    },
+    "agent-24": {
+      "name": "Federated Agent Mesh",
+      "status": "pending",
+      "phase": 6,
+      "started_at": null,
+      "completed_at": null,
+      "blockers": [],
+      "dependencies": [
+        "agent-01",
+        "agent-19",
+        "agent-20",
+        "agent-21"
+      ],
+      "outputs": [],
+      "test_results": null,
+      "iteration": 0
+    },
+    "agent-25": {
+      "name": "Edge Runtime",
+      "status": "pending",
+      "phase": 6,
+      "started_at": null,
+      "completed_at": null,
+      "blockers": [],
+      "dependencies": [
+        "agent-01",
+        "agent-07",
+        "agent-17"
+      ],
+      "outputs": [],
+      "test_results": null,
+      "iteration": 0
+    },
+    "master-validator": {
+      "name": "Master Validator",
+      "status": "pending",
+      "phase": 7,
+      "started_at": null,
+      "completed_at": null,
+      "blockers": [],
+      "dependencies": [
+        "agent-17",
+        "agent-24",
+        "agent-25"
+      ],
+      "outputs": [],
+      "test_results": null,
+      "iteration": 0
+    }
+  },
+  "conflicts": [],
+  "quality_gates": {
+    "test_coverage": 0,
+    "security_scan": "pending",
+    "performance_benchmark": null,
+    "documentation_coverage": 0,
+    "license_compliance": "pending",
+    "contract_compliance": "pending",
+    "regression_status": "pending"
+  }
+}

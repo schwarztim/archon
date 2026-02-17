@@ -1,0 +1,3339 @@
+# Archon API Contract — Full OpenAPI 3.1 Specification
+#
+# Expanded from openapi-stub.yaml during Phase 0.
+# This is the locked, immutable API definition that all agents implement against.
+# NO agent may deviate from this contract without Orchestrator approval.
+
+openapi: "3.1.0"
+info:
+  title: Archon API
+  version: "1.0.0"
+  description: Enterprise AI Orchestration & Governance Platform
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+
+servers:
+  - url: /api/v1
+    description: Primary API
+
+security:
+  - BearerAuth: []
+
+paths:
+  # ────────────────────────────────────────────
+  # Health
+  # ────────────────────────────────────────────
+  /health:
+    get:
+      operationId: healthCheck
+      summary: Health check endpoint
+      security: []
+      tags:
+        - health
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  # ────────────────────────────────────────────
+  # Agents — collection
+  # ────────────────────────────────────────────
+  /agents:
+    get:
+      operationId: listAgents
+      summary: List all agents
+      tags:
+        - agents
+      parameters:
+        - $ref: "#/components/parameters/LimitParam"
+        - $ref: "#/components/parameters/OffsetParam"
+      responses:
+        "200":
+          description: List of agents
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    post:
+      operationId: createAgent
+      summary: Create a new agent
+      tags:
+        - agents
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgentCreate"
+      responses:
+        "201":
+          description: Agent created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # ────────────────────────────────────────────
+  # Agents — single resource
+  # ────────────────────────────────────────────
+  /agents/{agent_id}:
+    parameters:
+      - $ref: "#/components/parameters/AgentIdParam"
+    get:
+      operationId: getAgent
+      summary: Get a single agent by ID
+      tags:
+        - agents
+      responses:
+        "200":
+          description: Agent details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    put:
+      operationId: updateAgent
+      summary: Update an existing agent
+      tags:
+        - agents
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgentUpdate"
+      responses:
+        "200":
+          description: Agent updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    delete:
+      operationId: deleteAgent
+      summary: Delete an agent
+      tags:
+        - agents
+      responses:
+        "204":
+          description: Agent deleted
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # ────────────────────────────────────────────
+  # Executions — trigger
+  # ────────────────────────────────────────────
+  /execute:
+    post:
+      operationId: executeAgent
+      summary: Execute an agent
+      tags:
+        - executions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExecutionRequest"
+      responses:
+        "202":
+          description: Execution started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExecutionResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # ────────────────────────────────────────────
+  # Executions — list & detail
+  # ────────────────────────────────────────────
+  /executions:
+    get:
+      operationId: listExecutions
+      summary: List executions with pagination
+      tags:
+        - executions
+      parameters:
+        - $ref: "#/components/parameters/LimitParam"
+        - $ref: "#/components/parameters/OffsetParam"
+        - name: agent_id
+          in: query
+          description: Filter executions by agent ID
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          description: Filter executions by status
+          schema:
+            type: string
+            enum: [queued, running, completed, failed, cancelled]
+      responses:
+        "200":
+          description: List of executions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExecutionListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /executions/{execution_id}:
+    parameters:
+      - $ref: "#/components/parameters/ExecutionIdParam"
+    get:
+      operationId: getExecution
+      summary: Get a single execution by ID
+      tags:
+        - executions
+      responses:
+        "200":
+          description: Execution details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExecutionResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # ────────────────────────────────────────────
+  # Users
+  # ────────────────────────────────────────────
+  /users:
+    post:
+      operationId: createUser
+      summary: Register a new user
+      tags:
+        - users
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserCreate"
+      responses:
+        "201":
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /users/me:
+    get:
+      operationId: getCurrentUser
+      summary: Get the currently authenticated user
+      tags:
+        - users
+      responses:
+        "200":
+          description: Current user details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # ────────────────────────────────────────────
+  # Templates — collection
+  # ────────────────────────────────────────────
+  /templates:
+    get:
+      operationId: listTemplates
+      summary: List available agent templates
+      tags:
+        - templates
+      parameters:
+        - $ref: "#/components/parameters/LimitParam"
+        - $ref: "#/components/parameters/OffsetParam"
+      responses:
+        "200":
+          description: List of templates
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TemplateListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    post:
+      operationId: createTemplate
+      summary: Create a new agent template
+      tags:
+        - templates
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TemplateCreate"
+      responses:
+        "201":
+          description: Template created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TemplateResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # ────────────────────────────────────────────
+  # Templates — single resource
+  # ────────────────────────────────────────────
+  /templates/{template_id}:
+    parameters:
+      - $ref: "#/components/parameters/TemplateIdParam"
+    get:
+      operationId: getTemplate
+      summary: Get a single template by ID
+      tags:
+        - templates
+      responses:
+        "200":
+          description: Template details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TemplateResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # ────────────────────────────────────────────
+  # WebSocket — execution streaming
+  # ────────────────────────────────────────────
+  /ws/executions/{execution_id}:
+    parameters:
+      - $ref: "#/components/parameters/ExecutionIdParam"
+    get:
+      operationId: streamExecution
+      summary: WebSocket endpoint for real-time execution streaming
+      description: |
+        Upgrades to a WebSocket connection that streams execution events in real time.
+        Send `{"type": "subscribe"}` after connecting. The server pushes events:
+        - `status_changed` — execution status transitions
+        - `node_started` / `node_completed` — individual graph node progress
+        - `log` — structured log entries
+        - `output` — final or intermediate outputs
+        - `error` — error details
+        Connection closes automatically when the execution reaches a terminal state
+        (completed, failed, cancelled).
+      tags:
+        - executions
+      responses:
+        "101":
+          description: Switching protocols — WebSocket upgrade
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ────────────────────────────────────────────
+  # SAML SSO
+  # ────────────────────────────────────────────
+  /auth/saml/metadata:
+    get:
+      operationId: getSamlMetadata
+      summary: SAML SP metadata (XML)
+      description: Returns the SAML Service Provider metadata document for IdP configuration.
+      tags:
+        - SAML
+      security: []
+      responses:
+        "200":
+          description: SAML SP metadata XML
+          content:
+            application/xml:
+              schema:
+                type: string
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /auth/saml/login:
+    get:
+      operationId: initiateSamlLogin
+      summary: Initiate SAML login flow
+      description: Redirects the user to the configured IdP for SAML authentication.
+      tags:
+        - SAML
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: relay_state
+          in: query
+          description: URL to redirect to after successful authentication
+          schema:
+            type: string
+            format: uri
+      responses:
+        "302":
+          description: Redirect to IdP
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /auth/saml/acs:
+    post:
+      operationId: samlAssertionConsumer
+      summary: SAML Assertion Consumer Service (ACS)
+      description: |
+        Receives the SAML assertion from the IdP after successful authentication.
+        Validates the assertion, creates or updates the user session, and redirects
+        to the relay state URL.
+      tags:
+        - SAML
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/SamlAcsRequest"
+      responses:
+        "200":
+          description: SAML assertion processed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SamlAcsResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /auth/saml/slo:
+    post:
+      operationId: samlSingleLogout
+      summary: SAML Single Logout (SLO)
+      description: Processes SAML SLO requests or responses to terminate the session.
+      tags:
+        - SAML
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/SamlSloRequest"
+      responses:
+        "200":
+          description: Logout processed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SamlSloResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # ────────────────────────────────────────────
+  # SCIM 2.0 Provisioning
+  # ────────────────────────────────────────────
+  /scim/v2/ServiceProviderConfig:
+    get:
+      operationId: getScimServiceProviderConfig
+      summary: SCIM Service Provider configuration
+      description: Returns the SCIM 2.0 Service Provider configuration per RFC 7643.
+      tags:
+        - SCIM
+      security: []
+      responses:
+        "200":
+          description: SCIM Service Provider configuration
+          content:
+            application/scim+json:
+              schema:
+                $ref: "#/components/schemas/ScimServiceProviderConfig"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /scim/v2/Users:
+    get:
+      operationId: listScimUsers
+      summary: List SCIM users
+      description: Lists users with SCIM 2.0 filtering and pagination per RFC 7644.
+      tags:
+        - SCIM
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: filter
+          in: query
+          description: "SCIM filter expression (e.g. userName eq \"john@example.com\")"
+          schema:
+            type: string
+        - name: startIndex
+          in: query
+          description: 1-based index of the first result
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: count
+          in: query
+          description: Maximum number of results to return
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+      responses:
+        "200":
+          description: SCIM user list
+          content:
+            application/scim+json:
+              schema:
+                $ref: "#/components/schemas/ScimUserListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    post:
+      operationId: createScimUser
+      summary: Provision a SCIM user
+      description: Creates a new user via SCIM 2.0 provisioning.
+      tags:
+        - SCIM
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/scim+json:
+            schema:
+              $ref: "#/components/schemas/ScimUserCreate"
+      responses:
+        "201":
+          description: SCIM user created
+          content:
+            application/scim+json:
+              schema:
+                $ref: "#/components/schemas/ScimUser"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /scim/v2/Users/{scim_user_id}:
+    parameters:
+      - $ref: "#/components/parameters/ScimUserIdParam"
+    get:
+      operationId: getScimUser
+      summary: Get a SCIM user
+      description: Retrieves a single SCIM user by ID.
+      tags:
+        - SCIM
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: SCIM user details
+          content:
+            application/scim+json:
+              schema:
+                $ref: "#/components/schemas/ScimUser"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    put:
+      operationId: replaceScimUser
+      summary: Replace a SCIM user
+      description: Full replacement of a SCIM user resource.
+      tags:
+        - SCIM
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/scim+json:
+            schema:
+              $ref: "#/components/schemas/ScimUserCreate"
+      responses:
+        "200":
+          description: SCIM user replaced
+          content:
+            application/scim+json:
+              schema:
+                $ref: "#/components/schemas/ScimUser"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    patch:
+      operationId: patchScimUser
+      summary: Patch a SCIM user
+      description: Partial update of a SCIM user via SCIM PATCH operations (RFC 7644 §3.5.2).
+      tags:
+        - SCIM
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/scim+json:
+            schema:
+              $ref: "#/components/schemas/ScimPatchRequest"
+      responses:
+        "200":
+          description: SCIM user patched
+          content:
+            application/scim+json:
+              schema:
+                $ref: "#/components/schemas/ScimUser"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    delete:
+      operationId: deleteScimUser
+      summary: Deprovision a SCIM user
+      description: Deletes (deprovisions) a SCIM user.
+      tags:
+        - SCIM
+      security:
+        - BearerAuth: []
+      responses:
+        "204":
+          description: SCIM user deleted
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /scim/v2/Groups:
+    get:
+      operationId: listScimGroups
+      summary: List SCIM groups
+      description: Lists groups with SCIM 2.0 filtering and pagination per RFC 7644.
+      tags:
+        - SCIM
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: filter
+          in: query
+          description: "SCIM filter expression (e.g. displayName eq \"Engineering\")"
+          schema:
+            type: string
+        - name: startIndex
+          in: query
+          description: 1-based index of the first result
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: count
+          in: query
+          description: Maximum number of results to return
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+      responses:
+        "200":
+          description: SCIM group list
+          content:
+            application/scim+json:
+              schema:
+                $ref: "#/components/schemas/ScimGroupListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    post:
+      operationId: createScimGroup
+      summary: Create a SCIM group
+      description: Creates a new group via SCIM 2.0 provisioning.
+      tags:
+        - SCIM
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/scim+json:
+            schema:
+              $ref: "#/components/schemas/ScimGroupCreate"
+      responses:
+        "201":
+          description: SCIM group created
+          content:
+            application/scim+json:
+              schema:
+                $ref: "#/components/schemas/ScimGroup"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /scim/v2/Groups/{scim_group_id}:
+    parameters:
+      - $ref: "#/components/parameters/ScimGroupIdParam"
+    get:
+      operationId: getScimGroup
+      summary: Get a SCIM group
+      description: Retrieves a single SCIM group by ID.
+      tags:
+        - SCIM
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: SCIM group details
+          content:
+            application/scim+json:
+              schema:
+                $ref: "#/components/schemas/ScimGroup"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    put:
+      operationId: replaceScimGroup
+      summary: Replace a SCIM group
+      description: Full replacement of a SCIM group resource.
+      tags:
+        - SCIM
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/scim+json:
+            schema:
+              $ref: "#/components/schemas/ScimGroupCreate"
+      responses:
+        "200":
+          description: SCIM group replaced
+          content:
+            application/scim+json:
+              schema:
+                $ref: "#/components/schemas/ScimGroup"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    patch:
+      operationId: patchScimGroup
+      summary: Patch a SCIM group
+      description: Partial update of a SCIM group via SCIM PATCH operations (RFC 7644 §3.5.2).
+      tags:
+        - SCIM
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/scim+json:
+            schema:
+              $ref: "#/components/schemas/ScimPatchRequest"
+      responses:
+        "200":
+          description: SCIM group patched
+          content:
+            application/scim+json:
+              schema:
+                $ref: "#/components/schemas/ScimGroup"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    delete:
+      operationId: deleteScimGroup
+      summary: Delete a SCIM group
+      description: Deletes a SCIM group.
+      tags:
+        - SCIM
+      security:
+        - BearerAuth: []
+      responses:
+        "204":
+          description: SCIM group deleted
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # ────────────────────────────────────────────
+  # Secrets Management
+  # ────────────────────────────────────────────
+  /secrets:
+    get:
+      operationId: listSecrets
+      summary: List secrets (metadata only)
+      description: Returns paginated secret metadata. Secret values are never returned in list operations.
+      tags:
+        - Secrets
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/LimitParam"
+        - $ref: "#/components/parameters/OffsetParam"
+      responses:
+        "200":
+          description: List of secret metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SecretListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    post:
+      operationId: createSecret
+      summary: Create a secret
+      description: Stores a new secret. The value is encrypted at rest via Vault Transit engine.
+      tags:
+        - Secrets
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SecretCreate"
+      responses:
+        "201":
+          description: Secret created (metadata only — value not echoed)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SecretResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /secrets/{secret_id}:
+    parameters:
+      - $ref: "#/components/parameters/SecretIdParam"
+    get:
+      operationId: getSecret
+      summary: Get secret metadata
+      description: Returns secret metadata (never the secret value itself).
+      tags:
+        - Secrets
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Secret metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SecretResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    put:
+      operationId: updateSecret
+      summary: Update a secret
+      description: Replaces the secret value and/or metadata. Creates a new version.
+      tags:
+        - Secrets
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SecretUpdate"
+      responses:
+        "200":
+          description: Secret updated (metadata only — value not echoed)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SecretResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    delete:
+      operationId: deleteSecret
+      summary: Delete a secret
+      description: Permanently deletes a secret and all its versions.
+      tags:
+        - Secrets
+      security:
+        - BearerAuth: []
+      responses:
+        "204":
+          description: Secret deleted
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /secrets/{secret_id}/rotate:
+    parameters:
+      - $ref: "#/components/parameters/SecretIdParam"
+    post:
+      operationId: rotateSecret
+      summary: Rotate a secret
+      description: |
+        Triggers rotation of the secret value. Generates a new version and optionally
+        notifies registered webhook callbacks.
+      tags:
+        - Secrets
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SecretRotateRequest"
+      responses:
+        "200":
+          description: Secret rotated (metadata only)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SecretResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /secrets/pki/certificates:
+    get:
+      operationId: listPkiCertificates
+      summary: List PKI certificates
+      description: Returns paginated list of PKI certificates managed by the secrets engine.
+      tags:
+        - Secrets
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/LimitParam"
+        - $ref: "#/components/parameters/OffsetParam"
+      responses:
+        "200":
+          description: List of PKI certificates
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PkiCertificateListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    post:
+      operationId: issuePkiCertificate
+      summary: Issue a PKI certificate
+      description: Issues a new X.509 certificate via the Vault PKI engine.
+      tags:
+        - Secrets
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PkiCertificateIssueRequest"
+      responses:
+        "201":
+          description: Certificate issued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PkiCertificateResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /secrets/pki/certificates/{certificate_id}:
+    parameters:
+      - $ref: "#/components/parameters/CertificateIdParam"
+    get:
+      operationId: getPkiCertificate
+      summary: Get a PKI certificate
+      description: Retrieves a single PKI certificate by ID.
+      tags:
+        - Secrets
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Certificate details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PkiCertificateResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /secrets/pki/certificates/{certificate_id}/revoke:
+    parameters:
+      - $ref: "#/components/parameters/CertificateIdParam"
+    post:
+      operationId: revokePkiCertificate
+      summary: Revoke a PKI certificate
+      description: Revokes a previously issued PKI certificate.
+      tags:
+        - Secrets
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PkiCertificateRevokeRequest"
+      responses:
+        "200":
+          description: Certificate revoked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PkiCertificateResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # ────────────────────────────────────────────
+  # MFA — TOTP
+  # ────────────────────────────────────────────
+  /mfa/totp/setup:
+    post:
+      operationId: setupTotp
+      summary: Set up TOTP for the current user
+      description: |
+        Generates a new TOTP secret and returns a provisioning URI (otpauth://)
+        and QR code data for authenticator app enrollment.
+      tags:
+        - MFA
+      security:
+        - BearerAuth: []
+      responses:
+        "201":
+          description: TOTP setup initiated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TotpSetupResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /mfa/totp/verify:
+    post:
+      operationId: verifyTotp
+      summary: Verify a TOTP code
+      description: Validates a TOTP code to complete MFA enrollment or authenticate a step-up challenge.
+      tags:
+        - MFA
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TotpVerifyRequest"
+      responses:
+        "200":
+          description: TOTP code verified
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MfaVerifyResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # ────────────────────────────────────────────
+  # MFA — WebAuthn
+  # ────────────────────────────────────────────
+  /mfa/webauthn/register:
+    post:
+      operationId: registerWebauthn
+      summary: Start WebAuthn credential registration
+      description: |
+        Returns a PublicKeyCredentialCreationOptions challenge for the browser
+        WebAuthn API to create a new credential.
+      tags:
+        - MFA
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WebauthnRegisterRequest"
+      responses:
+        "200":
+          description: WebAuthn registration options
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebauthnRegisterResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /mfa/webauthn/register/complete:
+    post:
+      operationId: completeWebauthnRegistration
+      summary: Complete WebAuthn credential registration
+      description: |
+        Receives the attestation response from the browser and stores the
+        new credential for the user.
+      tags:
+        - MFA
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WebauthnRegisterCompleteRequest"
+      responses:
+        "201":
+          description: WebAuthn credential registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebauthnCredentialResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /mfa/webauthn/verify:
+    post:
+      operationId: startWebauthnVerification
+      summary: Start WebAuthn authentication challenge
+      description: |
+        Returns a PublicKeyCredentialRequestOptions challenge for the browser
+        WebAuthn API to authenticate with a registered credential.
+      tags:
+        - MFA
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: WebAuthn assertion options
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebauthnVerifyResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /mfa/webauthn/verify/complete:
+    post:
+      operationId: completeWebauthnVerification
+      summary: Complete WebAuthn authentication
+      description: Validates the assertion response from the browser to complete MFA verification.
+      tags:
+        - MFA
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WebauthnVerifyCompleteRequest"
+      responses:
+        "200":
+          description: WebAuthn verification successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MfaVerifyResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # ────────────────────────────────────────────
+  # Tenant Management
+  # ────────────────────────────────────────────
+  /tenants:
+    get:
+      operationId: listTenants
+      summary: List tenants
+      description: Returns paginated list of tenants. Requires platform admin role.
+      tags:
+        - Tenants
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/LimitParam"
+        - $ref: "#/components/parameters/OffsetParam"
+      responses:
+        "200":
+          description: List of tenants
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TenantListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    post:
+      operationId: createTenant
+      summary: Create a tenant
+      description: Provisions a new tenant with isolated data and optional IdP configuration.
+      tags:
+        - Tenants
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TenantCreate"
+      responses:
+        "201":
+          description: Tenant created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TenantResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /tenants/{tenant_id}:
+    parameters:
+      - $ref: "#/components/parameters/TenantIdParam"
+    get:
+      operationId: getTenant
+      summary: Get a tenant
+      description: Retrieves a single tenant by ID.
+      tags:
+        - Tenants
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Tenant details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TenantResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    put:
+      operationId: updateTenant
+      summary: Update a tenant
+      description: Updates tenant settings and metadata.
+      tags:
+        - Tenants
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TenantUpdate"
+      responses:
+        "200":
+          description: Tenant updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TenantResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    delete:
+      operationId: deleteTenant
+      summary: Delete a tenant
+      description: Soft-deletes a tenant and all associated data. Requires platform admin role.
+      tags:
+        - Tenants
+      security:
+        - BearerAuth: []
+      responses:
+        "204":
+          description: Tenant deleted
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /tenants/{tenant_id}/idp:
+    parameters:
+      - $ref: "#/components/parameters/TenantIdParam"
+    get:
+      operationId: getTenantIdpConfig
+      summary: Get tenant IdP configuration
+      description: Returns the identity provider configuration for a tenant.
+      tags:
+        - Tenants
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: IdP configuration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TenantIdpConfigResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    put:
+      operationId: updateTenantIdpConfig
+      summary: Set or update tenant IdP configuration
+      description: |
+        Configures the identity provider for a tenant (SAML, OIDC, etc.).
+        This determines how users in this tenant authenticate.
+      tags:
+        - Tenants
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TenantIdpConfigUpdate"
+      responses:
+        "200":
+          description: IdP configuration updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TenantIdpConfigResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    delete:
+      operationId: deleteTenantIdpConfig
+      summary: Remove tenant IdP configuration
+      description: Removes the identity provider configuration, reverting to default authentication.
+      tags:
+        - Tenants
+      security:
+        - BearerAuth: []
+      responses:
+        "204":
+          description: IdP configuration removed
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+# ══════════════════════════════════════════════
+# Components
+# ══════════════════════════════════════════════
+components:
+
+  # ────────────────────────────────────────────
+  # Security Schemes
+  # ────────────────────────────────────────────
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT issued by Keycloak. Obtain a token via the Keycloak OpenID Connect
+        token endpoint (grant_type=authorization_code or client_credentials).
+        Include as `Authorization: Bearer <token>`.
+    KeycloakOAuth2:
+      type: oauth2
+      description: Keycloak OAuth 2.0 authorization code and client credentials flows.
+      flows:
+        authorizationCode:
+          authorizationUrl: /realms/archon/protocol/openid-connect/auth
+          tokenUrl: /realms/archon/protocol/openid-connect/token
+          refreshUrl: /realms/archon/protocol/openid-connect/token
+          scopes:
+            openid: OpenID Connect scope
+            profile: User profile information
+            email: User email address
+            roles: User role assignments
+        clientCredentials:
+          tokenUrl: /realms/archon/protocol/openid-connect/token
+          scopes:
+            openid: OpenID Connect scope
+            roles: User role assignments
+    OpenIDConnect:
+      type: openIdConnect
+      description: Keycloak OpenID Connect discovery endpoint.
+      openIdConnectUrl: /realms/archon/.well-known/openid-configuration
+
+  # ────────────────────────────────────────────
+  # Parameters
+  # ────────────────────────────────────────────
+  parameters:
+    LimitParam:
+      name: limit
+      in: query
+      description: Maximum number of items to return
+      schema:
+        type: integer
+        default: 20
+        minimum: 1
+        maximum: 100
+    OffsetParam:
+      name: offset
+      in: query
+      description: Number of items to skip
+      schema:
+        type: integer
+        default: 0
+        minimum: 0
+    AgentIdParam:
+      name: agent_id
+      in: path
+      required: true
+      description: Unique agent identifier
+      schema:
+        type: string
+        format: uuid
+    ExecutionIdParam:
+      name: execution_id
+      in: path
+      required: true
+      description: Unique execution identifier
+      schema:
+        type: string
+        format: uuid
+    TemplateIdParam:
+      name: template_id
+      in: path
+      required: true
+      description: Unique template identifier
+      schema:
+        type: string
+        format: uuid
+    ScimUserIdParam:
+      name: scim_user_id
+      in: path
+      required: true
+      description: SCIM user identifier
+      schema:
+        type: string
+    ScimGroupIdParam:
+      name: scim_group_id
+      in: path
+      required: true
+      description: SCIM group identifier
+      schema:
+        type: string
+    SecretIdParam:
+      name: secret_id
+      in: path
+      required: true
+      description: Unique secret identifier
+      schema:
+        type: string
+        format: uuid
+    CertificateIdParam:
+      name: certificate_id
+      in: path
+      required: true
+      description: Unique PKI certificate identifier
+      schema:
+        type: string
+        format: uuid
+    TenantIdParam:
+      name: tenant_id
+      in: path
+      required: true
+      description: Unique tenant identifier
+      schema:
+        type: string
+        format: uuid
+
+  # ────────────────────────────────────────────
+  # Reusable Responses (Error Envelope)
+  # ────────────────────────────────────────────
+  responses:
+    BadRequest:
+      description: Bad request — invalid or malformed input
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+          example:
+            errors:
+              - code: "BAD_REQUEST"
+                message: "Request body is malformed"
+            meta:
+              request_id: "550e8400-e29b-41d4-a716-446655440000"
+              timestamp: "2025-01-15T12:00:00Z"
+
+    Unauthorized:
+      description: Authentication required — missing or invalid JWT
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+          example:
+            errors:
+              - code: "UNAUTHORIZED"
+                message: "Bearer token is missing or expired"
+            meta:
+              request_id: "550e8400-e29b-41d4-a716-446655440000"
+              timestamp: "2025-01-15T12:00:00Z"
+
+    Forbidden:
+      description: Forbidden — insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+          example:
+            errors:
+              - code: "FORBIDDEN"
+                message: "You do not have permission to access this resource"
+            meta:
+              request_id: "550e8400-e29b-41d4-a716-446655440000"
+              timestamp: "2025-01-15T12:00:00Z"
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+          example:
+            errors:
+              - code: "NOT_FOUND"
+                message: "The requested resource was not found"
+            meta:
+              request_id: "550e8400-e29b-41d4-a716-446655440000"
+              timestamp: "2025-01-15T12:00:00Z"
+
+    UnprocessableEntity:
+      description: Validation error — input is well-formed but semantically invalid
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+          example:
+            errors:
+              - code: "VALIDATION_ERROR"
+                message: "Field value is invalid"
+                field: "name"
+                details: "Name must be between 1 and 255 characters"
+            meta:
+              request_id: "550e8400-e29b-41d4-a716-446655440000"
+              timestamp: "2025-01-15T12:00:00Z"
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+          example:
+            errors:
+              - code: "INTERNAL_ERROR"
+                message: "An unexpected error occurred"
+            meta:
+              request_id: "550e8400-e29b-41d4-a716-446655440000"
+              timestamp: "2025-01-15T12:00:00Z"
+
+  # ────────────────────────────────────────────
+  # Schemas
+  # ────────────────────────────────────────────
+  schemas:
+
+    # ── Meta / Envelope ──────────────────────
+    ResponseMeta:
+      type: object
+      required:
+        - request_id
+        - timestamp
+      properties:
+        request_id:
+          type: string
+          format: uuid
+          description: Unique identifier for this request (correlation ID)
+        timestamp:
+          type: string
+          format: date-time
+          description: Server timestamp when the response was generated
+        pagination:
+          $ref: "#/components/schemas/PaginationMeta"
+
+    PaginationMeta:
+      type: object
+      required:
+        - total
+        - limit
+        - offset
+        - has_more
+      properties:
+        total:
+          type: integer
+          description: Total number of items matching the query
+          minimum: 0
+        limit:
+          type: integer
+          description: Maximum items per page
+          minimum: 1
+          maximum: 100
+        offset:
+          type: integer
+          description: Number of items skipped
+          minimum: 0
+        has_more:
+          type: boolean
+          description: Whether more items exist beyond this page
+
+    ErrorEnvelope:
+      type: object
+      required:
+        - errors
+        - meta
+      properties:
+        errors:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/ErrorDetail"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+
+    ErrorDetail:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          description: Machine-readable error code
+          examples:
+            - "BAD_REQUEST"
+            - "VALIDATION_ERROR"
+            - "NOT_FOUND"
+        message:
+          type: string
+          description: Human-readable error message
+        field:
+          type: string
+          description: Name of the field that caused the error (for validation errors)
+        details:
+          type: string
+          description: Additional context about the error
+
+    # ── Health ────────────────────────────────
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - version
+        - timestamp
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+        version:
+          type: string
+          description: Application version (semver)
+          examples:
+            - "1.0.0"
+        timestamp:
+          type: string
+          format: date-time
+
+    # ── Agent ─────────────────────────────────
+    AgentCreate:
+      type: object
+      required:
+        - name
+        - definition
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Human-readable agent name
+        description:
+          type: string
+          maxLength: 2000
+          description: Optional description of the agent's purpose
+        definition:
+          type: object
+          description: JSON graph definition describing the agent's node topology and edges
+          additionalProperties: true
+        tags:
+          type: array
+          items:
+            type: string
+            maxLength: 64
+          maxItems: 20
+          description: Optional tags for categorisation and search
+        template_id:
+          type: string
+          format: uuid
+          description: Optional ID of the template this agent was created from
+
+    AgentUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Human-readable agent name
+        description:
+          type: string
+          maxLength: 2000
+          description: Optional description of the agent's purpose
+        definition:
+          type: object
+          description: JSON graph definition describing the agent's node topology and edges
+          additionalProperties: true
+        tags:
+          type: array
+          items:
+            type: string
+            maxLength: 64
+          maxItems: 20
+          description: Optional tags for categorisation and search
+
+    Agent:
+      type: object
+      required:
+        - id
+        - name
+        - definition
+        - status
+        - owner_id
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique agent identifier
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Human-readable agent name
+        description:
+          type: string
+          maxLength: 2000
+          description: Description of the agent's purpose
+        definition:
+          type: object
+          description: JSON graph definition (nodes, edges, parameters)
+          additionalProperties: true
+        tags:
+          type: array
+          items:
+            type: string
+          description: Tags for categorisation and search
+        template_id:
+          type: string
+          format: uuid
+          description: ID of the template this agent was created from (if any)
+        status:
+          type: string
+          enum: [draft, active, archived]
+          description: Current lifecycle status of the agent
+        owner_id:
+          type: string
+          format: uuid
+          description: ID of the user who owns this agent
+        created_at:
+          type: string
+          format: date-time
+          description: Timestamp when the agent was created
+        updated_at:
+          type: string
+          format: date-time
+          description: Timestamp of the last update
+
+    AgentResponse:
+      type: object
+      required:
+        - data
+        - meta
+      properties:
+        data:
+          $ref: "#/components/schemas/Agent"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+
+    AgentListResponse:
+      type: object
+      required:
+        - data
+        - meta
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Agent"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+
+    # ── Execution ─────────────────────────────
+    ExecutionRequest:
+      type: object
+      required:
+        - agent_id
+      properties:
+        agent_id:
+          type: string
+          format: uuid
+          description: ID of the agent to execute
+        input:
+          type: object
+          additionalProperties: true
+          description: Input data to pass to the agent
+        parameters:
+          type: object
+          additionalProperties: true
+          description: Runtime parameters (timeouts, retries, model overrides, etc.)
+        callback_url:
+          type: string
+          format: uri
+          description: Optional URL to POST results to when execution completes
+
+    Execution:
+      type: object
+      required:
+        - id
+        - agent_id
+        - status
+        - owner_id
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique execution identifier
+        agent_id:
+          type: string
+          format: uuid
+          description: ID of the agent that was executed
+        status:
+          type: string
+          enum: [queued, running, completed, failed, cancelled]
+          description: Current execution status
+        input:
+          type: object
+          additionalProperties: true
+          description: Input data that was provided
+        output:
+          type: object
+          additionalProperties: true
+          description: Output data produced by the execution (null while running)
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            details:
+              type: string
+          description: Error information (only present when status is failed)
+        parameters:
+          type: object
+          additionalProperties: true
+          description: Runtime parameters used for this execution
+        owner_id:
+          type: string
+          format: uuid
+          description: ID of the user who triggered the execution
+        started_at:
+          type: string
+          format: date-time
+          description: Timestamp when execution began running (null if still queued)
+        completed_at:
+          type: string
+          format: date-time
+          description: Timestamp when execution reached a terminal state (null if still running)
+        duration_ms:
+          type: integer
+          minimum: 0
+          description: Execution duration in milliseconds (null if not completed)
+        created_at:
+          type: string
+          format: date-time
+          description: Timestamp when the execution was created (queued)
+        updated_at:
+          type: string
+          format: date-time
+          description: Timestamp of the last status change
+
+    ExecutionResponse:
+      type: object
+      required:
+        - data
+        - meta
+      properties:
+        data:
+          $ref: "#/components/schemas/Execution"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+
+    ExecutionListResponse:
+      type: object
+      required:
+        - data
+        - meta
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Execution"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+
+    # ── User ──────────────────────────────────
+    UserCreate:
+      type: object
+      required:
+        - email
+        - display_name
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 320
+          description: User email address (must be unique)
+        display_name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: User display name
+
+    User:
+      type: object
+      required:
+        - id
+        - email
+        - display_name
+        - role
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique user identifier
+        email:
+          type: string
+          format: email
+          description: User email address
+        display_name:
+          type: string
+          description: User display name
+        role:
+          type: string
+          enum: [user, admin]
+          description: User role
+        created_at:
+          type: string
+          format: date-time
+          description: Timestamp when the user was created
+        updated_at:
+          type: string
+          format: date-time
+          description: Timestamp of the last update
+
+    UserResponse:
+      type: object
+      required:
+        - data
+        - meta
+      properties:
+        data:
+          $ref: "#/components/schemas/User"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+
+    # ── Template ──────────────────────────────
+    TemplateCreate:
+      type: object
+      required:
+        - name
+        - definition
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Human-readable template name
+        description:
+          type: string
+          maxLength: 2000
+          description: Description of what this template does
+        definition:
+          type: object
+          description: JSON graph definition serving as the template blueprint
+          additionalProperties: true
+        tags:
+          type: array
+          items:
+            type: string
+            maxLength: 64
+          maxItems: 20
+          description: Tags for categorisation and search
+        category:
+          type: string
+          maxLength: 100
+          description: Template category (e.g. "chatbot", "data-pipeline", "rag")
+
+    Template:
+      type: object
+      required:
+        - id
+        - name
+        - definition
+        - author_id
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique template identifier
+        name:
+          type: string
+          description: Human-readable template name
+        description:
+          type: string
+          description: Description of what this template does
+        definition:
+          type: object
+          description: JSON graph definition serving as the template blueprint
+          additionalProperties: true
+        tags:
+          type: array
+          items:
+            type: string
+          description: Tags for categorisation and search
+        category:
+          type: string
+          description: Template category
+        author_id:
+          type: string
+          format: uuid
+          description: ID of the user who created this template
+        created_at:
+          type: string
+          format: date-time
+          description: Timestamp when the template was created
+        updated_at:
+          type: string
+          format: date-time
+          description: Timestamp of the last update
+
+    TemplateResponse:
+      type: object
+      required:
+        - data
+        - meta
+      properties:
+        data:
+          $ref: "#/components/schemas/Template"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+
+    TemplateListResponse:
+      type: object
+      required:
+        - data
+        - meta
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Template"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+
+    # ── SAML SSO ─────────────────────────────
+    SamlAcsRequest:
+      type: object
+      required:
+        - SAMLResponse
+      properties:
+        SAMLResponse:
+          type: string
+          description: Base64-encoded SAML assertion from the IdP
+        RelayState:
+          type: string
+          description: Relay state URL to redirect after processing
+
+    SamlAcsResponse:
+      type: object
+      required:
+        - data
+        - meta
+      properties:
+        data:
+          type: object
+          required:
+            - access_token
+            - token_type
+            - expires_in
+            - user_id
+          properties:
+            access_token:
+              type: string
+              description: JWT access token issued after SAML assertion validation
+            token_type:
+              type: string
+              enum: [Bearer]
+            expires_in:
+              type: integer
+              description: Token lifetime in seconds
+            refresh_token:
+              type: string
+              description: Refresh token for obtaining new access tokens
+            user_id:
+              type: string
+              format: uuid
+              description: ID of the authenticated user
+            relay_state:
+              type: string
+              format: uri
+              description: URL to redirect the user to
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+
+    SamlSloRequest:
+      type: object
+      properties:
+        SAMLRequest:
+          type: string
+          description: Base64-encoded SAML LogoutRequest (IdP-initiated SLO)
+        SAMLResponse:
+          type: string
+          description: Base64-encoded SAML LogoutResponse (SP-initiated SLO callback)
+        RelayState:
+          type: string
+          description: Relay state for redirect after logout
+
+    SamlSloResponse:
+      type: object
+      required:
+        - data
+        - meta
+      properties:
+        data:
+          type: object
+          required:
+            - status
+          properties:
+            status:
+              type: string
+              enum: [logged_out, partial_logout]
+              description: Logout result status
+            redirect_url:
+              type: string
+              format: uri
+              description: URL to redirect after logout
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+
+    # ── SCIM 2.0 ─────────────────────────────
+    ScimServiceProviderConfig:
+      type: object
+      description: SCIM 2.0 Service Provider Configuration (RFC 7643 §5)
+      properties:
+        schemas:
+          type: array
+          items:
+            type: string
+        documentationUri:
+          type: string
+          format: uri
+        patch:
+          type: object
+          properties:
+            supported:
+              type: boolean
+        bulk:
+          type: object
+          properties:
+            supported:
+              type: boolean
+            maxOperations:
+              type: integer
+            maxPayloadSize:
+              type: integer
+        filter:
+          type: object
+          properties:
+            supported:
+              type: boolean
+            maxResults:
+              type: integer
+        changePassword:
+          type: object
+          properties:
+            supported:
+              type: boolean
+        sort:
+          type: object
+          properties:
+            supported:
+              type: boolean
+        etag:
+          type: object
+          properties:
+            supported:
+              type: boolean
+        authenticationSchemes:
+          type: array
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+              name:
+                type: string
+              description:
+                type: string
+
+    ScimMeta:
+      type: object
+      properties:
+        resourceType:
+          type: string
+        created:
+          type: string
+          format: date-time
+        lastModified:
+          type: string
+          format: date-time
+        location:
+          type: string
+          format: uri
+        version:
+          type: string
+
+    ScimUserCreate:
+      type: object
+      required:
+        - schemas
+        - userName
+      properties:
+        schemas:
+          type: array
+          items:
+            type: string
+          description: "Must include urn:ietf:params:scim:schemas:core:2.0:User"
+        userName:
+          type: string
+          description: Unique username (typically email)
+        name:
+          type: object
+          properties:
+            givenName:
+              type: string
+            familyName:
+              type: string
+            formatted:
+              type: string
+        displayName:
+          type: string
+        emails:
+          type: array
+          items:
+            type: object
+            properties:
+              value:
+                type: string
+                format: email
+              type:
+                type: string
+              primary:
+                type: boolean
+        active:
+          type: boolean
+          default: true
+        externalId:
+          type: string
+          description: External identifier from the IdP
+
+    ScimUser:
+      type: object
+      required:
+        - schemas
+        - id
+        - userName
+        - meta
+      properties:
+        schemas:
+          type: array
+          items:
+            type: string
+        id:
+          type: string
+          description: SCIM resource ID
+        externalId:
+          type: string
+        userName:
+          type: string
+        name:
+          type: object
+          properties:
+            givenName:
+              type: string
+            familyName:
+              type: string
+            formatted:
+              type: string
+        displayName:
+          type: string
+        emails:
+          type: array
+          items:
+            type: object
+            properties:
+              value:
+                type: string
+                format: email
+              type:
+                type: string
+              primary:
+                type: boolean
+        active:
+          type: boolean
+        groups:
+          type: array
+          items:
+            type: object
+            properties:
+              value:
+                type: string
+              display:
+                type: string
+              $ref:
+                type: string
+                format: uri
+        meta:
+          $ref: "#/components/schemas/ScimMeta"
+
+    ScimUserListResponse:
+      type: object
+      required:
+        - schemas
+        - totalResults
+        - Resources
+      properties:
+        schemas:
+          type: array
+          items:
+            type: string
+        totalResults:
+          type: integer
+        startIndex:
+          type: integer
+        itemsPerPage:
+          type: integer
+        Resources:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScimUser"
+
+    ScimGroupCreate:
+      type: object
+      required:
+        - schemas
+        - displayName
+      properties:
+        schemas:
+          type: array
+          items:
+            type: string
+          description: "Must include urn:ietf:params:scim:schemas:core:2.0:Group"
+        displayName:
+          type: string
+          description: Human-readable group name
+        members:
+          type: array
+          items:
+            type: object
+            properties:
+              value:
+                type: string
+                description: User ID
+              display:
+                type: string
+
+    ScimGroup:
+      type: object
+      required:
+        - schemas
+        - id
+        - displayName
+        - meta
+      properties:
+        schemas:
+          type: array
+          items:
+            type: string
+        id:
+          type: string
+        displayName:
+          type: string
+        members:
+          type: array
+          items:
+            type: object
+            properties:
+              value:
+                type: string
+              display:
+                type: string
+              $ref:
+                type: string
+                format: uri
+        meta:
+          $ref: "#/components/schemas/ScimMeta"
+
+    ScimGroupListResponse:
+      type: object
+      required:
+        - schemas
+        - totalResults
+        - Resources
+      properties:
+        schemas:
+          type: array
+          items:
+            type: string
+        totalResults:
+          type: integer
+        startIndex:
+          type: integer
+        itemsPerPage:
+          type: integer
+        Resources:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScimGroup"
+
+    ScimPatchRequest:
+      type: object
+      required:
+        - schemas
+        - Operations
+      properties:
+        schemas:
+          type: array
+          items:
+            type: string
+          description: "Must include urn:ietf:params:scim:api:messages:2.0:PatchOp"
+        Operations:
+          type: array
+          items:
+            type: object
+            required:
+              - op
+            properties:
+              op:
+                type: string
+                enum: [add, remove, replace]
+              path:
+                type: string
+                description: Attribute path (e.g. "emails[type eq \"work\"].value")
+              value:
+                description: New value for the attribute
+
+    # ── Secrets Management ───────────────────
+    SecretCreate:
+      type: object
+      required:
+        - name
+        - value
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Human-readable secret name (unique within tenant)
+        value:
+          type: string
+          description: The secret value (write-only, never returned in responses)
+        description:
+          type: string
+          maxLength: 2000
+          description: Optional description of the secret's purpose
+        tags:
+          type: array
+          items:
+            type: string
+            maxLength: 64
+          maxItems: 20
+        expires_at:
+          type: string
+          format: date-time
+          description: Optional expiration timestamp for auto-rotation alerts
+        rotation_webhook_url:
+          type: string
+          format: uri
+          description: URL to notify when this secret is rotated
+
+    SecretUpdate:
+      type: object
+      properties:
+        value:
+          type: string
+          description: New secret value (write-only)
+        description:
+          type: string
+          maxLength: 2000
+        tags:
+          type: array
+          items:
+            type: string
+            maxLength: 64
+          maxItems: 20
+        expires_at:
+          type: string
+          format: date-time
+        rotation_webhook_url:
+          type: string
+          format: uri
+
+    Secret:
+      type: object
+      required:
+        - id
+        - name
+        - version
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          description: Secret name
+        description:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        version:
+          type: integer
+          minimum: 1
+          description: Current version number
+        expires_at:
+          type: string
+          format: date-time
+        rotation_webhook_url:
+          type: string
+          format: uri
+        last_rotated_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    SecretResponse:
+      type: object
+      required:
+        - data
+        - meta
+      properties:
+        data:
+          $ref: "#/components/schemas/Secret"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+
+    SecretListResponse:
+      type: object
+      required:
+        - data
+        - meta
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Secret"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+
+    SecretRotateRequest:
+      type: object
+      properties:
+        new_value:
+          type: string
+          description: Optional explicit new value. If omitted, the system generates a new value.
+        notify_webhook:
+          type: boolean
+          default: true
+          description: Whether to notify the rotation webhook URL
+
+    # ── Secrets — PKI Certificates ───────────
+    PkiCertificateIssueRequest:
+      type: object
+      required:
+        - common_name
+      properties:
+        common_name:
+          type: string
+          description: Common Name (CN) for the certificate
+        alt_names:
+          type: array
+          items:
+            type: string
+          description: Subject Alternative Names (SANs)
+        ttl:
+          type: string
+          description: Certificate TTL (e.g. "720h", "30d")
+        key_type:
+          type: string
+          enum: [rsa, ec]
+          default: rsa
+        key_bits:
+          type: integer
+          enum: [2048, 4096, 256, 384]
+          description: Key size (RSA 2048/4096, EC 256/384)
+
+    PkiCertificate:
+      type: object
+      required:
+        - id
+        - common_name
+        - serial_number
+        - status
+        - not_before
+        - not_after
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        common_name:
+          type: string
+        alt_names:
+          type: array
+          items:
+            type: string
+        serial_number:
+          type: string
+          description: Certificate serial number (hex)
+        status:
+          type: string
+          enum: [active, revoked, expired]
+        not_before:
+          type: string
+          format: date-time
+        not_after:
+          type: string
+          format: date-time
+        issuer:
+          type: string
+        certificate_pem:
+          type: string
+          description: PEM-encoded certificate (only on issue/get, not in lists)
+        chain_pem:
+          type: string
+          description: PEM-encoded CA chain
+        created_at:
+          type: string
+          format: date-time
+
+    PkiCertificateResponse:
+      type: object
+      required:
+        - data
+        - meta
+      properties:
+        data:
+          $ref: "#/components/schemas/PkiCertificate"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+
+    PkiCertificateListResponse:
+      type: object
+      required:
+        - data
+        - meta
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/PkiCertificate"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+
+    PkiCertificateRevokeRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          enum:
+            - unspecified
+            - key_compromise
+            - ca_compromise
+            - affiliation_changed
+            - superseded
+            - cessation_of_operation
+          default: unspecified
+          description: CRL reason code per RFC 5280 §5.3.1
+
+    # ── MFA — TOTP ───────────────────────────
+    TotpSetupResponse:
+      type: object
+      required:
+        - data
+        - meta
+      properties:
+        data:
+          type: object
+          required:
+            - provisioning_uri
+            - qr_code_base64
+          properties:
+            provisioning_uri:
+              type: string
+              format: uri
+              description: "otpauth:// URI for authenticator app enrollment"
+            qr_code_base64:
+              type: string
+              description: Base64-encoded QR code PNG image
+            recovery_codes:
+              type: array
+              items:
+                type: string
+              description: One-time recovery codes (shown only once)
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+
+    TotpVerifyRequest:
+      type: object
+      required:
+        - code
+      properties:
+        code:
+          type: string
+          pattern: "^[0-9]{6}$"
+          description: 6-digit TOTP code from the authenticator app
+
+    MfaVerifyResponse:
+      type: object
+      required:
+        - data
+        - meta
+      properties:
+        data:
+          type: object
+          required:
+            - verified
+          properties:
+            verified:
+              type: boolean
+              description: Whether the MFA challenge was successful
+            mfa_token:
+              type: string
+              description: Short-lived token proving MFA completion (for step-up auth)
+            expires_in:
+              type: integer
+              description: MFA token lifetime in seconds
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+
+    # ── MFA — WebAuthn ───────────────────────
+    WebauthnRegisterRequest:
+      type: object
+      properties:
+        credential_name:
+          type: string
+          maxLength: 255
+          description: Human-readable name for the credential (e.g. "YubiKey 5")
+        authenticator_attachment:
+          type: string
+          enum: [platform, cross-platform]
+          description: Preferred authenticator attachment modality
+
+    WebauthnRegisterResponse:
+      type: object
+      required:
+        - data
+        - meta
+      properties:
+        data:
+          type: object
+          required:
+            - registration_id
+            - options
+          properties:
+            registration_id:
+              type: string
+              format: uuid
+              description: Server-side registration session ID
+            options:
+              type: object
+              description: PublicKeyCredentialCreationOptions for navigator.credentials.create()
+              additionalProperties: true
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+
+    WebauthnRegisterCompleteRequest:
+      type: object
+      required:
+        - registration_id
+        - attestation
+      properties:
+        registration_id:
+          type: string
+          format: uuid
+          description: Registration session ID from the register endpoint
+        attestation:
+          type: object
+          description: AuthenticatorAttestationResponse from navigator.credentials.create()
+          additionalProperties: true
+
+    WebauthnCredentialResponse:
+      type: object
+      required:
+        - data
+        - meta
+      properties:
+        data:
+          type: object
+          required:
+            - credential_id
+            - credential_name
+            - created_at
+          properties:
+            credential_id:
+              type: string
+              description: Base64url-encoded credential ID
+            credential_name:
+              type: string
+              description: Human-readable credential name
+            authenticator_attachment:
+              type: string
+              enum: [platform, cross-platform]
+            created_at:
+              type: string
+              format: date-time
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+
+    WebauthnVerifyResponse:
+      type: object
+      required:
+        - data
+        - meta
+      properties:
+        data:
+          type: object
+          required:
+            - challenge_id
+            - options
+          properties:
+            challenge_id:
+              type: string
+              format: uuid
+              description: Server-side challenge session ID
+            options:
+              type: object
+              description: PublicKeyCredentialRequestOptions for navigator.credentials.get()
+              additionalProperties: true
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+
+    WebauthnVerifyCompleteRequest:
+      type: object
+      required:
+        - challenge_id
+        - assertion
+      properties:
+        challenge_id:
+          type: string
+          format: uuid
+          description: Challenge session ID from the verify endpoint
+        assertion:
+          type: object
+          description: AuthenticatorAssertionResponse from navigator.credentials.get()
+          additionalProperties: true
+
+    # ── Tenant Management ────────────────────
+    TenantCreate:
+      type: object
+      required:
+        - name
+        - slug
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Human-readable tenant name
+        slug:
+          type: string
+          minLength: 1
+          maxLength: 63
+          pattern: "^[a-z0-9][a-z0-9-]*[a-z0-9]$"
+          description: URL-safe unique tenant slug
+        description:
+          type: string
+          maxLength: 2000
+        settings:
+          type: object
+          additionalProperties: true
+          description: Tenant-specific settings (feature flags, quotas, etc.)
+
+    TenantUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+          maxLength: 2000
+        settings:
+          type: object
+          additionalProperties: true
+
+    Tenant:
+      type: object
+      required:
+        - id
+        - name
+        - slug
+        - status
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        slug:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [active, suspended, deleted]
+        settings:
+          type: object
+          additionalProperties: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    TenantResponse:
+      type: object
+      required:
+        - data
+        - meta
+      properties:
+        data:
+          $ref: "#/components/schemas/Tenant"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+
+    TenantListResponse:
+      type: object
+      required:
+        - data
+        - meta
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Tenant"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+
+    TenantIdpConfig:
+      type: object
+      required:
+        - protocol
+        - enabled
+      properties:
+        protocol:
+          type: string
+          enum: [saml, oidc]
+          description: Identity provider protocol
+        enabled:
+          type: boolean
+        entity_id:
+          type: string
+          description: IdP entity ID (SAML) or issuer (OIDC)
+        sso_url:
+          type: string
+          format: uri
+          description: IdP Single Sign-On URL
+        slo_url:
+          type: string
+          format: uri
+          description: IdP Single Logout URL
+        certificate:
+          type: string
+          description: IdP signing certificate (PEM)
+        client_id:
+          type: string
+          description: OIDC client ID
+        client_secret_ref:
+          type: string
+          description: Reference to the client secret in SecretsManager (never the raw value)
+        discovery_url:
+          type: string
+          format: uri
+          description: OIDC discovery URL (/.well-known/openid-configuration)
+        attribute_mapping:
+          type: object
+          additionalProperties:
+            type: string
+          description: Mapping of IdP attributes to Archon user fields
+        auto_provision:
+          type: boolean
+          default: true
+          description: Whether to auto-create users on first login via this IdP
+
+    TenantIdpConfigUpdate:
+      type: object
+      required:
+        - protocol
+      properties:
+        protocol:
+          type: string
+          enum: [saml, oidc]
+        enabled:
+          type: boolean
+          default: true
+        entity_id:
+          type: string
+        sso_url:
+          type: string
+          format: uri
+        slo_url:
+          type: string
+          format: uri
+        certificate:
+          type: string
+        client_id:
+          type: string
+        client_secret_ref:
+          type: string
+        discovery_url:
+          type: string
+          format: uri
+        attribute_mapping:
+          type: object
+          additionalProperties:
+            type: string
+        auto_provision:
+          type: boolean
+          default: true
+
+    TenantIdpConfigResponse:
+      type: object
+      required:
+        - data
+        - meta
+      properties:
+        data:
+          $ref: "#/components/schemas/TenantIdpConfig"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+
+tags:
+  - name: health
+    description: Health and readiness probes
+  - name: agents
+    description: Agent CRUD and lifecycle management
+  - name: executions
+    description: Agent execution and streaming
+  - name: users
+    description: User registration and profile
+  - name: templates
+    description: Reusable agent templates
+  - name: SAML
+    description: SAML 2.0 Single Sign-On (SSO) and Single Logout (SLO)
+  - name: SCIM
+    description: SCIM 2.0 user and group provisioning (RFC 7643/7644)
+  - name: Secrets
+    description: Secrets management, rotation, and PKI certificate lifecycle
+  - name: MFA
+    description: Multi-factor authentication (TOTP and WebAuthn/FIDO2)
+  - name: Tenants
+    description: Tenant management and per-tenant IdP configuration

@@ -1,0 +1,13 @@
+# Archon Vault Helm Chart
+# Wraps the official HashiCorp Vault chart with Archon-specific defaults.
+apiVersion: v2
+name: archon-vault
+description: HashiCorp Vault configuration for Archon
+type: application
+version: 0.1.0
+appVersion: "1.15.0"
+
+dependencies:
+  - name: vault
+    version: "0.28.x"
+    repository: "https://helm.releases.hashicorp.com"

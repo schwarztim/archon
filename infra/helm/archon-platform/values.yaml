@@ -1,0 +1,210 @@
+# ── Archon Umbrella Chart — Default Values ──────────────────────
+# Override per environment with values-dev.yaml / values-prod.yaml.
+
+# ── Global ──────────────────────────────────────────────────────────
+global:
+  domain: archon.dev
+  environment: staging
+  imagePullPolicy: IfNotPresent
+  storageClass: gp3
+
+# ── Vault ───────────────────────────────────────────────────────────
+vault:
+  enabled: true
+  server:
+    replicas: 3
+    resources:
+      requests:
+        cpu: 250m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    ha:
+      enabled: true
+      raft:
+        enabled: true
+    dataStorage:
+      size: 10Gi
+  injector:
+    enabled: true
+  ui:
+    enabled: true
+
+# ── Keycloak ────────────────────────────────────────────────────────
+keycloak:
+  enabled: true
+  replicas: 2
+  image:
+    tag: "24.0"
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  postgresql:
+    enabled: false  # use shared postgresql
+  extraEnv:
+    - name: KC_DB
+      value: postgres
+    - name: KC_DB_URL
+      value: jdbc:postgresql://archon-postgresql:5432/keycloak
+    - name: KC_HOSTNAME_STRICT
+      value: "false"
+
+# ── PostgreSQL ──────────────────────────────────────────────────────
+postgresql:
+  enabled: true
+  auth:
+    existingSecret: archon-db-credentials
+    secretKeys:
+      adminPasswordKey: admin-password
+      userPasswordKey: user-password
+    database: archon
+    username: archon
+  primary:
+    replicas: 1
+    resources:
+      requests:
+        cpu: 250m
+        memory: 256Mi
+      limits:
+        cpu: "1"
+        memory: 1Gi
+    persistence:
+      size: 20Gi
+  readReplicas:
+    replicaCount: 1
+    resources:
+      requests:
+        cpu: 250m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+# ── Redis ───────────────────────────────────────────────────────────
+redis:
+  enabled: true
+  architecture: replication
+  auth:
+    existingSecret: archon-redis-credentials
+    existingSecretPasswordKey: redis-password
+  master:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi
+    persistence:
+      size: 5Gi
+  replica:
+    replicaCount: 2
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi
+
+# ── Backend ─────────────────────────────────────────────────────────
+backend:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: ghcr.io/archon-platform/backend
+    tag: "0.1.0"
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+
+# ── Frontend ────────────────────────────────────────────────────────
+frontend:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: ghcr.io/archon-platform/frontend
+    tag: "0.1.0"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 70
+
+# ── TLS / Networking ───────────────────────────────────────────────
+tls:
+  enabled: true
+  issuer: vault-pki
+  certTTL: 720h
+  autoRotate: true
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: vault-pki
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  hosts:
+    - host: api.archon.dev
+      paths:
+        - path: /
+          pathType: Prefix
+          backend: backend
+    - host: app.archon.dev
+      paths:
+        - path: /
+          pathType: Prefix
+          backend: frontend
+
+# ── Monitoring & Alerting ──────────────────────────────────────────
+monitoring:
+  enabled: true
+  prometheus:
+    scrapeInterval: 15s
+    retention: 15d
+  grafana:
+    enabled: true
+    dashboards:
+      - archon-overview
+      - archon-agents
+      - archon-infrastructure
+  alerting:
+    enabled: true
+    rules:
+      - name: HighErrorRate
+        condition: error_rate > 5
+        severity: critical
+        for: 5m
+      - name: HighLatency
+        condition: p99_latency > 500
+        severity: warning
+        for: 10m
+      - name: VaultSealed
+        condition: vault_sealed == 1
+        severity: critical
+        for: 1m
+      - name: LowDiskSpace
+        condition: disk_usage_percent > 85
+        severity: warning
+        for: 15m

@@ -1,0 +1,50 @@
+# Archon Umbrella Helm Chart
+# Orchestrates all platform components as sub-chart dependencies.
+apiVersion: v2
+name: archon-platform
+description: Archon — Enterprise AI Orchestration Platform
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+maintainers:
+  - name: Archon Team
+    url: https://github.com/archon-platform/archon
+keywords:
+  - ai
+  - orchestration
+  - enterprise
+  - kubernetes
+home: https://github.com/archon-platform/archon
+sources:
+  - https://github.com/archon-platform/archon
+
+dependencies:
+  - name: vault
+    version: "0.28.x"
+    repository: "https://helm.releases.hashicorp.com"
+    condition: vault.enabled
+
+  - name: keycloak
+    version: "24.x"
+    repository: "https://codecentric.github.io/helm-charts"
+    condition: keycloak.enabled
+
+  - name: postgresql
+    version: "16.x"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: postgresql.enabled
+
+  - name: redis
+    version: "19.x"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: redis.enabled
+
+  - name: backend
+    version: "0.1.x"
+    repository: "file://../archon"
+    condition: backend.enabled
+
+  - name: frontend
+    version: "0.1.x"
+    repository: "file://../frontend"
+    condition: frontend.enabled

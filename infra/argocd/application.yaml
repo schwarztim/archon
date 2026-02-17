@@ -1,0 +1,153 @@
+# Archon ArgoCD Application — GitOps deployment manifest
+# Deploys the Archon Helm chart from the infra/helm/archon/ directory.
+# Uses the App of Apps pattern; add sub-applications in this directory as needed.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: archon
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  description: Archon AI Orchestration Platform
+  sourceRepos:
+    - "https://github.com/archon-ai/archon.git"
+  destinations:
+    - namespace: archon
+      server: https://kubernetes.default.svc
+    - namespace: archon-monitoring
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRole
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRoleBinding
+  namespaceResourceBlacklist:
+    - group: ""
+      kind: ResourceQuota
+    - group: ""
+      kind: LimitRange
+  roles:
+    - name: admin
+      description: Full access to Archon project
+      policies:
+        - p, proj:archon:admin, applications, *, archon/*, allow
+      groups:
+        - archon-admins
+
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: archon
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: archon
+    app.kubernetes.io/part-of: archon-platform
+  annotations:
+    argocd.argoproj.io/manifest-generate-paths: infra/helm/archon
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: archon
+  source:
+    repoURL: https://github.com/archon-ai/archon.git
+    targetRevision: HEAD
+    path: infra/helm/archon
+    helm:
+      releaseName: archon
+      valueFiles:
+        - values.yaml
+      # Override per-environment via additional values files:
+      #   - values-staging.yaml
+      #   - values-production.yaml
+      parameters: []
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: archon
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
+  revisionHistoryLimit: 10
+
+---
+# Monitoring stack — deployed as a sibling ArgoCD Application
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: archon-monitoring
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: archon-monitoring
+    app.kubernetes.io/part-of: archon-platform
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: archon
+  source:
+    repoURL: https://prometheus-community.github.io/helm-charts
+    chart: kube-prometheus-stack
+    targetRevision: "61.*"
+    helm:
+      releaseName: archon-monitoring
+      valueFiles: []
+      values: |
+        prometheus:
+          prometheusSpec:
+            serviceMonitorSelectorNilUsesHelmValues: false
+            podMonitorSelectorNilUsesHelmValues: false
+            retention: 15d
+            storageSpec:
+              volumeClaimTemplate:
+                spec:
+                  accessModes: ["ReadWriteOnce"]
+                  resources:
+                    requests:
+                      storage: 50Gi
+        grafana:
+          enabled: true
+          adminPassword: ""
+          sidecar:
+            dashboards:
+              enabled: true
+              label: grafana_dashboard
+              searchNamespace: archon-monitoring
+        alertmanager:
+          enabled: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: archon-monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 3
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 5m

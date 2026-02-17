@@ -1,0 +1,109 @@
+services:
+  postgres:
+    image: postgres:16
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-archon}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-archon}
+      POSTGRES_DB: ${POSTGRES_DB:-archon}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-archon}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      ARCHON_DATABASE_URL: ${ARCHON_DATABASE_URL:-postgresql+asyncpg://archon:archon@postgres:5432/archon}
+      ARCHON_REDIS_URL: ${ARCHON_REDIS_URL:-redis://redis:6379/0}
+      ARCHON_DEBUG: ${ARCHON_DEBUG:-true}
+      ARCHON_LOG_LEVEL: ${ARCHON_LOG_LEVEL:-DEBUG}
+      ARCHON_KEYCLOAK_URL: ${ARCHON_KEYCLOAK_URL:-http://keycloak:8080/auth/realms/archon}
+      ARCHON_KEYCLOAK_CLIENT_ID: ${ARCHON_KEYCLOAK_CLIENT_ID:-archon-app}
+      ARCHON_AUTH_DEV_MODE: ${ARCHON_AUTH_DEV_MODE:-true}
+    volumes:
+      - ./backend/app:/app/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+  vault:
+    image: hashicorp/vault:1.15
+    ports:
+      - "8200:8200"
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: dev-root-token
+      VAULT_DEV_LISTEN_ADDRESS: "0.0.0.0:8200"
+    volumes:
+      - vault-data:/vault/data
+    cap_add:
+      - IPC_LOCK
+    healthcheck:
+      test: ["CMD", "vault", "status"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    ports:
+      - "8180:8080"
+    command: start-dev
+    environment:
+      KC_DB: dev-file
+      KC_HEALTH_ENABLED: "true"
+      KC_HTTP_RELATIVE_PATH: /auth
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/auth/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  vault-init:
+    image: hashicorp/vault:1.15
+    entrypoint: /bin/sh
+    command: ["/scripts/vault-init.sh"]
+    environment:
+      VAULT_ADDR: "http://vault:8200"
+      VAULT_TOKEN: dev-root-token
+    volumes:
+      - ./infra/helm/vault/vault-init.sh:/scripts/vault-init.sh:ro
+    depends_on:
+      vault:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  vault-data:

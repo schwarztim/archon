@@ -1,0 +1,71 @@
+version: 1
+mission: "Build enterprise AI orchestration platform with 25 agents across 8 phases"
+pillars:
+  - quality
+  - correctness
+  - security
+
+goals:
+  # === Phase 0 Gates ===
+  - id: openapi-contract-exists
+    description: "OpenAPI contract is fully expanded (not a stub)"
+    check: "test -f contracts/openapi.yaml && grep -c 'paths:' contracts/openapi.yaml | xargs test 1 -le"
+    weight: 5
+    pillar: correctness
+
+  - id: adrs-written
+    description: "Architectural Decision Records exist"
+    check: "test -d docs/ADR && test $(ls docs/ADR/*.md 2>/dev/null | wc -l | tr -d ' ') -ge 3"
+    weight: 4
+    pillar: correctness
+
+  - id: interface-stubs-exist
+    description: "Interface stubs created for agent boundaries"
+    check: "test -d backend/app/interfaces && test $(find backend/app/interfaces -name '*.py' 2>/dev/null | wc -l | tr -d ' ') -ge 1"
+    weight: 4
+    pillar: correctness
+
+  - id: golden-paths-exist
+    description: "Golden path examples documented"
+    check: "test -d docs/golden-path && test $(ls docs/golden-path/*.md 2>/dev/null | wc -l | tr -d ' ') -ge 1"
+    weight: 3
+    pillar: correctness
+
+  # === Quality Gates (All Phases) ===
+  - id: backend-tests-pass
+    description: "Backend pytest suite passes"
+    check: "cd backend && python -m pytest --tb=short -q 2>&1 | tail -1 | grep -qv 'FAILED\\|ERROR'"
+    weight: 5
+    pillar: quality
+
+  - id: backend-syntax-clean
+    description: "No Python syntax errors in backend"
+    check: "find backend -name '*.py' -exec python -m py_compile {} + 2>&1 | grep -c 'Error' | xargs test 0 -eq"
+    weight: 5
+    pillar: quality
+
+  - id: no-hardcoded-secrets
+    description: "No hardcoded secrets in codebase"
+    check: "! grep -rn 'password\s*=\s*.' backend/ --include='*.py' | grep -v test | grep -v example | grep -v fixture | grep -v '#' | grep -q 'password'"
+    weight: 5
+    pillar: security
+
+  - id: docker-compose-valid
+    description: "Docker compose file is valid YAML"
+    check: "test -f docker-compose.yml && python3 -c 'import yaml,sys; yaml.safe_load(open(sys.argv[1]))' docker-compose.yml"
+    weight: 4
+    pillar: quality
+
+  # === Knowledge Gate ===
+  - id: learnings-captured
+    description: "At least one learning captured"
+    check: "test -d .sdd/learnings && test $(ls .sdd/learnings/*.md 2>/dev/null | wc -l | tr -d ' ') -ge 1"
+    weight: 2
+    pillar: quality
+
+  # === Discovery Gate ===
+  - id: codebase-discovered
+    description: "Codebase discovery completed"
+    check: "test -f .sdd/discovery/CODEBASE.md"
+    weight: 3
+    pillar: correctness

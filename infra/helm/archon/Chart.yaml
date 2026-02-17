@@ -1,0 +1,17 @@
+apiVersion: v2
+name: archon
+description: Archon — AI Orchestration Platform
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+maintainers:
+  - name: Archon Team
+    url: https://github.com/archon-ai/archon
+keywords:
+  - ai
+  - orchestration
+  - agents
+  - kubernetes
+home: https://github.com/archon-ai/archon
+sources:
+  - https://github.com/archon-ai/archon

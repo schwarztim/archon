@@ -1,0 +1,30 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "copilot-sdd goals",
+  "description": "Machine-checkable project goals with shell assertions",
+  "type": "object",
+  "required": ["version", "goals"],
+  "properties": {
+    "version": { "type": "integer", "const": 1 },
+    "mission": { "type": "string" },
+    "pillars": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "goals": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "description", "check"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+          "description": { "type": "string" },
+          "check": { "type": "string", "description": "Shell command that exits 0 on pass" },
+          "weight": { "type": "integer", "minimum": 1, "maximum": 5, "default": 3 },
+          "pillar": { "type": "string" }
+        }
+      }
+    }
+  }
+}

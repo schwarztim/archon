@@ -1,0 +1,30 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "copilot-sdd task spec",
+  "description": "Structured task definition with verification",
+  "type": "object",
+  "required": ["id", "name", "files", "action", "verify", "done"],
+  "additionalProperties": false,
+  "properties": {
+    "id": { "type": "string", "pattern": "^[0-9]+-[0-9]+$" },
+    "name": { "type": "string" },
+    "type": {
+      "type": "string",
+      "enum": ["auto", "manual", "review"],
+      "default": "auto"
+    },
+    "files": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Files this task will create or modify"
+    },
+    "depends_on": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Task IDs this depends on"
+    },
+    "action": { "type": "string", "description": "What to implement" },
+    "verify": { "type": "string", "description": "Command to verify the task succeeded" },
+    "done": { "type": "string", "description": "Human-readable definition of done" }
+  }
+}
