@@ -34,6 +34,7 @@ from app.websocket.routes import router as ws_router
 # Phase 2 routers
 from app.routes.router import router as router_router
 from app.routes.lifecycle import router as lifecycle_router
+from app.routes.lifecycle import lifecycle_v1_router
 from app.routes.cost import router as cost_router
 from app.routes.tenancy import router as tenancy_router
 
@@ -76,6 +77,10 @@ from app.routes.mobile import router as mobile_router
 from app.routes.mcp_interactive import router as mcp_interactive_router
 from app.routes.security_proxy import router as security_proxy_router
 from app.routes.admin import router as admin_router
+from app.routes.settings import router as settings_router
+
+# Metrics
+from app.metrics import router as metrics_router
 
 logger = get_logger(__name__)
 
@@ -121,6 +126,11 @@ def create_app() -> FastAPI:
         response.headers["X-Request-ID"] = rid
         return response
 
+    # -- Metrics middleware (outermost to capture all requests) ----------
+    from app.middleware.metrics_middleware import MetricsMiddleware
+
+    application.add_middleware(MetricsMiddleware)
+
     # -- Audit middleware (after request-ID so request_id is available) --
     from app.middleware.audit_middleware import AuditMiddleware
 
@@ -146,6 +156,7 @@ def create_app() -> FastAPI:
     # -- Phase 2 routers ----------------------------------------------
     application.include_router(router_router, prefix=settings.API_PREFIX)
     application.include_router(lifecycle_router, prefix=settings.API_PREFIX)
+    application.include_router(lifecycle_v1_router, prefix=settings.API_PREFIX)
     application.include_router(cost_router, prefix=settings.API_PREFIX)
     application.include_router(tenancy_router, prefix=settings.API_PREFIX)
 
@@ -192,6 +203,12 @@ def create_app() -> FastAPI:
     application.include_router(mcp_interactive_router)
     application.include_router(security_proxy_router)
     application.include_router(admin_router, prefix=settings.API_PREFIX)
+
+    # -- Settings Platform -------------------------------------------
+    application.include_router(settings_router, prefix=settings.API_PREFIX)
+
+    # -- Metrics (Prometheus-compatible) ------------------------------
+    application.include_router(metrics_router)
 
     # -- Startup event ------------------------------------------------
     @application.on_event("startup")

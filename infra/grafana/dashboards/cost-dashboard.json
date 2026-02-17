@@ -1,0 +1,76 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "title": "Token Usage Over Time",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "rate(archon_token_usage_total[5m])",
+          "legendFormat": "{{provider}} {{model}}"
+        }
+      ]
+    },
+    {
+      "title": "Cost by Provider",
+      "type": "piechart",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "archon_cost_total",
+          "legendFormat": "{{provider}}"
+        }
+      ]
+    },
+    {
+      "title": "Budget Utilization (%)",
+      "type": "gauge",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "(archon_cost_total / archon_budget_limit) * 100",
+          "legendFormat": "utilization"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "max": 100,
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 70 },
+              { "color": "red", "value": 90 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Cost Trend (24h)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "increase(archon_cost_total[1h])",
+          "legendFormat": "{{provider}}"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["archon", "cost"],
+  "templating": { "list": [] },
+  "time": { "from": "now-24h", "to": "now" },
+  "title": "Archon Cost Dashboard",
+  "uid": "archon-cost-dashboard"
+}

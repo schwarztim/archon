@@ -528,3 +528,286 @@ async def enterprise_list_schedules(
         "data": [j.model_dump(mode="json") for j in results],
         "meta": _meta(),
     }
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# Lifecycle v1 endpoints — pipeline, environments, health, gates
+# ═══════════════════════════════════════════════════════════════════════
+
+lifecycle_v1_router = APIRouter(
+    prefix="/lifecycle",
+    tags=["lifecycle-v1"],
+)
+
+
+# ── Request schemas ─────────────────────────────────────────────────
+
+
+class EnhancedDeployRequest(BaseModel):
+    """Enhanced deployment request with strategy details."""
+
+    agent_id: UUID
+    version_id: UUID
+    environment: str = "staging"
+    strategy_type: str = "rolling"
+    replicas: int = PField(default=2, ge=1, le=100)
+    canary_percentage: int = PField(default=10, ge=0, le=100)
+    blue_green_preview: bool = False
+    rollback_threshold: float = PField(default=0.05, ge=0.0, le=1.0)
+    pre_deploy_checks: bool = True
+    config: dict[str, Any] = PField(default_factory=dict)
+
+
+class GatesConfigRequest(BaseModel):
+    """Request to configure approval gates."""
+
+    gates: list[dict[str, Any]]
+
+
+# ── Enhanced deploy ─────────────────────────────────────────────────
+
+
+@lifecycle_v1_router.post("/deploy", status_code=201)
+async def enhanced_deploy(
+    body: EnhancedDeployRequest,
+    user: AuthenticatedUser = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Deploy an agent with enhanced strategy configuration."""
+    if not check_permission(user, "agents", "execute"):
+        raise HTTPException(status_code=403, detail="Permission denied: agents:execute")
+
+    strategy_map: dict[str, DeploymentStrategyType] = {
+        "rolling": DeploymentStrategyType.ROLLING,
+        "blue_green": DeploymentStrategyType.BLUE_GREEN,
+        "blue-green": DeploymentStrategyType.BLUE_GREEN,
+        "canary": DeploymentStrategyType.CANARY,
+        "shadow": DeploymentStrategyType.SHADOW,
+    }
+    strategy_type = strategy_map.get(body.strategy_type, DeploymentStrategyType.ROLLING)
+
+    strategy = DeploymentStrategy(
+        type=strategy_type,
+        canary_percentage=body.canary_percentage,
+        rollback_threshold=body.rollback_threshold,
+    )
+
+    try:
+        result = await LifecycleService.deploy(
+            tenant_id=user.tenant_id,
+            user=_user_dict(user),
+            agent_id=body.agent_id,
+            strategy=strategy,
+            target_env=body.environment,
+            version_id=body.version_id,
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
+
+    return {"data": result.model_dump(mode="json"), "meta": _meta()}
+
+
+# ── Promote / Demote ────────────────────────────────────────────────
+
+
+@lifecycle_v1_router.post("/promote/{deployment_id}", status_code=200)
+async def promote_deployment(
+    deployment_id: UUID,
+    user: AuthenticatedUser = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Promote a deployment to the next pipeline stage."""
+    if not check_permission(user, "agents", "execute"):
+        raise HTTPException(status_code=403, detail="Permission denied: agents:execute")
+
+    try:
+        result = await LifecycleService.promote_to_next_stage(
+            tenant_id=user.tenant_id,
+            user=_user_dict(user),
+            deployment_id=deployment_id,
+        )
+    except (ValueError, PermissionError) as exc:
+        status_code = 403 if isinstance(exc, PermissionError) else 400
+        raise HTTPException(status_code=status_code, detail=str(exc))
+
+    return {"data": result.model_dump(mode="json"), "meta": _meta()}
+
+
+@lifecycle_v1_router.post("/demote/{deployment_id}", status_code=200)
+async def demote_deployment(
+    deployment_id: UUID,
+    user: AuthenticatedUser = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Demote a deployment to the previous pipeline stage."""
+    if not check_permission(user, "agents", "execute"):
+        raise HTTPException(status_code=403, detail="Permission denied: agents:execute")
+
+    try:
+        result = await LifecycleService.demote_to_previous_stage(
+            tenant_id=user.tenant_id,
+            user=_user_dict(user),
+            deployment_id=deployment_id,
+        )
+    except (ValueError, PermissionError) as exc:
+        status_code = 403 if isinstance(exc, PermissionError) else 400
+        raise HTTPException(status_code=status_code, detail=str(exc))
+
+    return {"data": result.model_dump(mode="json"), "meta": _meta()}
+
+
+# ── Rollback ────────────────────────────────────────────────────────
+
+
+@lifecycle_v1_router.post("/rollback/{deployment_id}", status_code=200)
+async def rollback_v1(
+    deployment_id: UUID,
+    body: EnterpriseRollbackRequest,
+    user: AuthenticatedUser = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Roll back a deployment."""
+    if not check_permission(user, "agents", "execute"):
+        raise HTTPException(status_code=403, detail="Permission denied: agents:execute")
+
+    try:
+        result = await LifecycleService.rollback_deployment(
+            tenant_id=user.tenant_id,
+            user=_user_dict(user),
+            deployment_id=deployment_id,
+            reason=body.reason,
+        )
+    except (ValueError, PermissionError) as exc:
+        status_code = 403 if isinstance(exc, PermissionError) else 404
+        raise HTTPException(status_code=status_code, detail=str(exc))
+
+    return {"data": result.model_dump(mode="json"), "meta": _meta()}
+
+
+# ── Pipeline view ───────────────────────────────────────────────────
+
+
+@lifecycle_v1_router.get("/pipeline", status_code=200)
+async def get_pipeline(
+    user: AuthenticatedUser = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Get all pipeline stages with deployed versions."""
+    if not check_permission(user, "agents", "read"):
+        raise HTTPException(status_code=403, detail="Permission denied: agents:read")
+
+    stages = await LifecycleService.get_pipeline(
+        tenant_id=user.tenant_id,
+    )
+    return {
+        "data": [s.model_dump(mode="json") for s in stages],
+        "meta": _meta(),
+    }
+
+
+# ── Environments ────────────────────────────────────────────────────
+
+
+@lifecycle_v1_router.get("/environments", status_code=200)
+async def list_environments(
+    user: AuthenticatedUser = Depends(get_current_user),
+) -> dict[str, Any]:
+    """List all environments with health and deployment info."""
+    if not check_permission(user, "agents", "read"):
+        raise HTTPException(status_code=403, detail="Permission denied: agents:read")
+
+    envs = await LifecycleService.list_environments(
+        tenant_id=user.tenant_id,
+    )
+    return {
+        "data": [e.model_dump(mode="json") for e in envs],
+        "meta": _meta(),
+    }
+
+
+# ── Config diff ─────────────────────────────────────────────────────
+
+
+@lifecycle_v1_router.get("/diff", status_code=200)
+async def config_diff(
+    source: str = Query(description="Source environment"),
+    target: str = Query(description="Target environment"),
+    user: AuthenticatedUser = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Compare configuration between two environments."""
+    if not check_permission(user, "agents", "read"):
+        raise HTTPException(status_code=403, detail="Permission denied: agents:read")
+
+    diff = await LifecycleService.get_config_diff(
+        tenant_id=user.tenant_id,
+        source_env=source,
+        target_env=target,
+    )
+    return {"data": diff.model_dump(mode="json"), "meta": _meta()}
+
+
+# ── Deployment history ──────────────────────────────────────────────
+
+
+@lifecycle_v1_router.get("/history/{environment}", status_code=200)
+async def deployment_history(
+    environment: str,
+    user: AuthenticatedUser = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Get deployment history timeline for an environment."""
+    if not check_permission(user, "agents", "read"):
+        raise HTTPException(status_code=403, detail="Permission denied: agents:read")
+
+    entries = await LifecycleService.get_deployment_history(
+        tenant_id=user.tenant_id,
+        environment=environment,
+    )
+    return {
+        "data": [e.model_dump(mode="json") for e in entries],
+        "meta": _meta(),
+    }
+
+
+# ── Approval gates ─────────────────────────────────────────────────
+
+
+@lifecycle_v1_router.put("/gates", status_code=200)
+async def configure_gates(
+    body: GatesConfigRequest,
+    user: AuthenticatedUser = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Configure approval gates between pipeline stages."""
+    if not check_permission(user, "agents", "update"):
+        raise HTTPException(status_code=403, detail="Permission denied: agents:update")
+
+    try:
+        gates = await LifecycleService.configure_gates(
+            tenant_id=user.tenant_id,
+            user=_user_dict(user),
+            gates=body.gates,
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
+
+    return {
+        "data": [g.model_dump(mode="json") for g in gates],
+        "meta": _meta(),
+    }
+
+
+# ── Post-deployment health ──────────────────────────────────────────
+
+
+@lifecycle_v1_router.get("/health/{deployment_id}", status_code=200)
+async def deployment_health(
+    deployment_id: UUID,
+    user: AuthenticatedUser = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Get post-deployment health metrics."""
+    if not check_permission(user, "agents", "read"):
+        raise HTTPException(status_code=403, detail="Permission denied: agents:read")
+
+    try:
+        health = await LifecycleService.get_deployment_health(
+            tenant_id=user.tenant_id,
+            deployment_id=deployment_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+    return {"data": health.model_dump(mode="json"), "meta": _meta()}

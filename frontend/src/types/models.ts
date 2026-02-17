@@ -25,15 +25,25 @@ export type ExecutionStatus =
   | "cancelled";
 
 export interface ExecutionStep {
-  name: string;
+  name?: string;
+  step_name?: string;
+  step_type?: "llm_call" | "tool_call" | "condition" | "transform" | "retrieval";
   status: string;
+  duration_ms?: number;
+  token_usage?: number;
   tokens?: number;
+  cost?: number;
+  input?: Record<string, unknown>;
+  output?: Record<string, unknown>;
+  error?: string | null;
 }
 
 export interface ExecutionMetrics {
   duration_ms?: number;
+  total_duration_ms?: number;
   total_tokens?: number;
   estimated_cost?: number;
+  total_cost?: number;
 }
 
 export interface Execution {
@@ -135,6 +145,75 @@ export interface LifecycleEvent {
   actor: string;
   metadata: Record<string, unknown>;
   created_at: ISODateString;
+}
+
+export type DeploymentStrategyType = "rolling" | "blue_green" | "canary" | "shadow";
+
+export interface ApprovalGate {
+  from_stage: string;
+  to_stage: string;
+  required_approvers: number;
+  auto_approve_after_hours: number | null;
+  require_health_check: boolean;
+  require_tests_pass: boolean;
+  enabled: boolean;
+}
+
+export interface PipelineStageInfo {
+  stage: string;
+  label: string;
+  deployments: Record<string, unknown>[];
+  approval_gate: ApprovalGate | null;
+}
+
+export interface EnvironmentInfo {
+  name: string;
+  display_name: string;
+  status: string;
+  deployed_version: string | null;
+  agent_id: UUID | null;
+  agent_name: string | null;
+  health_status: string;
+  instance_count: number;
+  last_deploy_at: ISODateString | null;
+  created_at: ISODateString;
+}
+
+export interface ConfigDiff {
+  source_env: string;
+  target_env: string;
+  differences: Record<string, unknown>[];
+  source_version: string | null;
+  target_version: string | null;
+}
+
+export interface DeploymentHistoryEntry {
+  id: UUID;
+  agent_id: UUID;
+  agent_name: string | null;
+  version_id: string;
+  environment: string;
+  strategy: string;
+  status: string;
+  deployed_by: string | null;
+  started_at: ISODateString | null;
+  completed_at: ISODateString | null;
+  duration_seconds: number | null;
+  rollback_reason: string | null;
+}
+
+export interface HealthMetrics {
+  deployment_id: UUID;
+  status: string;
+  response_time_p50: number;
+  response_time_p95: number;
+  response_time_p99: number;
+  error_rate: number;
+  throughput_rps: number;
+  uptime_pct: number;
+  auto_rollback_triggered: boolean;
+  auto_rollback_threshold: number;
+  checked_at: ISODateString;
 }
 
 // ─── Cost Engine ─────────────────────────────────────────────────────

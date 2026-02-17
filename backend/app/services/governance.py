@@ -12,6 +12,7 @@ from sqlmodel import select
 
 from app.models.governance import (
     AgentRegistryEntry,
+    ApprovalRequest,
     AuditEntry,
     CompliancePolicy,
     ComplianceRecord,
@@ -383,6 +384,202 @@ class GovernanceEngine:
         await session.commit()
         await session.refresh(entry)
         return entry
+
+    # ── Registry Detail with Compliance History ─────────────────────
+
+    @staticmethod
+    async def get_agent_detail(
+        session: AsyncSession,
+        agent_id: UUID,
+    ) -> dict[str, Any] | None:
+        """Return agent registry entry with compliance scan history and risk score."""
+        stmt = select(AgentRegistryEntry).where(
+            AgentRegistryEntry.agent_id == agent_id
+        )
+        result = await session.exec(stmt)
+        entry = result.first()
+        if entry is None:
+            return None
+
+        # Fetch compliance history
+        history_stmt = (
+            select(ComplianceRecord)
+            .where(ComplianceRecord.agent_id == agent_id)
+            .order_by(ComplianceRecord.checked_at.desc())  # type: ignore[union-attr]
+            .limit(50)
+        )
+        history_result = await session.exec(history_stmt)
+        records = list(history_result.all())
+
+        # Compute compliance score
+        total = len(records)
+        passed = sum(1 for r in records if r.status == "compliant")
+        compliance_score = round((passed / total) * 100, 1) if total > 0 else 0.0
+
+        # Compute risk score
+        risk_scores = {"low": 20, "medium": 50, "high": 75, "critical": 95}
+        risk_score = risk_scores.get(entry.risk_level, 50)
+
+        # Determine compliance status
+        if total == 0:
+            compliance_status = "unknown"
+        elif compliance_score >= 80:
+            compliance_status = "compliant"
+        elif compliance_score >= 50:
+            compliance_status = "at_risk"
+        else:
+            compliance_status = "non_compliant"
+
+        return {
+            "registry": entry.model_dump(mode="json"),
+            "compliance_history": [r.model_dump(mode="json") for r in records],
+            "compliance_score": compliance_score,
+            "compliance_status": compliance_status,
+            "risk_score": risk_score,
+            "total_scans": total,
+            "passed_scans": passed,
+        }
+
+    # ── Compliance Scan (for single agent) ──────────────────────────
+
+    @staticmethod
+    async def scan_agent(
+        session: AsyncSession,
+        agent_id: UUID,
+    ) -> dict[str, Any]:
+        """Run a full compliance scan for an agent against all active policies."""
+        records = await GovernanceEngine.check_compliance(
+            session, agent_id=agent_id
+        )
+
+        total = len(records)
+        passed = sum(1 for r in records if r.status == "compliant")
+        compliance_score = round((passed / total) * 100, 1) if total > 0 else 0.0
+
+        return {
+            "agent_id": str(agent_id),
+            "records": [r.model_dump(mode="json") for r in records],
+            "compliance_score": compliance_score,
+            "total_policies": total,
+            "passed": passed,
+            "failed": total - passed,
+            "scanned_at": _utcnow().isoformat(),
+        }
+
+    # ── Approval Request CRUD ───────────────────────────────────────
+
+    @staticmethod
+    async def create_approval(
+        session: AsyncSession,
+        approval: ApprovalRequest,
+    ) -> ApprovalRequest:
+        """Create a new approval request."""
+        session.add(approval)
+        await session.commit()
+        await session.refresh(approval)
+        return approval
+
+    @staticmethod
+    async def list_approvals(
+        session: AsyncSession,
+        *,
+        status: str | None = None,
+        agent_id: UUID | None = None,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> tuple[list[ApprovalRequest], int]:
+        """Return paginated approval requests with optional filters."""
+        base = select(ApprovalRequest)
+        if status is not None:
+            base = base.where(ApprovalRequest.status == status)
+        if agent_id is not None:
+            base = base.where(ApprovalRequest.agent_id == agent_id)
+
+        count_result = await session.exec(base)
+        total = len(count_result.all())
+
+        stmt = base.offset(offset).limit(limit).order_by(
+            ApprovalRequest.created_at.desc()  # type: ignore[union-attr]
+        )
+        result = await session.exec(stmt)
+        return list(result.all()), total
+
+    @staticmethod
+    async def get_approval(
+        session: AsyncSession,
+        approval_id: UUID,
+    ) -> ApprovalRequest | None:
+        """Get a single approval request by ID."""
+        return await session.get(ApprovalRequest, approval_id)
+
+    @staticmethod
+    async def approve_request(
+        session: AsyncSession,
+        approval_id: UUID,
+        reviewer: str,
+        comment: str = "",
+    ) -> ApprovalRequest | None:
+        """Approve an approval request."""
+        approval = await session.get(ApprovalRequest, approval_id)
+        if approval is None:
+            return None
+
+        decision = {
+            "reviewer": reviewer,
+            "decision": "approved",
+            "comment": comment,
+            "decided_at": _utcnow().isoformat(),
+        }
+        decisions = list(approval.decisions or [])
+        decisions.append(decision)
+        approval.decisions = decisions
+
+        # Check approval rule
+        rule = approval.approval_rule
+        reviewers_count = len(approval.reviewers) if approval.reviewers else 1
+        approvals_count = sum(1 for d in decisions if d.get("decision") == "approved")
+
+        if rule == "any_one" and approvals_count >= 1:
+            approval.status = "approved"
+        elif rule == "all" and approvals_count >= reviewers_count:
+            approval.status = "approved"
+        elif rule == "majority" and approvals_count > reviewers_count / 2:
+            approval.status = "approved"
+
+        approval.updated_at = _utcnow()
+        session.add(approval)
+        await session.commit()
+        await session.refresh(approval)
+        return approval
+
+    @staticmethod
+    async def reject_request(
+        session: AsyncSession,
+        approval_id: UUID,
+        reviewer: str,
+        comment: str = "",
+    ) -> ApprovalRequest | None:
+        """Reject an approval request."""
+        approval = await session.get(ApprovalRequest, approval_id)
+        if approval is None:
+            return None
+
+        decision = {
+            "reviewer": reviewer,
+            "decision": "rejected",
+            "comment": comment,
+            "decided_at": _utcnow().isoformat(),
+        }
+        decisions = list(approval.decisions or [])
+        decisions.append(decision)
+        approval.decisions = decisions
+        approval.status = "rejected"
+        approval.updated_at = _utcnow()
+
+        session.add(approval)
+        await session.commit()
+        await session.refresh(approval)
+        return approval
 
 
 __all__ = [

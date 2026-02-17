@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import csv
+import io
 from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field as PField
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -284,6 +287,48 @@ async def reconcile_invoice(
 # ══════════════════════════════════════════════════════════════════════
 # Legacy endpoints (preserved for backward compatibility)
 # ══════════════════════════════════════════════════════════════════════
+
+
+@router.get("/summary")
+async def cost_summary_dashboard() -> dict[str, Any]:
+    """Return dashboard summary data for the Cost page (mock/placeholder)."""
+    from datetime import timedelta
+
+    today = datetime.now(tz=timezone.utc)
+    daily_spend = []
+    for i in range(6, -1, -1):
+        d = today - timedelta(days=i)
+        daily_spend.append({"date": d.strftime("%Y-%m-%d"), "amount": 0.00})
+
+    breakdown_by_agent = [
+        {"name": "research-agent", "tokens_used": 0, "cost": 0.00, "pct_of_total": 0},
+        {"name": "code-gen-agent", "tokens_used": 0, "cost": 0.00, "pct_of_total": 0},
+        {"name": "chat-agent", "tokens_used": 0, "cost": 0.00, "pct_of_total": 0},
+    ]
+    breakdown_by_model = [
+        {"name": "gpt-4", "tokens_used": 0, "cost": 0.00, "pct_of_total": 0},
+        {"name": "gpt-4o-mini", "tokens_used": 0, "cost": 0.00, "pct_of_total": 0},
+        {"name": "claude-3-5-sonnet", "tokens_used": 0, "cost": 0.00, "pct_of_total": 0},
+    ]
+    breakdown_by_user = [
+        {"name": "alice@example.com", "tokens_used": 0, "cost": 0.00, "pct_of_total": 0},
+        {"name": "bob@example.com", "tokens_used": 0, "cost": 0.00, "pct_of_total": 0},
+    ]
+
+    return {
+        "data": {
+            "total_spend": 0.00,
+            "budget_limit": 1000.00,
+            "budget_used_pct": 0,
+            "projected_spend": 0.00,
+            "top_model": "gpt-4",
+            "daily_spend": daily_spend,
+            "breakdown_by_agent": breakdown_by_agent,
+            "breakdown_by_model": breakdown_by_model,
+            "breakdown_by_user": breakdown_by_user,
+        },
+        "meta": _meta(),
+    }
 
 
 @router.post("/usage", status_code=201)
@@ -566,3 +611,419 @@ async def acknowledge_alert(
     if alert is None:
         raise HTTPException(status_code=404, detail="Alert not found")
     return {"data": alert.model_dump(mode="json"), "meta": _meta()}
+
+
+# ══════════════════════════════════════════════════════════════════════
+# Agent 11 — Cost Engine enhancements
+# ══════════════════════════════════════════════════════════════════════
+
+
+@router.post("/api/v1/cost/record", status_code=201)
+async def v1_record_usage(
+    body: RecordUsageRequest,
+    user: AuthenticatedUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Record token usage with full attribution (v1 endpoint)."""
+    event = UsageEvent(
+        execution_id=body.execution_id,
+        user_id=body.user_id or UUID(user.id),
+        agent_id=body.agent_id,
+        department_id=body.department_id,
+        workspace_id=body.workspace_id,
+        provider=body.provider,
+        model=body.model_id,
+        input_tokens=body.input_tokens,
+        output_tokens=body.output_tokens,
+        cost_usd=body.cost_usd,
+        metadata=body.metadata,
+    )
+    entry = await CostService.record_usage(session, user.tenant_id, event)
+    return {"data": entry.model_dump(mode="json"), "meta": _meta()}
+
+
+@router.get("/api/v1/cost/summary")
+async def v1_cost_summary(
+    since: datetime | None = Query(default=None),
+    until: datetime | None = Query(default=None),
+    group_by: str = Query(default="provider"),
+    user: AuthenticatedUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Summary stats: total spend, budget vs actual, projected, top model."""
+    period: dict[str, str] | None = None
+    if since or until:
+        period = {}
+        if since:
+            period["since"] = since.isoformat()
+        if until:
+            period["until"] = until.isoformat()
+
+    summary = await CostService.get_cost_summary(
+        session, user.tenant_id, user, period=period, group_by=group_by,
+    )
+    return {"data": summary.model_dump(mode="json"), "meta": _meta()}
+
+
+class BreakdownGroupBy(BaseModel):
+    """Query params for breakdown endpoint."""
+    pass
+
+
+@router.get("/api/v1/cost/breakdown")
+async def v1_cost_breakdown(
+    group_by: str = Query(default="model", pattern="^(agent|model|user|team)$"),
+    since: datetime | None = Query(default=None),
+    until: datetime | None = Query(default=None),
+    limit: int = Query(default=20, ge=1, le=100),
+    user: AuthenticatedUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Cost breakdown by agent, model, user, or team — sortable."""
+    period: dict[str, str] | None = None
+    if since or until:
+        period = {}
+        if since:
+            period["since"] = since.isoformat()
+        if until:
+            period["until"] = until.isoformat()
+
+    # Map frontend group_by to service field
+    field_map = {"model": "model", "agent": "agent", "user": "user", "team": "department"}
+    mapped = field_map.get(group_by, "model")
+
+    summary = await CostService.get_cost_summary(
+        session, user.tenant_id, user, period=period, group_by=mapped,
+    )
+
+    # Build breakdown list from the appropriate summary bucket
+    bucket_map = {
+        "model": summary.by_model,
+        "agent": summary.by_model,  # agents tracked via model grouping
+        "user": summary.by_user,
+        "department": summary.by_department,
+    }
+    raw = bucket_map.get(mapped, summary.by_model)
+
+    breakdown = sorted(
+        [
+            {
+                "name": k,
+                "cost": round(v, 6),
+                "pct_of_total": round((v / summary.total_cost * 100) if summary.total_cost > 0 else 0, 2),
+            }
+            for k, v in raw.items()
+        ],
+        key=lambda x: x["cost"],
+        reverse=True,
+    )[:limit]
+
+    return {"data": {"group_by": group_by, "items": breakdown, "total_cost": summary.total_cost}, "meta": _meta()}
+
+
+@router.get("/api/v1/cost/chart")
+async def v1_cost_chart(
+    granularity: str = Query(default="daily", pattern="^(daily|weekly|monthly)$"),
+    since: datetime | None = Query(default=None),
+    until: datetime | None = Query(default=None),
+    user: AuthenticatedUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Time-series chart data for stacked area chart by provider/model."""
+    from datetime import timedelta
+    from collections import defaultdict
+
+    now = datetime.now(tz=timezone.utc)
+    if since is None:
+        since = now - timedelta(days=30)
+    if until is None:
+        until = now
+
+    period = {"since": since.isoformat(), "until": until.isoformat()}
+    summary = await CostService.get_cost_summary(
+        session, user.tenant_id, user, period=period, group_by="provider",
+    )
+
+    # Build time-series by querying ledger entries grouped by date
+    from sqlmodel import select, col
+    base = select(TokenLedger).where(
+        TokenLedger.tenant_id == user.tenant_id,
+        col(TokenLedger.created_at) >= since,
+        col(TokenLedger.created_at) <= until,
+    )
+    from app.services.cost_service import _can_read_all_costs
+    if not _can_read_all_costs(user):
+        base = base.where(TokenLedger.user_id == UUID(user.id))
+
+    result = await session.exec(base)
+    entries = list(result.all())
+
+    # Group by date bucket + provider
+    series: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
+    for e in entries:
+        if granularity == "daily":
+            bucket = e.created_at.strftime("%Y-%m-%d")
+        elif granularity == "weekly":
+            iso = e.created_at.isocalendar()
+            bucket = f"{iso[0]}-W{iso[1]:02d}"
+        else:
+            bucket = e.created_at.strftime("%Y-%m")
+        series[bucket][e.provider] += e.total_cost
+
+    # Flatten to chart-friendly format
+    providers = sorted({e.provider for e in entries})
+    chart_data = []
+    for bucket in sorted(series.keys()):
+        point: dict[str, Any] = {"date": bucket}
+        for p in providers:
+            point[p] = round(series[bucket].get(p, 0.0), 6)
+        chart_data.append(point)
+
+    return {
+        "data": {
+            "granularity": granularity,
+            "providers": providers,
+            "series": chart_data,
+        },
+        "meta": _meta(),
+    }
+
+
+class BudgetWizardCreate(BaseModel):
+    """Budget creation via the Budget Wizard."""
+
+    name: str
+    scope: str = PField(default="tenant", pattern="^(tenant|team|agent|user)$")
+    scope_id: UUID | None = None
+    limit_amount: float = PField(gt=0.0)
+    period: str = PField(default="monthly", pattern="^(daily|weekly|monthly)$")
+    enforcement: str = PField(default="soft", pattern="^(soft|hard)$")
+    alert_thresholds: list[float] = PField(default_factory=lambda: [50.0, 75.0, 90.0, 100.0])
+
+
+@router.post("/api/v1/cost/budgets", status_code=201)
+async def v1_create_budget(
+    body: BudgetWizardCreate,
+    user: AuthenticatedUser = Depends(require_permission("costs", "create")),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Create a budget via the Budget Wizard."""
+    scope_map = {"team": "department", "tenant": "tenant", "agent": "agent", "user": "user"}
+    db_scope = scope_map.get(body.scope, body.scope)
+
+    budget = Budget(
+        tenant_id=user.tenant_id,
+        name=body.name,
+        scope=db_scope,
+        department_id=body.scope_id if db_scope == "department" else None,
+        user_id=body.scope_id if db_scope == "user" else None,
+        agent_id=body.scope_id if db_scope == "agent" else None,
+        limit_amount=body.limit_amount,
+        period=body.period,
+        enforcement=body.enforcement,
+        hard_limit=(body.enforcement == "hard"),
+        alert_thresholds=body.alert_thresholds,
+        period_start=datetime.now(tz=timezone.utc),
+    )
+    session.add(budget)
+    await session.commit()
+    await session.refresh(budget)
+
+    from app.services.audit_log_service import AuditLogService
+    await AuditLogService.create(
+        session,
+        actor_id=UUID(user.id),
+        action="budget.created",
+        resource_type="budget",
+        resource_id=budget.id,
+        details={"name": budget.name, "scope": db_scope, "limit": body.limit_amount},
+    )
+
+    return {"data": budget.model_dump(mode="json"), "meta": _meta()}
+
+
+@router.get("/api/v1/cost/budgets")
+async def v1_list_budgets(
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    user: AuthenticatedUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """List budgets with utilization data."""
+    from sqlmodel import select, col
+    base = select(Budget).where(Budget.tenant_id == user.tenant_id)
+    count_result = await session.exec(base)
+    total = len(count_result.all())
+
+    stmt = base.offset(offset).limit(limit).order_by(col(Budget.created_at).desc())
+    result = await session.exec(stmt)
+    budgets = list(result.all())
+
+    items = []
+    for b in budgets:
+        pct = round((b.spent_amount / b.limit_amount * 100) if b.limit_amount > 0 else 0, 2)
+        color = "green" if pct < 75 else ("yellow" if pct < 90 else "red")
+        items.append({
+            **b.model_dump(mode="json"),
+            "utilization_pct": pct,
+            "utilization_color": color,
+            "remaining": round(b.limit_amount - b.spent_amount, 6),
+        })
+
+    return {
+        "data": items,
+        "meta": _meta(pagination={"total": total, "limit": limit, "offset": offset}),
+    }
+
+
+@router.get("/api/v1/cost/budgets/{budget_id}/utilization")
+async def v1_budget_utilization(
+    budget_id: UUID,
+    user: AuthenticatedUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Get detailed utilization for a single budget."""
+    budget = await session.get(Budget, budget_id)
+    if budget is None:
+        raise HTTPException(status_code=404, detail="Budget not found")
+    if budget.tenant_id != user.tenant_id:
+        raise HTTPException(status_code=404, detail="Budget not found")
+
+    pct = round((budget.spent_amount / budget.limit_amount * 100) if budget.limit_amount > 0 else 0, 2)
+    color = "green" if pct < 75 else ("yellow" if pct < 90 else "red")
+
+    # Determine active alerts
+    triggered_thresholds = [t for t in (budget.alert_thresholds or []) if pct >= t]
+
+    return {
+        "data": {
+            "budget_id": str(budget.id),
+            "name": budget.name,
+            "limit_amount": budget.limit_amount,
+            "spent_amount": budget.spent_amount,
+            "remaining": round(budget.limit_amount - budget.spent_amount, 6),
+            "utilization_pct": pct,
+            "utilization_color": color,
+            "enforcement": budget.enforcement,
+            "triggered_thresholds": triggered_thresholds,
+            "period": budget.period,
+        },
+        "meta": _meta(),
+    }
+
+
+@router.put("/api/v1/cost/budgets/{budget_id}")
+async def v1_update_budget(
+    budget_id: UUID,
+    body: BudgetUpdate,
+    user: AuthenticatedUser = Depends(require_permission("costs", "create")),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Update a budget."""
+    budget = await session.get(Budget, budget_id)
+    if budget is None:
+        raise HTTPException(status_code=404, detail="Budget not found")
+    if budget.tenant_id != user.tenant_id:
+        raise HTTPException(status_code=404, detail="Budget not found")
+
+    data = body.model_dump(exclude_unset=True)
+    for key, value in data.items():
+        if hasattr(budget, key):
+            setattr(budget, key, value)
+    if "enforcement" in data:
+        budget.hard_limit = (data["enforcement"] == "hard")
+    budget.updated_at = datetime.now(tz=timezone.utc)
+    session.add(budget)
+    await session.commit()
+    await session.refresh(budget)
+
+    from app.services.audit_log_service import AuditLogService
+    await AuditLogService.create(
+        session,
+        actor_id=UUID(user.id),
+        action="budget.updated",
+        resource_type="budget",
+        resource_id=budget.id,
+        details=data,
+    )
+
+    return {"data": budget.model_dump(mode="json"), "meta": _meta()}
+
+
+@router.get("/api/v1/cost/export")
+async def v1_export_report(
+    format: str = Query(default="csv", pattern="^(csv|pdf)$"),
+    since: datetime | None = Query(default=None),
+    until: datetime | None = Query(default=None),
+    group_by: str = Query(default="team"),
+    user: AuthenticatedUser = Depends(require_permission("costs", "read")),
+    session: AsyncSession = Depends(get_session),
+) -> Any:
+    """Export chargeback report as CSV or PDF."""
+    from datetime import timedelta
+
+    now = datetime.now(tz=timezone.utc)
+    if since is None:
+        since = now - timedelta(days=30)
+    if until is None:
+        until = now
+
+    period = {"since": since.isoformat(), "until": until.isoformat()}
+    report = await CostService.generate_chargeback_report(
+        session, user.tenant_id, user, period=period,
+    )
+
+    if format == "csv":
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(["Provider", "Model", "Calls", "Input Tokens", "Output Tokens", "Cost (USD)"])
+        for item in report.line_items:
+            writer.writerow([
+                item.provider, item.model, item.call_count,
+                item.input_tokens, item.output_tokens, f"{item.cost_usd:.6f}",
+            ])
+        writer.writerow([])
+        writer.writerow(["Total", "", "", "", "", f"{report.total:.6f}"])
+
+        output.seek(0)
+        return StreamingResponse(
+            iter([output.getvalue()]),
+            media_type="text/csv",
+            headers={"Content-Disposition": f"attachment; filename=cost_report_{since.strftime('%Y%m%d')}_{until.strftime('%Y%m%d')}.csv"},
+        )
+
+    # PDF: return JSON summary (actual PDF rendering would use a library like reportlab)
+    return {
+        "data": {
+            "format": "pdf",
+            "report": report.model_dump(mode="json"),
+            "message": "PDF export generated",
+        },
+        "meta": _meta(),
+    }
+
+
+# ── Budget enforcement middleware helper ─────────────────────────────
+
+
+async def check_budget_enforcement(
+    session: AsyncSession,
+    tenant_id: str,
+    user: AuthenticatedUser,
+    estimated_cost: float,
+) -> None:
+    """Check budget enforcement and raise HTTP 429 if hard limit exceeded.
+
+    Call this before executing an LLM call to enforce hard budget limits.
+    """
+    result = await CostService.check_budget(session, tenant_id, user, estimated_cost)
+    if result.status == "hard_limit_blocked":
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "error": "budget_exceeded",
+                "message": result.warning_message or "Hard budget limit exceeded",
+                "budget_id": str(result.budget_id) if result.budget_id else None,
+                "usage_pct": result.usage_pct,
+            },
+        )

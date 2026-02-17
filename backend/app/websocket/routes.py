@@ -46,6 +46,55 @@ async def _resolve_token(websocket: WebSocket) -> tuple[str | None, dict[str, An
     return None, None
 
 
+async def _resolve_token_dev(websocket: WebSocket) -> tuple[str | None, dict[str, Any] | None]:
+    """Resolve token with dev-mode HS256 fallback for WebSocket auth."""
+    # 1. Try query parameter
+    token: str | None = websocket.query_params.get("token")
+    if token:
+        # Try standard auth first
+        payload = await authenticate_websocket(websocket, token)
+        if payload:
+            return token, payload
+        # Try HS256 dev-mode fallback
+        payload = _try_hs256_decode(token)
+        if payload:
+            return token, payload
+
+    # 2. Try first message
+    try:
+        raw = await websocket.receive_text()
+        msg = json.loads(raw)
+        if isinstance(msg, dict) and msg.get("type") == "auth":
+            token = msg.get("token", "")
+            if token:
+                payload = await authenticate_websocket(websocket, token)
+                if payload:
+                    return token, payload
+                payload = _try_hs256_decode(token)
+                if payload:
+                    return token, payload
+    except Exception:
+        pass
+
+    return None, None
+
+
+def _try_hs256_decode(token: str) -> dict[str, Any] | None:
+    """Attempt HS256 dev-mode JWT decode."""
+    try:
+        from jose import jwt as jose_jwt, JWTError
+        from app.config import settings
+        payload: dict[str, Any] = jose_jwt.decode(
+            token, settings.JWT_SECRET, algorithms=["HS256"],
+            options={"verify_exp": True, "verify_iss": False, "verify_aud": False},
+        )
+        if payload.get("sub") and payload.get("email"):
+            return payload
+    except Exception:
+        pass
+    return None
+
+
 @router.websocket("/ws/executions/{execution_id}")
 async def execution_ws(websocket: WebSocket, execution_id: str) -> None:
     """Stream real-time events for a running execution.
@@ -53,11 +102,21 @@ async def execution_ws(websocket: WebSocket, execution_id: str) -> None:
     Authenticates via ``?token=`` query parameter or a first-message auth
     handshake.  Unauthenticated connections are rejected with close code
     4001.  Authenticated connections are scoped to the user's tenant.
+
+    Events streamed:
+    - execution.started — execution begins processing
+    - step.started — a step begins
+    - step.completed — a step finishes with metrics
+    - step.failed — a step encounters an error
+    - tool.called — a tool invocation occurs
+    - llm.response — LLM response received
+    - execution.completed — execution finishes successfully
+    - execution.failed — execution finishes with error
     """
     await websocket.accept()
 
-    # Authenticate
-    token, payload = await _resolve_token(websocket)
+    # Authenticate (with dev-mode fallback)
+    token, payload = await _resolve_token_dev(websocket)
     if payload is None:
         logger.warning(
             "websocket.auth_failed",

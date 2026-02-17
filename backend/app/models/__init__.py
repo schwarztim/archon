@@ -198,6 +198,7 @@ from app.models.redteam import (
     Severity,
     VulnerabilityFinding,
 )
+from app.models.settings import FeatureFlag, PlatformSetting, SettingsAPIKey
 
 
 __all__ = [
@@ -276,4 +277,7 @@ __all__ = [
     "UserIdentity",
     "UserRole",
     "VulnerabilityFinding",
+    "FeatureFlag",
+    "PlatformSetting",
+    "SettingsAPIKey",
 ]

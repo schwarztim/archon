@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { apiGet, apiPost } from "@/api/client";
+import { TenantDetail } from "@/components/tenants/TenantDetail";
 
 interface Tenant {
   id: string;
@@ -65,6 +66,7 @@ export function TenantsPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [quotas, setQuotas] = useState<Record<string, QuotaInfo[]>>({});
   const [usage, setUsage] = useState<Record<string, UsageSummary>>({});
+  const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
 
   async function fetchTenants() {
     setLoading(true);
@@ -123,6 +125,17 @@ export function TenantsPage() {
     return <div className="flex h-64 items-center justify-center"><p className="text-gray-400">Loading...</p></div>;
   }
 
+  if (selectedTenant) {
+    return (
+      <div className="p-6">
+        <TenantDetail
+          tenant={selectedTenant}
+          onBack={() => setSelectedTenant(null)}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="p-6">
       {error && (
@@ -179,7 +192,7 @@ export function TenantsPage() {
               </tr></thead>
               <tbody>{tenants.map((t) => (
                 <>
-                  <tr key={t.id} className="border-b border-[#2a2d37] hover:bg-white/5 cursor-pointer" onClick={() => handleExpand(t.id)}>
+                  <tr key={t.id} className="border-b border-[#2a2d37] hover:bg-white/5 cursor-pointer" onClick={() => setSelectedTenant(t)}>
                     <td className="px-4 py-2 font-medium text-white">{t.name}</td>
                     <td className="px-4 py-2 font-mono text-xs text-gray-400">{t.slug}</td>
                     <td className="px-4 py-2">{tierBadge(t.tier ?? "free")}</td>

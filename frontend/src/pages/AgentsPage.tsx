@@ -20,7 +20,8 @@ import { useAuth } from "@/providers/auth-provider";
 import { apiGet, apiPost, apiPut, apiDelete } from "@/api/client";
 import type { ApiResponse } from "@/types";
 import { useApiQuery, useApiMutation } from "@/hooks/useApi";
-import { AgentWizard } from "@/components/wizard/AgentWizard";
+import { CreateAgentWizard } from "@/components/agents/CreateAgentWizard";
+import { NLAgentWizard } from "@/components/wizard/NLAgentWizard";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -93,7 +94,9 @@ export function AgentsPage() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [showCreate, setShowCreate] = useState(false);
   const [quickCreate, setQuickCreate] = useState(false);
+  const [showNLWizard, setShowNLWizard] = useState(false);
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
+  const [editAgent, setEditAgent] = useState<Record<string, unknown> | null>(null);
   const [page, setPage] = useState(0);
   const limit = 20;
 
@@ -187,6 +190,13 @@ export function AgentsPage() {
               <List size={16} />
             </button>
           </div>
+          <button
+            onClick={() => setShowNLWizard(true)}
+            className="flex items-center gap-2 rounded-lg border border-purple-500/40 bg-purple-500/10 px-4 py-2 text-sm font-medium text-purple-400 hover:bg-purple-500/20"
+          >
+            <Zap size={16} />
+            Create with AI ✨
+          </button>
           <div className="relative group">
             <button
               onClick={() => { setQuickCreate(false); setShowCreate(true); }}
@@ -284,7 +294,7 @@ export function AgentsPage() {
                   {activeMenu === agent.id && (
                     <div className="absolute right-0 top-8 z-10 w-36 rounded-lg border border-[#2a2d37] bg-[#12141e] py-1 shadow-xl">
                       <button
-                        onClick={() => { setActiveMenu(null); navigate(`/builder?agentId=${agent.id}`); }}
+                        onClick={() => { setActiveMenu(null); setEditAgent(agent as unknown as Record<string, unknown>); setQuickCreate(false); setShowCreate(true); }}
                         className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-300 hover:bg-white/5"
                       >
                         <Edit size={14} /> Edit
@@ -419,7 +429,7 @@ export function AgentsPage() {
                     <td className="px-4 py-2 text-right">
                       <div className="flex items-center justify-end gap-1">
                         <button
-                          onClick={() => navigate(`/builder?agentId=${agent.id}`)}
+                          onClick={() => { setEditAgent(agent as unknown as Record<string, unknown>); setQuickCreate(false); setShowCreate(true); }}
                           className="rounded p-1 text-gray-400 hover:bg-white/10 hover:text-white"
                           aria-label={`Edit ${agent.name}`}
                         >
@@ -478,18 +488,24 @@ export function AgentsPage() {
         </div>
       )}
 
-      {/* Agent Creation Wizard */}
+      {/* Agent Creation / Edit Wizard */}
       {showCreate && (
-        <AgentWizard
-          onClose={() => setShowCreate(false)}
+        <CreateAgentWizard
+          onClose={() => { setShowCreate(false); setEditAgent(null); }}
           onSubmit={(payload) => {
-            createMutation.mutate(payload as CreateAgentPayload, {
-              onSuccess: () => setShowCreate(false),
+            createMutation.mutate(payload as unknown as CreateAgentPayload, {
+              onSuccess: () => { setShowCreate(false); setEditAgent(null); },
             });
           }}
           isPending={createMutation.isPending}
           quickCreate={quickCreate}
+          editData={editAgent}
         />
+      )}
+
+      {/* NL Agent Wizard */}
+      {showNLWizard && (
+        <NLAgentWizard onClose={() => setShowNLWizard(false)} />
       )}
     </div>
   );

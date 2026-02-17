@@ -6,6 +6,31 @@ import type {
 } from "@/types/models";
 import { apiGet, apiPost, apiPut, apiDelete, type PaginationParams } from "./client";
 
+/** Connector type schema from backend catalog */
+export interface CredentialField {
+  name: string;
+  label: string;
+  field_type: "text" | "password" | "select" | "number" | "checkbox" | "oauth";
+  required: boolean;
+  placeholder: string;
+  default: string | null;
+  options: string[];
+  secret: boolean;
+  description: string;
+}
+
+export interface ConnectorTypeSchema {
+  name: string;
+  label: string;
+  category: string;
+  icon: string;
+  description: string;
+  auth_methods: string[];
+  credential_fields: CredentialField[];
+  supports_oauth: boolean;
+  supports_test: boolean;
+}
+
 /** List connectors */
 export async function listConnectors(
   params: PaginationParams = {},
@@ -42,16 +67,44 @@ export async function deleteConnector(id: string): Promise<void> {
   return apiDelete(`/connectors/${id}`);
 }
 
-/** Test a connector (local validation — no backend endpoint) */
+/** Test a connector's connection */
 export async function testConnection(
   connectorId: string,
 ): Promise<ApiResponse<ConnectionTestResult>> {
-  return apiGet<ConnectionTestResult>(`/connectors/${connectorId}`);
+  return apiPost<ConnectionTestResult>(`/connectors/${connectorId}/test-connection`, {});
 }
 
-/** Get connector health (returns connector details) */
+/** Get connector health */
 export async function getHealth(
   connectorId: string,
 ): Promise<ApiResponse<ConnectorHealth>> {
-  return apiGet<ConnectorHealth>(`/connectors/${connectorId}`);
+  return apiGet<ConnectorHealth>(`/connectors/${connectorId}/health`);
+}
+
+/** Get all connector type schemas (catalog) */
+export async function listConnectorTypes(): Promise<ApiResponse<ConnectorTypeSchema[]>> {
+  return apiGet<ConnectorTypeSchema[]>("/connectors/catalog/types");
+}
+
+/** Start OAuth authorize flow for a provider */
+export async function oauthAuthorize(
+  providerType: string,
+  redirectUri: string,
+): Promise<ApiResponse<{ authorization_url: string; state: string }>> {
+  return apiGet<{ authorization_url: string; state: string }>(
+    `/connectors/oauth/${providerType}/authorize`,
+    { redirect_uri: redirectUri },
+  );
+}
+
+/** Complete OAuth callback */
+export async function oauthCallback(
+  providerType: string,
+  code: string,
+  state: string,
+): Promise<ApiResponse<{ token_type: string; vault_path: string }>> {
+  return apiPost<{ token_type: string; vault_path: string }>(
+    `/connectors/oauth/${providerType}/callback`,
+    { code, state },
+  );
 }

@@ -37,22 +37,42 @@ interface CreateSecretPayload {
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
-const TYPE_COLORS: Record<string, string> = {
-  api_key: "bg-blue-500/20 text-blue-400",
-  oauth_token: "bg-purple-500/20 text-purple-400",
-  certificate: "bg-green-500/20 text-green-400",
-  password: "bg-yellow-500/20 text-yellow-400",
-  generic: "bg-gray-500/20 text-gray-400",
+const TYPE_BADGES: Record<string, { icon: string; color: string }> = {
+  api_key: { icon: "🔑", color: "bg-blue-500/20 text-blue-400" },
+  oauth_token: { icon: "🎫", color: "bg-purple-500/20 text-purple-400" },
+  certificate: { icon: "📜", color: "bg-green-500/20 text-green-400" },
+  password: { icon: "🔒", color: "bg-red-500/20 text-red-400" },
+  generic: { icon: "⚙️", color: "bg-gray-500/20 text-gray-400" },
 };
 
 function typeBadge(type: string) {
+  const badge = TYPE_BADGES[type] ?? TYPE_BADGES.generic;
   return (
     <span
-      className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${TYPE_COLORS[type] ?? "bg-gray-500/20 text-gray-400"}`}
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${badge.color}`}
     >
+      <span>{badge.icon}</span>
       {type.replace("_", " ")}
     </span>
   );
+}
+
+function rotationStatus(secret: Secret) {
+  if (!secret.expires_at) {
+    return (
+      <span className="text-xs text-gray-500">No policy</span>
+    );
+  }
+  const now = Date.now();
+  const expiresAt = new Date(secret.expires_at).getTime();
+  const daysUntil = (expiresAt - now) / 86_400_000;
+  if (daysUntil <= 0) {
+    return <span className="text-xs font-medium text-red-400">● Expired</span>;
+  }
+  if (daysUntil <= 30) {
+    return <span className="text-xs font-medium text-yellow-400">● Approaching</span>;
+  }
+  return <span className="text-xs font-medium text-green-400">● OK</span>;
 }
 
 function timeAgo(dateStr: string | null): string {
@@ -151,8 +171,29 @@ export function SecretsPage() {
     );
   }
 
+  // ── Vault status ────────────────────────────────────────────────────
+  const { data: readyData } = useApiQuery<{ vault?: { status: string } }>(
+    ["vault-status"],
+    () => apiGet<{ vault?: { status: string } }>("/ready"),
+  );
+  const vaultConnected = readyData?.data?.vault?.status === "healthy";
+  const vaultChecked = !!readyData;
+
   return (
     <div className="p-6">
+      {/* Vault Status Banner */}
+      {vaultChecked && (
+        vaultConnected ? (
+          <div className="mb-4 rounded-lg border border-green-500/30 bg-green-500/10 px-4 py-2 text-sm text-green-400">
+            🟢 Vault Connected
+          </div>
+        ) : (
+          <div className="mb-4 rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-4 py-2 text-sm text-yellow-400">
+            ⚠️ Running in Stub Mode — Secrets stored in memory only
+          </div>
+        )
+      )}
+
       {/* Header */}
       <div className="mb-6 flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -209,6 +250,7 @@ export function SecretsPage() {
                   <th className="px-4 py-2 font-medium">Name</th>
                   <th className="px-4 py-2 font-medium">Path</th>
                   <th className="px-4 py-2 font-medium">Type</th>
+                  <th className="px-4 py-2 font-medium">Rotation Status</th>
                   <th className="px-4 py-2 font-medium">Last Rotated</th>
                   <th className="px-4 py-2 font-medium">Expires</th>
                   <th className="px-4 py-2 font-medium text-right">Actions</th>
@@ -220,6 +262,7 @@ export function SecretsPage() {
                     <td className="px-4 py-2 font-medium text-white">{s.name}</td>
                     <td className="px-4 py-2 font-mono text-xs text-gray-400">{s.path}</td>
                     <td className="px-4 py-2">{typeBadge(s.type)}</td>
+                    <td className="px-4 py-2">{rotationStatus(s)}</td>
                     <td className="px-4 py-2 text-gray-400">{timeAgo(s.last_rotated)}</td>
                     <td className="px-4 py-2 text-gray-400">
                       {s.expires_at ? (
@@ -314,7 +357,7 @@ export function SecretsPage() {
             <p className="mb-6 text-sm text-gray-400">
               {confirmAction.type === "delete"
                 ? `Are you sure you want to delete "${confirmAction.secret.name}"? This action cannot be undone.`
-                : `Rotate "${confirmAction.secret.name}"? The current value will be replaced with a new one.`}
+                : `Rotate secret ${confirmAction.secret.name}? This will generate a new value.`}
             </p>
             <div className="flex justify-end gap-2">
               <button

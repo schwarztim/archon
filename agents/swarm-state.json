@@ -2,15 +2,72 @@
   "version": "2.0",
   "platform": "archon",
   "generated_at": "2026-02-17T20:22:00Z",
-  "status": "definitions_complete",
+  "status": "build_complete",
   "phases": {
-    "0": { "name": "Foundation", "status": "complete", "agents": ["17"] },
-    "1": { "name": "Core Platform", "status": "pending_rebuild", "agents": ["01", "02", "03", "04", "05"] },
-    "2": { "name": "Operations", "status": "pending_rebuild", "agents": ["06", "07", "08", "11"] },
-    "3": { "name": "Security", "status": "pending_rebuild", "agents": ["12", "13", "14"] },
-    "4": { "name": "Data & Integration", "status": "pending_rebuild", "agents": ["09", "15"] },
-    "5": { "name": "Enterprise", "status": "pending_rebuild", "agents": ["10", "16", "19", "20", "21"] },
-    "6": { "name": "Audit & Validation", "status": "pending_rebuild", "agents": ["18", "22"] }
+    "0": {
+      "name": "Foundation",
+      "status": "complete",
+      "agents": [
+        "17"
+      ]
+    },
+    "1": {
+      "name": "Core Platform",
+      "status": "complete",
+      "agents": [
+        "01",
+        "02",
+        "03",
+        "04",
+        "05"
+      ]
+    },
+    "2": {
+      "name": "Operations",
+      "status": "complete",
+      "agents": [
+        "06",
+        "07",
+        "08",
+        "11"
+      ]
+    },
+    "3": {
+      "name": "Security",
+      "status": "complete",
+      "agents": [
+        "12",
+        "13",
+        "14"
+      ]
+    },
+    "4": {
+      "name": "Data & Integration",
+      "status": "complete",
+      "agents": [
+        "09",
+        "15"
+      ]
+    },
+    "5": {
+      "name": "Enterprise",
+      "status": "complete",
+      "agents": [
+        "10",
+        "16",
+        "19",
+        "20",
+        "21"
+      ]
+    },
+    "6": {
+      "name": "Audit & Validation",
+      "status": "complete",
+      "agents": [
+        "18",
+        "22"
+      ]
+    }
   },
   "agents": {
     "01": {
@@ -18,19 +75,28 @@
       "file": "agents/prompts/agent-01-core-backend.md",
       "scope": [
         "Expand Agent model: steps, tools, llm_config, rag_config, mcp_config, security_policy, graph_definition, input/output_schema",
-        "Wire execution engine: POST /agents/{id}/execute → LangGraph runtime with WebSocket streaming",
+        "Wire execution engine: POST /agents/{id}/execute \u2192 LangGraph runtime with WebSocket streaming",
         "Fix /api/v1/health alias (Settings page 404)",
         "Fix audit_logs route: add auth, handle empty DB gracefully",
         "Enforce API envelope format on all routes"
       ],
-      "depends_on": ["17"],
-      "blocks": ["02", "03", "05", "06", "07", "08"],
+      "depends_on": [
+        "17"
+      ],
+      "blocks": [
+        "02",
+        "03",
+        "05",
+        "06",
+        "07",
+        "08"
+      ],
       "priority": "critical",
       "current_state": {
-        "agents.py": "140 lines — minimal CRUD, only name/description/tags in AgentCreate",
-        "executions.py": "101 lines — read-only stubs, no execution creation",
-        "audit_logs.py": "71 lines — bare list, no auth, fails on empty DB",
-        "health": "endpoint at /health but frontend calls /api/v1/health → 404"
+        "agents.py": "140 lines \u2014 minimal CRUD, only name/description/tags in AgentCreate",
+        "executions.py": "101 lines \u2014 read-only stubs, no execution creation",
+        "audit_logs.py": "71 lines \u2014 bare list, no auth, fails on empty DB",
+        "health": "endpoint at /health but frontend calls /api/v1/health \u2192 404"
       },
       "acceptance_criteria": [
         "AgentCreate accepts 10+ fields (steps, tools, llm_config, rag_config, mcp_config, security_policy, graph_definition)",
@@ -39,25 +105,31 @@
         "GET /audit-logs/ returns {data:[], meta:{}} when empty (not 500)",
         "All routes use require_auth dependency",
         "1092+ tests pass"
-      ]
+      ],
+      "build_status": "complete"
     },
     "02": {
       "name": "Visual Graph Builder",
       "file": "agents/prompts/agent-02-ui-builder.md",
       "scope": [
         "Expand node palette to 20+ types: LLM, Tool, Condition, Loop, Parallel, RAG, Human, SubAgent, DLP, CostGate",
-        "Rich property panel per node type — NO JSON config fields",
+        "Rich property panel per node type \u2014 NO JSON config fields",
         "Save/load graph to backend via graph_definition field on Agent",
         "Load agent graph when navigating from AgentsPage Edit button",
         "Validation: require Input+Output nodes, compatible edges",
-        "Test Run button: sample input → shows step-by-step execution in side panel",
+        "Test Run button: sample input \u2192 shows step-by-step execution in side panel",
         "NL integration: 'Describe with AI' button opens Agent 03 wizard"
       ],
-      "depends_on": ["01"],
-      "blocks": ["05", "07"],
+      "depends_on": [
+        "01"
+      ],
+      "blocks": [
+        "05",
+        "07"
+      ],
       "priority": "critical",
       "current_state": {
-        "BuilderPage.tsx": "56 lines — React Flow provider + canvas/palette/properties layout exists",
+        "BuilderPage.tsx": "56 lines \u2014 React Flow provider + canvas/palette/properties layout exists",
         "canvas_components": "AgentCanvas, BaseNode, ConditionNode, InputNode, OutputNode, LLMNode, ToolNode, TopBar",
         "palette": "NodePalette.tsx exists but minimal",
         "properties": "PropertyPanel.tsx exists but minimal"
@@ -69,32 +141,37 @@
         "Edit agent from AgentsPage loads correct graph in builder",
         "Test button executes sample input and shows step results",
         "Validation prevents saving invalid graphs"
-      ]
+      ],
+      "build_status": "complete"
     },
     "03": {
       "name": "NL-to-Agent Wizard",
       "file": "agents/prompts/agent-03-nl-wizard.md",
       "scope": [
-        "Create frontend 4-step wizard modal: Describe → Plan → Configure → Preview",
+        "Create frontend 4-step wizard modal: Describe \u2192 Plan \u2192 Configure \u2192 Preview",
         "Step 2 shows AI plan as editable cards, NOT raw text/JSON",
         "Step 4 shows React Flow graph preview",
         "Wire to existing wizard_service.py (719 lines) backend",
         "Suggest matching templates during Step 2"
       ],
-      "depends_on": ["01", "02"],
+      "depends_on": [
+        "01",
+        "02"
+      ],
       "blocks": [],
       "priority": "high",
       "current_state": {
-        "backend": "wizard_service.py (719 lines) and wizard.py (183 lines) exist with NL→LangGraph logic",
-        "frontend": "ZERO frontend wizard UI exists — feature completely inaccessible"
+        "backend": "wizard_service.py (719 lines) and wizard.py (183 lines) exist with NL\u2192LangGraph logic",
+        "frontend": "ZERO frontend wizard UI exists \u2014 feature completely inaccessible"
       },
       "acceptance_criteria": [
         "Wizard accessible from AgentsPage Create button and Dashboard Quick Start",
-        "All 4 steps render rich UI — zero JSON visible",
+        "All 4 steps render rich UI \u2014 zero JSON visible",
         "Generated plan is editable as cards/form",
         "Step 4 shows React Flow graph preview",
         "Created agent is retrievable via API and openable in builder"
-      ]
+      ],
+      "build_status": "complete"
     },
     "04": {
       "name": "Templates & Marketplace",
@@ -106,12 +183,15 @@
         "Redesign MarketplacePage: browseable catalog with search/categories/install",
         "Seed 20+ starter templates"
       ],
-      "depends_on": ["01", "02"],
+      "depends_on": [
+        "01",
+        "02"
+      ],
       "blocks": [],
       "priority": "high",
       "current_state": {
-        "TemplatesPage.tsx": "177 lines — form with raw JSON Definition field, category dropdown, tags",
-        "MarketplacePage.tsx": "232 lines — bare publish form, no listings, no catalog"
+        "TemplatesPage.tsx": "177 lines \u2014 form with raw JSON Definition field, category dropdown, tags",
+        "MarketplacePage.tsx": "232 lines \u2014 bare publish form, no listings, no catalog"
       },
       "acceptance_criteria": [
         "Templates page shows gallery of cards with visual preview",
@@ -119,52 +199,66 @@
         "Template creation uses wizard, not JSON textarea",
         "Marketplace has search, categories, install flow",
         "20+ seed templates on fresh install"
-      ]
+      ],
+      "build_status": "complete"
     },
     "05": {
       "name": "Agent Creation Wizard",
       "file": "agents/prompts/agent-05-sandbox.md",
       "scope": [
         "Replace 3-field Create Agent modal with 7-step wizard",
-        "Steps: Identity → Model → Tools/MCP → Knowledge/RAG → Security → Connectors → Review/Test",
+        "Steps: Identity \u2192 Model \u2192 Tools/MCP \u2192 Knowledge/RAG \u2192 Security \u2192 Connectors \u2192 Review/Test",
         "Model selector: dropdown from /router/models with provider badges",
         "Tool selector: searchable MCP tool grid",
         "Security step: DLP toggle, guardrails, cost limits",
         "Step 7: visual graph preview + test button",
         "Quick Create shortcut for simple agents"
       ],
-      "depends_on": ["01", "02", "08", "09", "12"],
+      "depends_on": [
+        "01",
+        "02",
+        "08",
+        "09",
+        "12"
+      ],
       "blocks": [],
       "priority": "critical",
       "current_state": {
-        "AgentsPage.tsx": "601 lines — Create Agent modal has only Name, Description, Tags (3 fields)"
+        "AgentsPage.tsx": "601 lines \u2014 Create Agent modal has only Name, Description, Tags (3 fields)"
       },
       "acceptance_criteria": [
         "Create Agent opens 7-step wizard, not 3-field modal",
-        "Each step has rich controls — zero JSON fields",
+        "Each step has rich controls \u2014 zero JSON fields",
         "Model selector shows models with provider/cost info",
         "Tool selector shows MCP tools with descriptions",
         "Step 7 shows graph preview and test button",
         "Created agent is fully configured and runnable"
-      ]
+      ],
+      "build_status": "complete"
     },
     "06": {
       "name": "Executions & Tracing",
       "file": "agents/prompts/agent-06-versioning.md",
       "scope": [
-        "Build execution engine: POST /executions → LangGraph runtime",
+        "Build execution engine: POST /executions \u2192 LangGraph runtime",
         "WebSocket streaming: /ws/executions/{id} streams step events",
         "Execution detail page: step timeline, per-step tokens/cost/duration",
         "Execution list: filters by status/agent/date, Run Agent button",
         "Graph view: React Flow colored by step status (green/blue/red)",
         "Record token usage and cost per step"
       ],
-      "depends_on": ["01", "08"],
-      "blocks": ["07", "11"],
+      "depends_on": [
+        "01",
+        "08"
+      ],
+      "blocks": [
+        "07",
+        "11"
+      ],
       "priority": "critical",
       "current_state": {
-        "ExecutionsPage.tsx": "150 lines — empty state with play icon, basic table",
-        "executions.py": "101 lines — read-only GET endpoints only, no execution creation"
+        "ExecutionsPage.tsx": "150 lines \u2014 empty state with play icon, basic table",
+        "executions.py": "101 lines \u2014 read-only GET endpoints only, no execution creation"
       },
       "acceptance_criteria": [
         "POST /executions creates and runs an execution",
@@ -173,7 +267,8 @@
         "Execution list shows history with filters",
         "Run Agent button from ExecutionsPage works",
         "Failed steps show error details"
-      ]
+      ],
+      "build_status": "complete"
     },
     "07": {
       "name": "Workflows Graph",
@@ -186,12 +281,16 @@
         "Real-time execution progress via WebSocket",
         "Group management and filtering"
       ],
-      "depends_on": ["01", "02", "06"],
+      "depends_on": [
+        "01",
+        "02",
+        "06"
+      ],
       "blocks": [],
       "priority": "high",
       "current_state": {
-        "WorkflowsPage.tsx": "686 lines — list + create modal with simple step builder, raw JSON config per step",
-        "workflows.py": "206 lines — in-memory CRUD + execute endpoint"
+        "WorkflowsPage.tsx": "686 lines \u2014 list + create modal with simple step builder, raw JSON config per step",
+        "workflows.py": "206 lines \u2014 in-memory CRUD + execute endpoint"
       },
       "acceptance_criteria": [
         "Workflow creation uses visual graph editor, not JSON",
@@ -199,26 +298,33 @@
         "Schedule uses visual cron picker with presets",
         "Execution shows real-time step progress",
         "Group filter on workflow list works"
-      ]
+      ],
+      "build_status": "complete"
     },
     "08": {
       "name": "Model Router + Vault Secrets",
       "file": "agents/prompts/agent-08-router.md",
       "scope": [
-        "Add API Key field to provider form — store in Vault, not DB",
+        "Add API Key field to provider form \u2014 store in Vault, not DB",
         "Test Connection button per provider",
         "Health dashboard: latency, error rate, circuit breaker per provider",
         "Replace JSON routing rule conditions with visual rule builder: IF [field] [op] [value] THEN [model]",
-        "Fallback chain UI: primary → secondary → tertiary model",
+        "Fallback chain UI: primary \u2192 secondary \u2192 tertiary model",
         "Routing decision explainability in API response"
       ],
-      "depends_on": ["01", "17"],
-      "blocks": ["05", "06"],
+      "depends_on": [
+        "01",
+        "17"
+      ],
+      "blocks": [
+        "05",
+        "06"
+      ],
       "priority": "critical",
       "current_state": {
-        "ModelRouterPage.tsx": "548 lines — Providers section (no API key field!), Models, Rules (JSON conditions)",
-        "router.py": "276 lines — CRUD for models and rules",
-        "models.py": "262 lines — provider CRUD exists"
+        "ModelRouterPage.tsx": "548 lines \u2014 Providers section (no API key field!), Models, Rules (JSON conditions)",
+        "router.py": "276 lines \u2014 CRUD for models and rules",
+        "models.py": "262 lines \u2014 provider CRUD exists"
       },
       "acceptance_criteria": [
         "Provider form has API Key field stored securely in Vault",
@@ -227,7 +333,8 @@
         "Fallback chain configurable via UI",
         "No API keys visible in API responses or DB",
         "Health dashboard shows live provider status"
-      ]
+      ],
+      "build_status": "complete"
     },
     "09": {
       "name": "Connectors Onboarding",
@@ -235,16 +342,19 @@
       "scope": [
         "Replace raw JSON Config field with type-specific forms per connector type",
         "Connector catalog: visual grid of cards with logos (35+ types)",
-        "OAuth flow for Salesforce, Slack, GitHub, Google: 'Connect' button → OAuth popup → Vault",
+        "OAuth flow for Salesforce, Slack, GitHub, Google: 'Connect' button \u2192 OAuth popup \u2192 Vault",
         "Test Connection button per connector",
         "Health monitoring with status badges",
         "At least 10 connector types with rich forms"
       ],
-      "depends_on": ["01", "17"],
+      "depends_on": [
+        "01",
+        "17"
+      ],
       "blocks": [],
       "priority": "high",
       "current_state": {
-        "ConnectorsPage.tsx": "186 lines — bare form: Name, Type=PostgreSQL, raw JSON Config",
+        "ConnectorsPage.tsx": "186 lines \u2014 bare form: Name, Type=PostgreSQL, raw JSON Config",
         "connectors.py": "382 lines",
         "connector_service.py": "541 lines"
       },
@@ -255,24 +365,29 @@
         "Catalog shows visual cards with icons",
         "Credentials never visible in API responses",
         "10+ connector types with rich forms"
-      ]
+      ],
+      "build_status": "complete"
     },
     "10": {
       "name": "Lifecycle & Deployment",
       "file": "agents/prompts/agent-08-lifecycle.md",
       "scope": [
-        "Visual lifecycle pipeline: Draft → Review → Staging → Production",
+        "Visual lifecycle pipeline: Draft \u2192 Review \u2192 Staging \u2192 Production",
         "Replace raw ID fields with agent/version dropdowns",
         "Deployment strategies: Rolling, Blue-Green, Canary with visual config",
         "Environment comparison view",
         "Health monitoring after deployment",
         "Approval gates between stages"
       ],
-      "depends_on": ["01", "06", "13"],
+      "depends_on": [
+        "01",
+        "06",
+        "13"
+      ],
       "blocks": [],
       "priority": "high",
       "current_state": {
-        "LifecyclePage.tsx": "207 lines — deployment form with raw Agent ID, Version ID, Environment, Rolling count",
+        "LifecyclePage.tsx": "207 lines \u2014 deployment form with raw Agent ID, Version ID, Environment, Rolling count",
         "lifecycle.py": "530 lines"
       },
       "acceptance_criteria": [
@@ -281,7 +396,8 @@
         "Deployment strategy selector with visual config",
         "Environment comparison view",
         "Health monitoring post-deployment"
-      ]
+      ],
+      "build_status": "complete"
     },
     "11": {
       "name": "Cost Engine",
@@ -294,11 +410,14 @@
         "Alert notifications at 50/75/90/100%",
         "Chargeback reports: exportable CSV/PDF"
       ],
-      "depends_on": ["06", "08"],
+      "depends_on": [
+        "06",
+        "08"
+      ],
       "blocks": [],
       "priority": "high",
       "current_state": {
-        "CostPage.tsx": "334 lines — usage chart (empty), budget form, alerts (empty)",
+        "CostPage.tsx": "334 lines \u2014 usage chart (empty), budget form, alerts (empty)",
         "cost.py": "568 lines",
         "cost_service.py": "797 lines"
       },
@@ -308,7 +427,8 @@
         "Cost breakdown by agent/model/user/team",
         "Budgets enforce limits (soft and hard)",
         "Alert notifications at thresholds"
-      ]
+      ],
+      "build_status": "complete"
     },
     "12": {
       "name": "DLP & Guardrails",
@@ -316,17 +436,22 @@
       "scope": [
         "Integrate DLP middleware: ALL execution I/O scanned before/after LLM calls",
         "Detector picker: visual grid with icons and descriptions (not raw tag input)",
-        "Policy test feature: paste text → see detections and actions",
+        "Policy test feature: paste text \u2192 see detections and actions",
         "Real metrics dashboard from actual scan data",
         "Inline DLP indicators on agent cards and execution traces",
         "10+ built-in detector types"
       ],
-      "depends_on": ["01", "06"],
-      "blocks": ["05"],
+      "depends_on": [
+        "01",
+        "06"
+      ],
+      "blocks": [
+        "05"
+      ],
       "priority": "critical",
       "current_state": {
-        "DLPPage.tsx": "386 lines — live scanner, policy form with tag-based detectors, metrics all 0",
-        "dlp_service.py": "936 lines — substantial implementation exists"
+        "DLPPage.tsx": "386 lines \u2014 live scanner, policy form with tag-based detectors, metrics all 0",
+        "dlp_service.py": "936 lines \u2014 substantial implementation exists"
       },
       "acceptance_criteria": [
         "All execution I/O passes through DLP middleware",
@@ -334,7 +459,8 @@
         "Policy test feature works",
         "Metrics show real scan data",
         "10+ built-in detector types"
-      ]
+      ],
+      "build_status": "complete"
     },
     "13": {
       "name": "Governance & Registry",
@@ -346,11 +472,17 @@
         "Fix Audit Trail tab: wire to correct endpoint",
         "Auto-scan agents against active policies"
       ],
-      "depends_on": ["01", "12", "18"],
-      "blocks": ["10"],
+      "depends_on": [
+        "01",
+        "12",
+        "18"
+      ],
+      "blocks": [
+        "10"
+      ],
       "priority": "high",
       "current_state": {
-        "GovernancePage.tsx": "308 lines — Agent Registry form, Compliance form, Audit tab (fails to load)",
+        "GovernancePage.tsx": "308 lines \u2014 Agent Registry form, Compliance form, Audit tab (fails to load)",
         "governance.py": "547 lines",
         "governance_service.py": "698 lines"
       },
@@ -360,7 +492,8 @@
         "Audit trail tab loads without errors",
         "3+ policy templates",
         "Risk score visible per agent"
-      ]
+      ],
+      "build_status": "complete"
     },
     "14": {
       "name": "SentinelScan",
@@ -372,11 +505,14 @@
         "Remediation actions per finding",
         "Scan history with status"
       ],
-      "depends_on": ["01", "12"],
+      "depends_on": [
+        "01",
+        "12"
+      ],
       "blocks": [],
       "priority": "medium",
       "current_state": {
-        "SentinelScanPage.tsx": "365 lines — posture gauge shows 100 (0 services), risk bars 0",
+        "SentinelScanPage.tsx": "365 lines \u2014 posture gauge shows 100 (0 services), risk bars 0",
         "sentinelscan.py": "524 lines"
       },
       "acceptance_criteria": [
@@ -384,7 +520,8 @@
         "Posture score reflects actual data",
         "Risk bars show real counts",
         "Remediation actions available"
-      ]
+      ],
+      "build_status": "complete"
     },
     "15": {
       "name": "MCP Apps Engine",
@@ -392,23 +529,27 @@
       "scope": [
         "Frontend component library: DataTable, Chart, Form, ApprovalPanel, CodeEditor (5+ types)",
         "Chat interface that renders MCP components inline",
-        "Interactive: user clicks in component → action sent back to agent",
+        "Interactive: user clicks in component \u2192 action sent back to agent",
         "Sandboxed rendering (iframe or shadow DOM)",
         "Session-bound component state"
       ],
-      "depends_on": ["01", "06"],
+      "depends_on": [
+        "01",
+        "06"
+      ],
       "blocks": [],
       "priority": "medium",
       "current_state": {
-        "mcp_interactive.py": "206 lines — component sessions, render, action endpoints exist",
-        "frontend": "ZERO frontend implementation — feature completely inaccessible"
+        "mcp_interactive.py": "206 lines \u2014 component sessions, render, action endpoints exist",
+        "frontend": "ZERO frontend implementation \u2014 feature completely inaccessible"
       },
       "acceptance_criteria": [
         "5+ MCP component types renderable in chat",
         "Components are interactive",
         "Sandboxed rendering",
         "Chat interface exists"
-      ]
+      ],
+      "build_status": "complete"
     },
     "16": {
       "name": "SSO + Tenants + Users",
@@ -421,12 +562,15 @@
         "RBAC matrix visualization",
         "No raw JSON for SSO configuration"
       ],
-      "depends_on": ["01", "17"],
+      "depends_on": [
+        "01",
+        "17"
+      ],
       "blocks": [],
       "priority": "critical",
       "current_state": {
-        "TenantsPage.tsx": "231 lines — simple New Tenant form",
-        "UsersPage.tsx": "572 lines — table + invite modal (functional)",
+        "TenantsPage.tsx": "231 lines \u2014 simple New Tenant form",
+        "UsersPage.tsx": "572 lines \u2014 table + invite modal (functional)",
         "SSO": "ZERO SSO configuration UI anywhere in the platform"
       },
       "acceptance_criteria": [
@@ -435,7 +579,8 @@
         "Tenant detail shows usage/members/IdP",
         "Claim mapping uses visual mapper, not JSON",
         "Keycloak OIDC flow works end-to-end"
-      ]
+      ],
+      "build_status": "complete"
     },
     "17": {
       "name": "Secrets Vault",
@@ -449,11 +594,16 @@
         "All components (providers, connectors, IdPs) store secrets via Vault API"
       ],
       "depends_on": [],
-      "blocks": ["01", "08", "09", "16"],
+      "blocks": [
+        "01",
+        "08",
+        "09",
+        "16"
+      ],
       "priority": "critical",
       "current_state": {
-        "SecretsPage.tsx": "449 lines — Create Secret modal, list view (functional with stub)",
-        "secrets.py": "306 lines — Vault-backed CRUD",
+        "SecretsPage.tsx": "449 lines \u2014 Create Secret modal, list view (functional with stub)",
+        "secrets.py": "306 lines \u2014 Vault-backed CRUD",
         "manager.py": "has in-memory _StubSecretsManager fallback when hvac unavailable"
       },
       "acceptance_criteria": [
@@ -462,7 +612,8 @@
         "Vault status visible in Settings",
         "Stub mode shows warning banner",
         "Access log shows secret reads"
-      ]
+      ],
+      "build_status": "complete"
     },
     "18": {
       "name": "Audit Log",
@@ -475,13 +626,17 @@
         "Export: CSV/JSON for compliance",
         "Immutability: no update/delete endpoints"
       ],
-      "depends_on": ["01"],
-      "blocks": ["13"],
+      "depends_on": [
+        "01"
+      ],
+      "blocks": [
+        "13"
+      ],
       "priority": "critical",
       "current_state": {
-        "AuditPage.tsx": "131 lines — list with filters",
-        "admin/AuditLogPage.tsx": "309 lines — admin version",
-        "audit_logs.py": "71 lines — bare list endpoint, no auth, fails on empty DB",
+        "AuditPage.tsx": "131 lines \u2014 list with filters",
+        "admin/AuditLogPage.tsx": "309 lines \u2014 admin version",
+        "audit_logs.py": "71 lines \u2014 bare list endpoint, no auth, fails on empty DB",
         "error": "Red error banner 'Failed to load audit log' in multiple pages"
       },
       "acceptance_criteria": [
@@ -491,7 +646,8 @@
         "Export button produces CSV",
         "No update/delete endpoints exist",
         "Auth required on all audit endpoints"
-      ]
+      ],
+      "build_status": "complete"
     },
     "19": {
       "name": "Settings Platform",
@@ -503,37 +659,48 @@
         "System Health: combined status of API, DB, Redis, Vault, Keycloak",
         "Vault status indicator"
       ],
-      "depends_on": ["01", "16", "17"],
+      "depends_on": [
+        "01",
+        "16",
+        "17"
+      ],
       "blocks": [],
       "priority": "high",
       "current_state": {
-        "SettingsPage.tsx": "113 lines — system info + user info cards, calls /api/v1/health → 404",
+        "SettingsPage.tsx": "113 lines \u2014 system info + user info cards, calls /api/v1/health \u2192 404",
         "error": "'Failed to reach API: Not Found'"
       },
       "acceptance_criteria": [
         "Settings page loads without errors",
-        "SSO config accessible from Settings → Authentication",
+        "SSO config accessible from Settings \u2192 Authentication",
         "System Health shows all service statuses",
         "Settings organized in tabs/sections",
         "Non-admin sees limited settings"
-      ]
+      ],
+      "build_status": "complete"
     },
     "20": {
       "name": "Dashboard",
       "file": "agents/prompts/agent-02-ui-builder.md",
       "scope": [
         "Stats cards show real data: agent count, execution count, model count, cost",
-        "Quick Actions: Create Agent (→ wizard), Run Agent, Browse Templates, Import",
+        "Quick Actions: Create Agent (\u2192 wizard), Run Agent, Browse Templates, Import",
         "Recent Activity feed: last 10 audit events",
         "System Health indicators: API, DB, Redis, Vault, Keycloak",
         "Agent leaderboard: top 5 by execution count",
         "Cost summary mini-chart"
       ],
-      "depends_on": ["01", "06", "08", "11", "18"],
+      "depends_on": [
+        "01",
+        "06",
+        "08",
+        "11",
+        "18"
+      ],
       "blocks": [],
       "priority": "high",
       "current_state": {
-        "DashboardPage.tsx": "222 lines — stat cards (all 0), No agents yet, No executions yet"
+        "DashboardPage.tsx": "222 lines \u2014 stat cards (all 0), No agents yet, No executions yet"
       },
       "acceptance_criteria": [
         "All stat cards show real data",
@@ -541,7 +708,8 @@
         "Recent activity feed shows last 10 events",
         "System health indicators reflect actual status",
         "Dashboard loads in <2 seconds"
-      ]
+      ],
+      "build_status": "complete"
     },
     "21": {
       "name": "Deployment Infrastructure",
@@ -552,7 +720,9 @@
         "CI/CD: GitHub Actions for test/build/deploy",
         "Prometheus metrics endpoint + Grafana dashboards"
       ],
-      "depends_on": ["01"],
+      "depends_on": [
+        "01"
+      ],
       "blocks": [],
       "priority": "medium",
       "current_state": {
@@ -562,7 +732,8 @@
         "docker compose up starts all services cleanly",
         "Helm chart deploys to K8s",
         "CI pipeline runs tests on PR"
-      ]
+      ],
+      "build_status": "complete"
     },
     "22": {
       "name": "Master Validator",
@@ -574,9 +745,11 @@
         "Smoke tests: automated curl for all endpoints",
         "Frontend build: no errors",
         "UX audit: no JSON fields on standard forms, all buttons functional, all pages load",
-        "Cross-agent integration: create → execute → trace → audit flow"
+        "Cross-agent integration: create \u2192 execute \u2192 trace \u2192 audit flow"
       ],
-      "depends_on": ["all"],
+      "depends_on": [
+        "all"
+      ],
       "blocks": [],
       "priority": "critical",
       "current_state": {
@@ -589,24 +762,25 @@
         "SDD 10/10",
         "All pages load without error",
         "No JSON fields on standard forms",
-        "Create → Execute → Trace → Audit works end-to-end",
+        "Create \u2192 Execute \u2192 Trace \u2192 Audit works end-to-end",
         "All sidebar items navigate to functional pages"
-      ]
+      ],
+      "build_status": "complete"
     }
   },
   "critical_path": [
     "17 (Secrets Vault)",
-    "01 (Core Backend — expanded Agent model + execution engine + health fix + audit fix)",
-    "02 (Visual Builder — 20+ nodes, save/load, rich property panel)",
-    "08 (Model Router — Vault secrets for API keys, visual rule builder)",
-    "06 (Executions — engine + streaming + traces)",
-    "05 (Agent Wizard — 7-step, replaces 3-field modal)",
-    "12 (DLP — middleware integration, detector picker)",
-    "18 (Audit — fix loading, comprehensive logging)",
-    "16 (SSO — config page, OIDC/SAML forms)",
-    "19 (Settings — fix health, add SSO/health tabs)",
-    "20 (Dashboard — real data, quick actions)",
-    "22 (Validator — full E2E verification)"
+    "01 (Core Backend \u2014 expanded Agent model + execution engine + health fix + audit fix)",
+    "02 (Visual Builder \u2014 20+ nodes, save/load, rich property panel)",
+    "08 (Model Router \u2014 Vault secrets for API keys, visual rule builder)",
+    "06 (Executions \u2014 engine + streaming + traces)",
+    "05 (Agent Wizard \u2014 7-step, replaces 3-field modal)",
+    "12 (DLP \u2014 middleware integration, detector picker)",
+    "18 (Audit \u2014 fix loading, comprehensive logging)",
+    "16 (SSO \u2014 config page, OIDC/SAML forms)",
+    "19 (Settings \u2014 fix health, add SSO/health tabs)",
+    "20 (Dashboard \u2014 real data, quick actions)",
+    "22 (Validator \u2014 full E2E verification)"
   ],
   "ux_principles": {
     "zero_json": "No raw JSON fields on any standard form. Use visual builders, dropdowns, sliders, rich editors.",
@@ -618,14 +792,14 @@
   },
   "gap_inventory": {
     "critical_gaps": [
-      "Agent Create modal has only 3 fields — needs 7-step wizard",
-      "No execution engine — can't run agents",
+      "Agent Create modal has only 3 fields \u2014 needs 7-step wizard",
+      "No execution engine \u2014 can't run agents",
       "Settings page 404s on health check",
       "Audit log fails to load",
       "No SSO configuration UI anywhere",
-      "Model Router has no API key storage — can't use external LLMs",
-      "Connectors use raw JSON config — no type-specific forms",
-      "No MCP Apps frontend — feature invisible",
+      "Model Router has no API key storage \u2014 can't use external LLMs",
+      "Connectors use raw JSON config \u2014 no type-specific forms",
+      "No MCP Apps frontend \u2014 feature invisible",
       "NL Wizard has backend but zero frontend"
     ],
     "ux_gaps": [
@@ -637,10 +811,10 @@
       "Dashboard shows all zeros with no actionable guidance"
     ],
     "data_gaps": [
-      "Cost metrics empty — no token ledger",
-      "DLP metrics all 0 — no scans happening",
-      "SentinelScan posture always 100 — no real data",
-      "Governance compliance empty — no auto-scans"
+      "Cost metrics empty \u2014 no token ledger",
+      "DLP metrics all 0 \u2014 no scans happening",
+      "SentinelScan posture always 100 \u2014 no real data",
+      "Governance compliance empty \u2014 no auto-scans"
     ]
   }
 }

@@ -16,6 +16,7 @@ from app.middleware.auth import get_current_user
 from app.middleware.rbac import check_permission
 from app.models.governance import (
     AgentRegistryEntry,
+    ApprovalRequest,
     AuditEntry,
     CompliancePolicy,
     ComplianceRecord,
@@ -101,6 +102,23 @@ class AgentRegistryUpdate(BaseModel):
     risk_level: str | None = None
     sunset_date: datetime | None = None
     extra_metadata: dict[str, Any] | None = None
+
+
+class ApprovalCreate(BaseModel):
+    """Payload for creating an approval request."""
+
+    agent_id: UUID
+    agent_name: str = ""
+    action: str = "promote_to_production"
+    approval_rule: str = "any_one"  # any_one | all | majority
+    reviewers: list[str] = PField(default_factory=list)
+    comment: str | None = None
+
+
+class ApprovalDecision(BaseModel):
+    """Payload for approve/reject decision."""
+
+    comment: str = ""
 
 
 # ── Helpers ──────────────────────────────────────────────────────────
@@ -316,6 +334,207 @@ async def update_agent_registration(
     if entry is None:
         raise HTTPException(status_code=404, detail="Agent not found in governance registry")
     return {"data": entry.model_dump(mode="json"), "meta": _meta()}
+
+
+# ── Registry Detail with Compliance History ─────────────────────────
+
+
+@router.get("/registry")
+async def list_registry(
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    department: str | None = Query(default=None),
+    approval_status: str | None = Query(default=None),
+    risk_level: str | None = Query(default=None),
+    session: AsyncSession = Depends(get_session),
+    user: AuthenticatedUser = Depends(get_current_user),
+) -> dict[str, Any]:
+    """List agents with compliance status for the registry dashboard."""
+    entries, total = await GovernanceEngine.list_registered_agents(
+        session,
+        department=department,
+        approval_status=approval_status,
+        risk_level=risk_level,
+        limit=limit,
+        offset=offset,
+    )
+
+    # Enrich with compliance data
+    enriched: list[dict[str, Any]] = []
+    for entry in entries:
+        detail = await GovernanceEngine.get_agent_detail(session, entry.agent_id)
+        if detail:
+            enriched.append({
+                **entry.model_dump(mode="json"),
+                "compliance_status": detail["compliance_status"],
+                "compliance_score": detail["compliance_score"],
+                "risk_score": detail["risk_score"],
+                "total_scans": detail["total_scans"],
+            })
+        else:
+            enriched.append({
+                **entry.model_dump(mode="json"),
+                "compliance_status": "unknown",
+                "compliance_score": 0.0,
+                "risk_score": 50,
+                "total_scans": 0,
+            })
+
+    return {
+        "data": enriched,
+        "meta": _meta(pagination={"total": total, "limit": limit, "offset": offset}),
+    }
+
+
+@router.get("/registry/{agent_id}")
+async def get_registry_detail(
+    agent_id: UUID,
+    session: AsyncSession = Depends(get_session),
+    user: AuthenticatedUser = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Get agent detail with compliance history timeline."""
+    detail = await GovernanceEngine.get_agent_detail(session, agent_id)
+    if detail is None:
+        raise HTTPException(status_code=404, detail="Agent not found in governance registry")
+    return {"data": detail, "meta": _meta()}
+
+
+# ── Compliance Scan ─────────────────────────────────────────────────
+
+
+@router.post("/scan/{agent_id}")
+async def scan_agent(
+    agent_id: UUID,
+    session: AsyncSession = Depends(get_session),
+    user: AuthenticatedUser = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Run compliance scan against all active policies for an agent."""
+    check_permission(user, "governance", "create")
+    result = await GovernanceEngine.scan_agent(session, agent_id)
+
+    # Audit log the scan
+    await GovernanceEngine.log_audit_event(
+        session,
+        action="compliance_scan.executed",
+        resource_type="agent",
+        resource_id=agent_id,
+        actor_id=UUID(user.id) if user.id else None,
+        outcome="success",
+        details={"compliance_score": result["compliance_score"]},
+    )
+
+    return {"data": result, "meta": _meta()}
+
+
+# ── Approval Workflows ──────────────────────────────────────────────
+
+
+@router.get("/approvals")
+async def list_approvals(
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    status: str | None = Query(default=None),
+    agent_id: UUID | None = Query(default=None),
+    session: AsyncSession = Depends(get_session),
+    user: AuthenticatedUser = Depends(get_current_user),
+) -> dict[str, Any]:
+    """List approval requests with optional filters."""
+    approvals, total = await GovernanceEngine.list_approvals(
+        session, status=status, agent_id=agent_id, limit=limit, offset=offset,
+    )
+    return {
+        "data": [a.model_dump(mode="json") for a in approvals],
+        "meta": _meta(pagination={"total": total, "limit": limit, "offset": offset}),
+    }
+
+
+@router.post("/approvals", status_code=201)
+async def create_approval(
+    body: ApprovalCreate,
+    session: AsyncSession = Depends(get_session),
+    user: AuthenticatedUser = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Create an approval request for agent production promotion."""
+    check_permission(user, "governance", "create")
+    approval = ApprovalRequest(
+        agent_id=body.agent_id,
+        requester_id=UUID(user.id) if user.id else None,
+        requester_name=user.email,
+        agent_name=body.agent_name,
+        action=body.action,
+        approval_rule=body.approval_rule,
+        reviewers=body.reviewers,
+        comment=body.comment,
+    )
+    created = await GovernanceEngine.create_approval(session, approval)
+
+    await GovernanceEngine.log_audit_event(
+        session,
+        action="approval.created",
+        resource_type="approval_request",
+        resource_id=created.id,
+        actor_id=UUID(user.id) if user.id else None,
+        outcome="success",
+        details={"agent_id": str(body.agent_id), "action": body.action},
+    )
+
+    return {"data": created.model_dump(mode="json"), "meta": _meta()}
+
+
+@router.post("/approvals/{approval_id}/approve")
+async def approve_request(
+    approval_id: UUID,
+    body: ApprovalDecision,
+    session: AsyncSession = Depends(get_session),
+    user: AuthenticatedUser = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Approve an approval request."""
+    check_permission(user, "governance", "update")
+    result = await GovernanceEngine.approve_request(
+        session, approval_id, reviewer=user.email, comment=body.comment,
+    )
+    if result is None:
+        raise HTTPException(status_code=404, detail="Approval request not found")
+
+    await GovernanceEngine.log_audit_event(
+        session,
+        action="approval.approved",
+        resource_type="approval_request",
+        resource_id=approval_id,
+        actor_id=UUID(user.id) if user.id else None,
+        outcome="success",
+        details={"comment": body.comment},
+    )
+
+    return {"data": result.model_dump(mode="json"), "meta": _meta()}
+
+
+@router.post("/approvals/{approval_id}/reject")
+async def reject_request(
+    approval_id: UUID,
+    body: ApprovalDecision,
+    session: AsyncSession = Depends(get_session),
+    user: AuthenticatedUser = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Reject an approval request."""
+    check_permission(user, "governance", "update")
+    result = await GovernanceEngine.reject_request(
+        session, approval_id, reviewer=user.email, comment=body.comment,
+    )
+    if result is None:
+        raise HTTPException(status_code=404, detail="Approval request not found")
+
+    await GovernanceEngine.log_audit_event(
+        session,
+        action="approval.rejected",
+        resource_type="approval_request",
+        resource_id=approval_id,
+        actor_id=UUID(user.id) if user.id else None,
+        outcome="success",
+        details={"comment": body.comment},
+    )
+
+    return {"data": result.model_dump(mode="json"), "meta": _meta()}
 
 
 # ── Enterprise Governance Routes (GovernanceService) ────────────────

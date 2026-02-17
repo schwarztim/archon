@@ -8,12 +8,15 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
+from app.middleware.auth import get_current_user
+from app.interfaces.models.enterprise import AuthenticatedUser
 from app.models import Execution
 from app.services import execution_service
+from app.services.execution_service import ExecutionService
 
 try:
     from opentelemetry import trace
@@ -78,6 +81,21 @@ class ExecutionInput(BaseModel):
     input_data: dict[str, Any]
 
 
+class ExecutionRunRequest(BaseModel):
+    """Payload for POST /executions — create and run an agent execution."""
+
+    agent_id: UUID
+    input_data: dict[str, Any] = Field(default_factory=dict)
+    config_overrides: dict[str, Any] | None = None
+
+
+class ExecutionReplayRequest(BaseModel):
+    """Payload for POST /executions/{id}/replay."""
+
+    input_override: dict[str, Any] | None = None
+    config_overrides: dict[str, Any] | None = None
+
+
 # ── Helpers ──────────────────────────────────────────────────────────
 
 def _meta(*, request_id: str | None = None, **extra: Any) -> dict[str, Any]:
@@ -90,6 +108,31 @@ def _meta(*, request_id: str | None = None, **extra: Any) -> dict[str, Any]:
 
 
 # ── Routes ───────────────────────────────────────────────────────────
+
+@router.post("/executions", status_code=201)
+async def create_and_run_execution(
+    body: ExecutionRunRequest,
+    session: AsyncSession = Depends(get_session),
+    user: AuthenticatedUser = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Create and run an agent execution with per-step trace data."""
+    tenant_id = UUID(user.tenant_id) if user.tenant_id else UUID("00000000-0000-0000-0000-000000000000")
+    try:
+        execution = await ExecutionService.run_execution(
+            session,
+            body.agent_id,
+            body.input_data,
+            tenant_id=tenant_id,
+            user=user,
+            config_overrides=body.config_overrides,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {
+        "data": execution.model_dump(mode="json"),
+        "meta": _meta(),
+    }
+
 
 @router.post("/execute", status_code=201)
 async def create_execution(
@@ -154,10 +197,52 @@ async def get_execution(
     execution_id: UUID,
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    """Get a single execution by ID."""
+    """Get a single execution by ID with expanded detail."""
     execution = await execution_service.get_execution(session, execution_id)
     if execution is None:
         raise HTTPException(status_code=404, detail="Execution not found")
+
+    # Enrich with agent name
+    from app.models import Agent
+    from sqlmodel import select
+    agent_stmt = select(Agent).where(Agent.id == execution.agent_id)
+    agent_result = await session.exec(agent_stmt)
+    agent = agent_result.first()
+
+    data = execution.model_dump(mode="json")
+    data["agent_name"] = agent.name if agent else "Unknown"
+    data["metrics_summary"] = {
+        "total_steps": len(execution.steps) if execution.steps else 0,
+        "completed_steps": len([s for s in (execution.steps or []) if s.get("status") == "completed"]),
+        "failed_steps": len([s for s in (execution.steps or []) if s.get("status") == "failed"]),
+    }
+    return {
+        "data": data,
+        "meta": _meta(),
+    }
+
+
+@router.post("/executions/{execution_id}/replay", status_code=201)
+async def replay_execution(
+    execution_id: UUID,
+    body: ExecutionReplayRequest | None = None,
+    session: AsyncSession = Depends(get_session),
+    user: AuthenticatedUser = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Re-run an execution with same or modified input."""
+    tenant_id = UUID(user.tenant_id) if user.tenant_id else UUID("00000000-0000-0000-0000-000000000000")
+    parsed_body = body or ExecutionReplayRequest()
+    try:
+        execution = await ExecutionService.replay_execution(
+            session,
+            execution_id,
+            tenant_id=tenant_id,
+            user=user,
+            input_override=parsed_body.input_override,
+            config_overrides=parsed_body.config_overrides,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     return {
         "data": execution.model_dump(mode="json"),
         "meta": _meta(),

@@ -83,3 +83,128 @@ export async function listAlerts(
 ): Promise<ApiResponse<unknown[]>> {
   return apiGet<unknown[]>("/cost/alerts", params);
 }
+
+// ── Agent 11: Cost Engine v1 endpoints ─────────────────────────────
+
+/** Record token usage (v1 authenticated) */
+export async function recordUsageV1(payload: {
+  provider: string;
+  model_id: string;
+  input_tokens: number;
+  output_tokens: number;
+  execution_id?: string;
+  agent_id?: string;
+  cost_usd?: number;
+  metadata?: Record<string, unknown>;
+}): Promise<ApiResponse<unknown>> {
+  return apiPost<unknown>("/cost/api/v1/cost/record", payload);
+}
+
+/** Get cost summary (v1) */
+export async function getCostSummary(params: {
+  since?: string;
+  until?: string;
+  group_by?: string;
+} = {}): Promise<ApiResponse<unknown>> {
+  return apiGet<unknown>("/cost/api/v1/cost/summary", params);
+}
+
+/** Get cost breakdown by group (v1) */
+export async function getCostBreakdown(params: {
+  group_by?: string;
+  since?: string;
+  until?: string;
+  limit?: number;
+} = {}): Promise<ApiResponse<unknown>> {
+  return apiGet<unknown>("/cost/api/v1/cost/breakdown", params);
+}
+
+/** Get time-series chart data (v1) */
+export interface ChartPoint {
+  date: string;
+  [provider: string]: string | number;
+}
+
+export interface ChartData {
+  granularity: string;
+  providers: string[];
+  series: ChartPoint[];
+}
+
+export async function getCostChart(params: {
+  granularity?: string;
+  since?: string;
+  until?: string;
+} = {}): Promise<ApiResponse<ChartData>> {
+  return apiGet<ChartData>("/cost/api/v1/cost/chart", params);
+}
+
+/** Create budget via wizard (v1) */
+export async function createBudgetV1(payload: {
+  name: string;
+  scope: string;
+  scope_id?: string;
+  limit_amount: number;
+  period: string;
+  enforcement: string;
+  alert_thresholds?: number[];
+}): Promise<ApiResponse<unknown>> {
+  return apiPost<unknown>("/cost/api/v1/cost/budgets", payload);
+}
+
+/** List budgets with utilization (v1) */
+export interface BudgetWithUtilization {
+  id: string;
+  name: string;
+  scope: string;
+  limit_amount: number;
+  spent_amount: number;
+  period: string;
+  enforcement: string;
+  alert_thresholds: number[];
+  utilization_pct: number;
+  utilization_color: string;
+  remaining: number;
+}
+
+export async function listBudgetsV1(
+  params: PaginationParams = {},
+): Promise<ApiResponse<BudgetWithUtilization[]>> {
+  return apiGet<BudgetWithUtilization[]>("/cost/api/v1/cost/budgets", params);
+}
+
+/** Get budget utilization (v1) */
+export async function getBudgetUtilization(
+  budgetId: string,
+): Promise<ApiResponse<unknown>> {
+  return apiGet<unknown>(`/cost/api/v1/cost/budgets/${budgetId}/utilization`);
+}
+
+/** Update budget (v1) */
+export async function updateBudgetV1(
+  budgetId: string,
+  payload: Record<string, unknown>,
+): Promise<ApiResponse<unknown>> {
+  return apiPut<unknown>(`/cost/api/v1/cost/budgets/${budgetId}`, payload);
+}
+
+/** Export cost report (v1) */
+export async function exportCostReport(params: {
+  format?: string;
+  since?: string;
+  until?: string;
+  group_by?: string;
+}): Promise<Blob | ApiResponse<unknown>> {
+  if (params.format === "csv") {
+    const sp = new URLSearchParams();
+    for (const [k, v] of Object.entries(params)) {
+      if (v != null) sp.set(k, String(v));
+    }
+    const res = await fetch(`/api/v1/cost/api/v1/cost/export?${sp.toString()}`, {
+      credentials: "include",
+    });
+    if (!res.ok) throw new Error("Export failed");
+    return res.blob();
+  }
+  return apiGet<unknown>("/cost/api/v1/cost/export", params);
+}

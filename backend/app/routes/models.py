@@ -16,9 +16,13 @@ from app.middleware.auth import get_current_user
 from app.middleware.rbac import check_permission
 from app.models import Model
 from app.models.router import (
+    FallbackChainConfig,
     ModelProvider,
+    PROVIDER_CREDENTIAL_SCHEMAS,
     RoutingPolicy,
     RoutingRequest,
+    VisualRouteRequest,
+    VisualRoutingRule,
 )
 from app.secrets.manager import get_secrets_manager
 from app.services import ModelService
@@ -56,6 +60,12 @@ class ModelUpdate(BaseModel):
     model_id: str | None = None
     config: dict[str, Any] | None = None
     is_active: bool | None = None
+
+
+class ProviderCredentialsPayload(BaseModel):
+    """Payload for storing provider credentials."""
+
+    credentials: dict[str, Any]
 
 
 # ── Helpers ──────────────────────────────────────────────────────────
@@ -260,3 +270,175 @@ async def routing_stats(
         session, user.tenant_id, user,
     )
     return {"data": stats.model_dump(mode="json"), "meta": _meta()}
+
+
+# ── Provider Credential & Test Endpoints ────────────────────────────
+
+
+@router_api.get("/providers/credential-schemas")
+async def get_credential_schemas(
+    user: AuthenticatedUser = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Return per-provider-type credential form schemas."""
+    schemas = {
+        k: v.model_dump(mode="json")
+        for k, v in PROVIDER_CREDENTIAL_SCHEMAS.items()
+    }
+    return {"data": schemas, "meta": _meta()}
+
+
+@router_api.put("/providers/{provider_id}/credentials")
+async def save_provider_credentials(
+    provider_id: UUID,
+    body: ProviderCredentialsPayload,
+    user: AuthenticatedUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Store provider credentials in Vault. Returns provider without secrets."""
+    secrets = await get_secrets_manager()
+    try:
+        entry = await ModelRouterService.save_provider_credentials(
+            session, secrets, user.tenant_id, user, provider_id, body.credentials,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    return {
+        "data": {
+            "provider_id": str(provider_id),
+            "vault_path": entry.vault_secret_path,
+            "credentials_saved": True,
+        },
+        "meta": _meta(),
+    }
+
+
+@router_api.post("/providers/{provider_id}/test")
+async def test_provider_connection(
+    provider_id: UUID,
+    user: AuthenticatedUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Test connection to a provider using Vault-stored credentials."""
+    secrets = await get_secrets_manager()
+    result = await ModelRouterService.test_connection(
+        session, secrets, user.tenant_id, user, provider_id,
+    )
+    return {"data": result.model_dump(mode="json"), "meta": _meta()}
+
+
+@router_api.get("/providers/{provider_id}/health")
+async def get_provider_health_detail(
+    provider_id: UUID,
+    user: AuthenticatedUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Get detailed health metrics for a single provider."""
+    try:
+        health = await ModelRouterService.get_provider_health_detail(
+            session, user.tenant_id, user, provider_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    return {"data": health.model_dump(mode="json"), "meta": _meta()}
+
+
+@router_api.get("/providers/health/detail")
+async def get_all_provider_health_detail(
+    user: AuthenticatedUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Get detailed health for all tenant providers with circuit breaker."""
+    health = await ModelRouterService.get_all_provider_health_detail(
+        session, user.tenant_id, user,
+    )
+    return {
+        "data": [h.model_dump(mode="json") for h in health],
+        "meta": _meta(),
+    }
+
+
+@router_api.delete("/providers/{provider_id}", status_code=204)
+async def delete_provider(
+    provider_id: UUID,
+    user: AuthenticatedUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> None:
+    """Delete provider and clean up Vault credentials."""
+    secrets = await get_secrets_manager()
+    deleted = await ModelRouterService.delete_provider(
+        session, secrets, user.tenant_id, user, provider_id,
+    )
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Provider not found")
+
+
+# ── Visual Routing Rule Endpoints ───────────────────────────────────
+
+
+@router_api.post("/route/visual")
+async def visual_route_request(
+    body: VisualRouteRequest,
+    user: AuthenticatedUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Route a request using visual rules with explainable decision."""
+    decision = await ModelRouterService.route_visual(
+        session, user.tenant_id, user, body,
+    )
+    return {"data": decision.model_dump(mode="json"), "meta": _meta()}
+
+
+@router_api.get("/rules/visual")
+async def get_visual_rules(
+    user: AuthenticatedUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Get visual routing rules for the tenant."""
+    rules = await ModelRouterService.get_visual_rules(
+        session, user.tenant_id, user,
+    )
+    return {
+        "data": [r.model_dump(mode="json") for r in rules],
+        "meta": _meta(),
+    }
+
+
+@router_api.put("/rules/visual")
+async def save_visual_rules(
+    body: list[VisualRoutingRule],
+    user: AuthenticatedUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Save visual routing rules (bulk upsert with priority)."""
+    rules = await ModelRouterService.save_visual_rules(
+        session, user.tenant_id, user, body,
+    )
+    return {
+        "data": [r.model_dump(mode="json") for r in rules],
+        "meta": _meta(),
+    }
+
+
+@router_api.get("/fallback")
+async def get_fallback_chain(
+    user: AuthenticatedUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Get fallback chain configuration for the tenant."""
+    chain = await ModelRouterService.get_fallback_chain(
+        session, user.tenant_id, user,
+    )
+    return {"data": chain.model_dump(mode="json"), "meta": _meta()}
+
+
+@router_api.put("/fallback")
+async def save_fallback_chain(
+    body: FallbackChainConfig,
+    user: AuthenticatedUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Save fallback chain ordering for the tenant."""
+    chain = await ModelRouterService.save_fallback_chain(
+        session, user.tenant_id, user, body,
+    )
+    return {"data": chain.model_dump(mode="json"), "meta": _meta()}

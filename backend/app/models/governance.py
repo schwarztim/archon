@@ -102,6 +102,30 @@ class AgentRegistryEntry(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=_utcnow)
 
 
+class ApprovalRequest(SQLModel, table=True):
+    """Approval request for agent production promotion."""
+
+    __tablename__ = "governance_approval_requests"
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    agent_id: UUID = Field(index=True, foreign_key="agents.id")
+    requester_id: UUID | None = Field(default=None, foreign_key="users.id")
+    requester_name: str = Field(default="")
+    agent_name: str = Field(default="")
+    action: str = Field(default="promote_to_production")
+    status: str = Field(default="pending")  # pending | approved | rejected
+    approval_rule: str = Field(default="any_one")  # any_one | all | majority
+    reviewers: list[str] = Field(
+        default_factory=list, sa_column=Column(JSON, nullable=False)
+    )
+    decisions: list[dict[str, Any]] = Field(
+        default_factory=list, sa_column=Column(JSON, nullable=False)
+    )
+    comment: str | None = Field(default=None, sa_column=Column(SAText, nullable=True))
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
+
+
 def compute_entry_hash(entry_data: str, previous_hash: str | None = None) -> str:
     """Compute SHA-256 hash for audit entry chain integrity."""
     payload = f"{previous_hash or ''}{entry_data}"
@@ -242,6 +266,7 @@ class GovernanceReport(BaseModel):
 __all__ = [
     "AccessReview",
     "AgentRegistryEntry",
+    "ApprovalRequest",
     "ApprovalStage",
     "ApprovalWorkflow",
     "AuditEntry",

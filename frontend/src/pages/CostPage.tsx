@@ -1,13 +1,16 @@
 import { useState, useEffect } from "react";
 import {
   DollarSign,
-  Wallet,
   AlertTriangle,
-  Plus,
-  X,
 } from "lucide-react";
-import { Button } from "@/components/ui/Button";
 import { apiGet, apiPost } from "@/api/client";
+import { SummaryCards } from "@/components/cost/SummaryCards";
+import { UsageChart } from "@/components/cost/UsageChart";
+import { BreakdownTable } from "@/components/cost/BreakdownTable";
+import { TopConsumers } from "@/components/cost/TopConsumers";
+import { BudgetWizard, type BudgetFormData } from "@/components/cost/BudgetWizard";
+import { BudgetList } from "@/components/cost/BudgetList";
+import { ExportButton } from "@/components/cost/ExportButton";
 
 interface UsageEntry {
   id: string;
@@ -20,7 +23,7 @@ interface UsageEntry {
   recorded_at: string;
 }
 
-interface Budget {
+interface BudgetItem {
   id: string;
   name: string;
   scope: string;
@@ -31,9 +34,12 @@ interface Budget {
   enforcement: string;
   is_active: boolean;
   created_at: string;
+  alert_thresholds?: number[];
+  utilization_pct?: number;
+  utilization_color?: string;
 }
 
-interface CostAlert {
+interface CostAlertItem {
   id: string;
   message: string;
   severity: string;
@@ -45,6 +51,30 @@ interface PricingEntry {
   model_id: string;
   cost_per_input_token: number;
   cost_per_output_token: number;
+}
+
+interface BreakdownEntry {
+  name: string;
+  tokens_used: number;
+  cost: number;
+  pct_of_total: number;
+}
+
+interface CostSummaryData {
+  total_spend: number;
+  budget_limit: number;
+  budget_used_pct: number;
+  projected_spend: number;
+  top_model: string;
+  daily_spend: { date: string; amount: number }[];
+  breakdown_by_agent: BreakdownEntry[];
+  breakdown_by_model: BreakdownEntry[];
+  breakdown_by_user: BreakdownEntry[];
+}
+
+interface ChartPoint {
+  date: string;
+  [provider: string]: string | number;
 }
 
 function formatCurrency(value: number) {
@@ -59,36 +89,38 @@ function formatTokens(n: number) {
 
 export function CostPage() {
   const [usage, setUsage] = useState<UsageEntry[]>([]);
-  const [budgets, setBudgets] = useState<Budget[]>([]);
-  const [alerts, setAlerts] = useState<CostAlert[]>([]);
+  const [budgets, setBudgets] = useState<BudgetItem[]>([]);
+  const [alerts, setAlerts] = useState<CostAlertItem[]>([]);
   const [pricing, setPricing] = useState<PricingEntry[]>([]);
+  const [summary, setSummary] = useState<CostSummaryData | null>(null);
+  const [chartData, setChartData] = useState<ChartPoint[]>([]);
+  const [chartProviders, setChartProviders] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showCreateBudget, setShowCreateBudget] = useState(false);
-  const [creating, setCreating] = useState(false);
-  const [budgetForm, setBudgetForm] = useState({
-    name: "",
-    scope: "global",
-    limit_amount: "",
-    currency: "USD",
-    period: "monthly",
-    enforcement: "soft",
-  });
+  const [showBudgetWizard, setShowBudgetWizard] = useState(false);
 
   async function fetchAll() {
     setLoading(true);
     setError(null);
     try {
-      const [usageRes, budgetsRes, alertsRes, pricingRes] = await Promise.allSettled([
+      const [usageRes, budgetsRes, alertsRes, pricingRes, summaryRes, chartRes] = await Promise.allSettled([
         apiGet<UsageEntry[]>("/cost/usage"),
-        apiGet<Budget[]>("/cost/budgets"),
-        apiGet<CostAlert[]>("/cost/alerts"),
+        apiGet<BudgetItem[]>("/cost/api/v1/cost/budgets"),
+        apiGet<CostAlertItem[]>("/cost/alerts"),
         apiGet<PricingEntry[]>("/cost/pricing"),
+        apiGet<CostSummaryData>("/cost/summary"),
+        apiGet<{ providers: string[]; series: ChartPoint[] }>("/cost/api/v1/cost/chart"),
       ]);
       if (usageRes.status === "fulfilled") setUsage(Array.isArray(usageRes.value.data) ? usageRes.value.data : []);
       if (budgetsRes.status === "fulfilled") setBudgets(Array.isArray(budgetsRes.value.data) ? budgetsRes.value.data : []);
       if (alertsRes.status === "fulfilled") setAlerts(Array.isArray(alertsRes.value.data) ? alertsRes.value.data : []);
       if (pricingRes.status === "fulfilled") setPricing(Array.isArray(pricingRes.value.data) ? pricingRes.value.data : []);
+      if (summaryRes.status === "fulfilled" && summaryRes.value.data) setSummary(summaryRes.value.data as CostSummaryData);
+      if (chartRes.status === "fulfilled" && chartRes.value.data) {
+        const cd = chartRes.value.data as { providers: string[]; series: ChartPoint[] };
+        setChartProviders(cd.providers || []);
+        setChartData(cd.series || []);
+      }
     } catch {
       setError("Failed to load cost data.");
     } finally {
@@ -98,28 +130,33 @@ export function CostPage() {
 
   useEffect(() => { void fetchAll(); }, []);
 
-  async function handleCreateBudget(e: React.FormEvent) {
-    e.preventDefault();
-    const limit = parseFloat(budgetForm.limit_amount);
-    if (!budgetForm.name || isNaN(limit) || limit <= 0) return;
-    setCreating(true);
+  async function handleCreateBudget(data: BudgetFormData) {
     try {
-      await apiPost("/cost/budgets", {
-        name: budgetForm.name,
-        scope: budgetForm.scope,
-        limit_amount: limit,
-        currency: budgetForm.currency,
-        period: budgetForm.period,
-        enforcement: budgetForm.enforcement,
-        is_active: true,
-      });
-      setBudgetForm({ name: "", scope: "global", limit_amount: "", currency: "USD", period: "monthly", enforcement: "soft" });
-      setShowCreateBudget(false);
+      await apiPost("/cost/api/v1/cost/budgets", data);
+      setShowBudgetWizard(false);
       await fetchAll();
     } catch {
       setError("Failed to create budget.");
-    } finally {
-      setCreating(false);
+    }
+  }
+
+  async function handleExport(format: "csv" | "pdf") {
+    try {
+      if (format === "csv") {
+        const res = await fetch("/api/v1/cost/api/v1/cost/export?format=csv", { credentials: "include" });
+        if (!res.ok) throw new Error("Export failed");
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "cost_report.csv";
+        a.click();
+        URL.revokeObjectURL(url);
+      } else {
+        await apiGet("/cost/api/v1/cost/export", { format: "pdf" });
+      }
+    } catch {
+      setError("Failed to export report.");
     }
   }
 
@@ -139,15 +176,39 @@ export function CostPage() {
     );
   }
 
+  // Build breakdown data for the BreakdownTable
+  const breakdownByModel = summary?.breakdown_by_model ?? [];
+  const breakdownByAgent = summary?.breakdown_by_agent ?? [];
+  const breakdownByUser = summary?.breakdown_by_user ?? [];
+
+  // Top consumers from model breakdown
+  const topConsumers = [...breakdownByModel].sort((a, b) => b.cost - a.cost).slice(0, 10);
+
   return (
     <div className="p-6">
-      <div className="mb-6 flex items-center gap-3">
-        <DollarSign size={24} className="text-purple-400" />
-        <div>
-          <h1 className="text-2xl font-bold text-white">Cost &amp; Budget</h1>
-          <p className="text-sm text-gray-400">Track token usage, set spending limits, and manage cost alerts.</p>
+      <div className="mb-6 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <DollarSign size={24} className="text-purple-400" />
+          <div>
+            <h1 className="text-2xl font-bold text-white">Cost &amp; Budget</h1>
+            <p className="text-sm text-gray-400">Track token usage, set spending limits, and manage cost alerts.</p>
+          </div>
         </div>
+        <ExportButton onExport={handleExport} />
       </div>
+
+      {/* Summary Cards */}
+      {summary && (
+        <SummaryCards
+          totalSpend={summary.total_spend}
+          budgetUsedPct={summary.budget_used_pct}
+          projectedSpend={summary.projected_spend}
+          topModel={summary.top_model}
+        />
+      )}
+
+      {/* Usage Chart — stacked area by provider */}
+      <UsageChart series={chartData} providers={chartProviders} />
 
       {/* Usage Table */}
       <div className="mb-6 rounded-lg border border-[#2a2d37] bg-[#1a1d27]">
@@ -189,89 +250,30 @@ export function CostPage() {
         </div>
       </div>
 
-      {/* Budgets */}
-      <div className="mb-6 rounded-lg border border-[#2a2d37] bg-[#1a1d27]">
-        <div className="flex items-center justify-between border-b border-[#2a2d37] px-4 py-3">
-          <h2 className="text-sm font-semibold text-white">Budgets</h2>
-          <Button size="sm" className="bg-purple-600 hover:bg-purple-700" onClick={() => setShowCreateBudget(!showCreateBudget)}>
-            {showCreateBudget ? <><X size={14} className="mr-1.5" /> Cancel</> : <><Plus size={14} className="mr-1.5" /> Create Budget</>}
-          </Button>
-        </div>
+      {/* Budgets with Wizard */}
+      <BudgetList
+        budgets={budgets}
+        showWizard={showBudgetWizard}
+        onToggleWizard={() => setShowBudgetWizard(!showBudgetWizard)}
+      >
+        <BudgetWizard
+          onSubmit={handleCreateBudget}
+          onCancel={() => setShowBudgetWizard(false)}
+        />
+      </BudgetList>
 
-        {showCreateBudget && (
-          <form onSubmit={handleCreateBudget} className="border-b border-[#2a2d37] bg-[#0f1117] px-4 py-4">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <div>
-                <label className="mb-1 block text-xs text-gray-400">Budget Name *</label>
-                <input className="h-9 w-full rounded-md border border-[#2a2d37] bg-[#0f1117] px-3 text-sm text-white" placeholder="Production LLM" value={budgetForm.name} onChange={(e) => setBudgetForm({ ...budgetForm, name: e.target.value })} />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs text-gray-400">Scope</label>
-                <select value={budgetForm.scope} onChange={(e) => setBudgetForm({ ...budgetForm, scope: e.target.value })} className="h-9 w-full rounded-md border border-[#2a2d37] bg-[#0f1117] px-3 text-sm text-white">
-                  <option value="global">Global</option>
-                  <option value="team">Team</option>
-                  <option value="project">Project</option>
-                </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-xs text-gray-400">Limit Amount *</label>
-                <input type="number" min="1" className="h-9 w-full rounded-md border border-[#2a2d37] bg-[#0f1117] px-3 text-sm text-white" placeholder="5000" value={budgetForm.limit_amount} onChange={(e) => setBudgetForm({ ...budgetForm, limit_amount: e.target.value })} />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs text-gray-400">Period</label>
-                <select value={budgetForm.period} onChange={(e) => setBudgetForm({ ...budgetForm, period: e.target.value })} className="h-9 w-full rounded-md border border-[#2a2d37] bg-[#0f1117] px-3 text-sm text-white">
-                  <option value="daily">Daily</option>
-                  <option value="weekly">Weekly</option>
-                  <option value="monthly">Monthly</option>
-                  <option value="quarterly">Quarterly</option>
-                  <option value="annual">Annual</option>
-                </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-xs text-gray-400">Enforcement</label>
-                <select value={budgetForm.enforcement} onChange={(e) => setBudgetForm({ ...budgetForm, enforcement: e.target.value })} className="h-9 w-full rounded-md border border-[#2a2d37] bg-[#0f1117] px-3 text-sm text-white">
-                  <option value="soft">Soft</option>
-                  <option value="hard">Hard</option>
-                </select>
-              </div>
-              <div className="flex items-end">
-                <Button type="submit" size="sm" className="w-full bg-purple-600 hover:bg-purple-700" disabled={creating}>
-                  {creating ? "Creating…" : "Create Budget"}
-                </Button>
-              </div>
-            </div>
-          </form>
-        )}
+      {/* Cost Breakdown Table with switchable tabs */}
+      {summary && (
+        <BreakdownTable
+          breakdownByModel={breakdownByModel}
+          breakdownByAgent={breakdownByAgent}
+          breakdownByUser={breakdownByUser}
+          breakdownByTeam={[]}
+        />
+      )}
 
-        <div className="divide-y divide-[#2a2d37]">
-          {budgets.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12">
-              <Wallet size={32} className="mb-2 text-gray-600" />
-              <p className="text-sm text-gray-500">No budgets configured yet.</p>
-            </div>
-          ) : (
-            budgets.map((b) => {
-              const pct = b.limit_amount > 0 ? Math.round(((b.spent_amount ?? 0) / b.limit_amount) * 100) : 0;
-              return (
-                <div key={b.id} className="px-4 py-3">
-                  <div className="mb-1 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-white">{b.name}</span>
-                      <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-gray-400">{b.period}</span>
-                    </div>
-                    <span className="text-sm font-medium text-gray-400">
-                      {formatCurrency(b.spent_amount ?? 0)} / {formatCurrency(b.limit_amount)} ({pct}%)
-                    </span>
-                  </div>
-                  <div className="h-2 overflow-hidden rounded-full bg-white/10">
-                    <div className={`h-full rounded-full transition-all ${pct >= 90 ? "bg-red-500" : pct >= 70 ? "bg-yellow-500" : "bg-green-500"}`} style={{ width: `${Math.min(pct, 100)}%` }} />
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-      </div>
+      {/* Top Consumers — horizontal bar chart */}
+      {topConsumers.length > 0 && <TopConsumers data={topConsumers} />}
 
       {/* Alerts */}
       <div className="mb-6 rounded-lg border border-[#2a2d37] bg-[#1a1d27]">

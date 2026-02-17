@@ -21,25 +21,57 @@ export async function getAgent(
   return apiGet<AgentDefinition>(`/agents/${id}`);
 }
 
-/** Create a new agent definition */
-export async function createAgent(payload: {
+/** Full agent specification for create/update */
+export interface AgentSpec {
   name: string;
   description?: string;
-  nodes: AppNode[];
-  edges: AppEdge[];
-}): Promise<ApiResponse<AgentDefinition>> {
+  tags?: string[];
+  group_id?: string | null;
+  definition?: Record<string, unknown>;
+  llm_config?: {
+    provider: string;
+    model_id: string;
+    temperature?: number;
+    max_tokens?: number;
+    system_prompt?: string;
+  } | null;
+  tools?: Array<{ name: string; type?: string; config?: Record<string, unknown> }> | null;
+  rag_config?: {
+    enabled: boolean;
+    collection?: string;
+    embedding_model?: string;
+    chunk_strategy?: string;
+    chunk_size?: number;
+    chunk_overlap?: number;
+    top_k?: number;
+  } | null;
+  mcp_config?: {
+    enabled: boolean;
+    tools?: string[];
+  } | null;
+  security_policy?: {
+    dlp_enabled?: boolean;
+    guardrail_policies?: string[];
+    max_cost_per_run?: number;
+    allowed_domains?: string[];
+    pii_handling?: string;
+  } | null;
+  connectors?: string[];
+  nodes?: AppNode[];
+  edges?: AppEdge[];
+}
+
+/** Create a new agent definition */
+export async function createAgent(
+  payload: AgentSpec,
+): Promise<ApiResponse<AgentDefinition>> {
   return apiPost<AgentDefinition>("/agents/", payload);
 }
 
 /** Update an existing agent definition */
 export async function updateAgent(
   id: string,
-  payload: {
-    name?: string;
-    description?: string;
-    nodes?: AppNode[];
-    edges?: AppEdge[];
-  },
+  payload: Partial<AgentSpec>,
 ): Promise<ApiResponse<AgentDefinition>> {
   return apiPut<AgentDefinition>(`/agents/${id}`, payload);
 }

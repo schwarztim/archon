@@ -1,11 +1,16 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { ReactFlowProvider } from "@xyflow/react";
 import { AgentCanvas } from "@/components/canvas/AgentCanvas";
 import { TopBar } from "@/components/canvas/TopBar";
 import { NodePalette } from "@/components/palette";
 import { PropertyPanel } from "@/components/properties";
+import { TestRunPanel } from "@/components/builder/TestRunPanel";
+import { ValidationOverlay } from "@/components/builder/ValidationOverlay";
 import { useCanvasStore } from "@/stores/canvasStore";
-import { useAgent } from "@/hooks/useAgents";
+import { useAgent, useUpdateAgent, useCreateAgent } from "@/hooks/useAgents";
+
+/** Auto-save interval in milliseconds (30 seconds) */
+const AUTO_SAVE_INTERVAL_MS = 30_000;
 
 export function BuilderPage() {
   const [agentId, setAgentId] = useState<string | null>(() => {
@@ -20,9 +25,13 @@ export function BuilderPage() {
       document.documentElement.classList.contains("dark")
     );
   });
+  const [testPanelOpen, setTestPanelOpen] = useState(false);
 
-  const { clearCanvas, setNodes, setEdges, markClean } = useCanvasStore();
+  const { clearCanvas, setNodes, setEdges, markClean, isDirty, nodes, edges, showValidation, setLastAutoSave } = useCanvasStore();
   const { data: agentResponse } = useAgent(agentId);
+  const updateAgent = useUpdateAgent();
+  const createAgent = useCreateAgent();
+  const autoSaveRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Load agent from API when agentId is present
   useEffect(() => {
@@ -38,6 +47,30 @@ export function BuilderPage() {
     document.documentElement.classList.toggle("dark", isDark);
   }, [isDark]);
 
+  // Auto-save draft every 30 seconds
+  useEffect(() => {
+    autoSaveRef.current = setInterval(() => {
+      const store = useCanvasStore.getState();
+      if (!store.isDirty || !agentId) return;
+
+      void updateAgent.mutateAsync({
+        id: agentId,
+        name: agentName,
+        nodes: store.nodes,
+        edges: store.edges,
+      }).then(() => {
+        store.markClean();
+        store.setLastAutoSave(Date.now());
+      }).catch(() => {
+        // Auto-save failures are silent — user can still manually save
+      });
+    }, AUTO_SAVE_INTERVAL_MS);
+
+    return () => {
+      if (autoSaveRef.current) clearInterval(autoSaveRef.current);
+    };
+  }, [agentId, agentName, updateAgent]);
+
   const handleToggleTheme = useCallback(() => {
     setIsDark((d) => !d);
   }, []);
@@ -46,6 +79,7 @@ export function BuilderPage() {
     clearCanvas();
     setAgentName("Untitled Agent");
     setAgentId(null);
+    setTestPanelOpen(false);
     // Clean up URL param
     const url = new URL(window.location.href);
     url.searchParams.delete("agentId");
@@ -59,6 +93,10 @@ export function BuilderPage() {
     window.history.replaceState({}, "", url.toString());
   }, []);
 
+  const handleToggleTestPanel = useCallback(() => {
+    setTestPanelOpen((o) => !o);
+  }, []);
+
   return (
     <ReactFlowProvider>
       <div className="flex h-screen flex-col bg-background text-foreground">
@@ -70,13 +108,22 @@ export function BuilderPage() {
           onToggleTheme={handleToggleTheme}
           onAgentSaved={handleAgentSaved}
           isDark={isDark}
+          onToggleTestPanel={handleToggleTestPanel}
         />
         <div className="flex flex-1 overflow-hidden">
           <NodePalette />
-          <main className="flex-1">
+          <main className="relative flex-1">
             <AgentCanvas />
+            <ValidationOverlay showErrors={showValidation} />
           </main>
           <PropertyPanel />
+          {testPanelOpen && (
+            <TestRunPanel
+              agentId={agentId}
+              open={testPanelOpen}
+              onClose={() => setTestPanelOpen(false)}
+            />
+          )}
         </div>
       </div>
     </ReactFlowProvider>

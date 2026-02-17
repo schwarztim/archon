@@ -522,3 +522,189 @@ async def list_known_services(
         "data": [s.model_dump(mode="json") for s in page],
         "meta": _meta(pagination={"total": total, "limit": limit, "offset": offset}),
     }
+
+
+# ── Agent-14 Enhanced Endpoints (/api/v1/sentinelscan/*) ────────────
+
+scan_router = APIRouter(
+    prefix="/api/v1/sentinelscan",
+    tags=["sentinelscan-v1"],
+)
+
+
+class ScanRequest(BaseModel):
+    """Payload for running a discovery scan."""
+
+    sources: list[str] = PField(default_factory=lambda: ["sso", "api_gateway", "dns"])
+    scan_depth: str = "standard"
+
+
+class RemediateItemRequest(BaseModel):
+    """Payload for single remediation."""
+
+    action: str  # Block | Approve | Monitor | Ignore
+
+
+class BulkRemediateRequest(BaseModel):
+    """Payload for bulk remediation."""
+
+    finding_ids: list[str]
+    action: str  # Block | Approve | Monitor | Ignore
+
+
+# ── POST /api/v1/sentinelscan/scan ──────────────────────────────────
+
+
+@scan_router.post("/scan", status_code=201)
+async def run_scan_v1(
+    body: ScanRequest,
+    user: AuthenticatedUser = Depends(require_permission("sentinel", "discover")),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Run a multi-source discovery scan."""
+    result = await SentinelScanService.run_discovery_scan(
+        tenant_id=user.tenant_id,
+        user_id=user.id,
+        sources=body.sources,
+        scan_depth=body.scan_depth,
+    )
+    await _audit(
+        session, user, "sentinelscan.scan.executed", "sentinel_scan",
+        result["id"], {"findings_count": len(result["findings"])},
+    )
+    return {"data": result, "meta": _meta()}
+
+
+# ── GET /api/v1/sentinelscan/services ───────────────────────────────
+
+
+@scan_router.get("/services")
+async def list_services_v1(
+    user: AuthenticatedUser = Depends(require_permission("sentinel", "read")),
+    session: AsyncSession = Depends(get_session),
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    risk_level: str | None = Query(default=None),
+    status: str | None = Query(default=None),
+    service_type: str | None = Query(default=None),
+) -> dict[str, Any]:
+    """Get service inventory with optional filters."""
+    result = await SentinelScanService.get_service_inventory(
+        tenant_id=user.tenant_id,
+        limit=limit,
+        offset=offset,
+        risk_level=risk_level,
+        status=status,
+        service_type=service_type,
+    )
+    return {
+        "data": result["services"],
+        "meta": _meta(pagination={
+            "total": result["total"],
+            "limit": result["limit"],
+            "offset": result["offset"],
+        }),
+    }
+
+
+# ── GET /api/v1/sentinelscan/posture ────────────────────────────────
+
+
+@scan_router.get("/posture")
+async def get_posture_v1(
+    user: AuthenticatedUser = Depends(require_permission("sentinel", "read")),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Get weighted posture score."""
+    result = await SentinelScanService.compute_weighted_posture(
+        tenant_id=user.tenant_id,
+    )
+    return {"data": result, "meta": _meta()}
+
+
+# ── GET /api/v1/sentinelscan/risks ──────────────────────────────────
+
+
+@scan_router.get("/risks")
+async def get_risks_v1(
+    user: AuthenticatedUser = Depends(require_permission("sentinel", "read")),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Get risk breakdown by category."""
+    result = await SentinelScanService.get_risk_breakdown(
+        tenant_id=user.tenant_id,
+    )
+    return {"data": result, "meta": _meta()}
+
+
+# ── POST /api/v1/sentinelscan/remediate/{id} ────────────────────────
+
+
+@scan_router.post("/remediate/{finding_id}", status_code=200)
+async def remediate_finding_v1(
+    finding_id: str,
+    body: RemediateItemRequest,
+    user: AuthenticatedUser = Depends(require_permission("sentinel", "remediate")),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Apply remediation action to a single finding."""
+    result = await SentinelScanService.apply_remediation(
+        tenant_id=user.tenant_id,
+        user_id=user.id,
+        finding_id=finding_id,
+        action=body.action,
+    )
+    await _audit(
+        session, user, "sentinelscan.remediate.applied", "sentinel_finding",
+        finding_id, {"action": body.action},
+    )
+    return {"data": result, "meta": _meta()}
+
+
+# ── POST /api/v1/sentinelscan/remediate/bulk ────────────────────────
+
+
+@scan_router.post("/remediate/bulk", status_code=200)
+async def bulk_remediate_v1(
+    body: BulkRemediateRequest,
+    user: AuthenticatedUser = Depends(require_permission("sentinel", "remediate")),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Apply remediation action to multiple findings."""
+    result = await SentinelScanService.apply_bulk_remediation(
+        tenant_id=user.tenant_id,
+        user_id=user.id,
+        finding_ids=body.finding_ids,
+        action=body.action,
+    )
+    await _audit(
+        session, user, "sentinelscan.remediate.bulk", "sentinel_findings",
+        details={"action": body.action, "count": len(body.finding_ids)},
+    )
+    return {"data": result, "meta": _meta()}
+
+
+# ── GET /api/v1/sentinelscan/history ────────────────────────────────
+
+
+@scan_router.get("/history")
+async def scan_history_v1(
+    user: AuthenticatedUser = Depends(require_permission("sentinel", "read")),
+    session: AsyncSession = Depends(get_session),
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+) -> dict[str, Any]:
+    """Get scan history with pagination."""
+    result = await SentinelScanService.get_scan_history(
+        tenant_id=user.tenant_id,
+        limit=limit,
+        offset=offset,
+    )
+    return {
+        "data": result["scans"],
+        "meta": _meta(pagination={
+            "total": result["total"],
+            "limit": result["limit"],
+            "offset": result["offset"],
+        }),
+    }

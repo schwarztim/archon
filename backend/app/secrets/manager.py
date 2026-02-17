@@ -428,6 +428,10 @@ class _StubSecretsManager:
         )
         return entry["meta"]
 
+    async def health(self) -> dict:
+        """Return stub health status."""
+        return {"status": "stub", "initialized": False, "sealed": False, "cluster_name": ""}
+
     async def issue_certificate(self, *_: Any, **__: Any) -> CertificateBundle:
         raise CertificateError("Vault PKI not available in stub mode")
 

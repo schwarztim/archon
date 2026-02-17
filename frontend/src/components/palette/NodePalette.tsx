@@ -47,13 +47,16 @@ function PaletteCard({ item }: { item: PaletteItem }) {
       draggable
       onDragStart={onDragStart}
       className={cn(
-        "flex cursor-grab items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm transition-colors hover:bg-accent active:cursor-grabbing",
+        "flex cursor-grab flex-col gap-0.5 rounded-md border border-border bg-card px-3 py-2 text-sm transition-colors hover:bg-accent active:cursor-grabbing",
       )}
       role="listitem"
       aria-label={`Drag to add ${item.label} node`}
     >
       <span className="text-muted-foreground text-xs font-medium">
         {item.label}
+      </span>
+      <span className="text-muted-foreground/60 text-[10px] leading-tight">
+        {item.description}
       </span>
     </div>
   );

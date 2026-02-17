@@ -225,6 +225,75 @@ class MarketplaceService:
         """Return a creator profile by ID."""
         return await session.get(CreatorProfile, creator_id)
 
+    @staticmethod
+    async def catalog(
+        session: AsyncSession,
+        *,
+        query: str | None = None,
+        category: str | None = None,
+        sort: str | None = None,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> tuple[list[MarketplaceListing], int]:
+        """Return browsable catalog of approved listings with search/sort."""
+        base = select(MarketplaceListing).where(
+            MarketplaceListing.status.in_(["approved", "draft"]),  # type: ignore[union-attr]
+        )
+        if category is not None:
+            base = base.where(MarketplaceListing.category == category)
+        if query is not None:
+            pattern = f"%{query}%"
+            base = base.where(
+                MarketplaceListing.name.ilike(pattern)  # type: ignore[union-attr]
+                | MarketplaceListing.description.ilike(pattern)  # type: ignore[union-attr]
+            )
+
+        count_stmt = select(func.count()).select_from(base.subquery())
+        count_result = await session.exec(count_stmt)  # type: ignore[arg-type]
+        total: int = count_result.one()
+
+        order_col = MarketplaceListing.created_at.desc()  # type: ignore[union-attr]
+        if sort == "popular":
+            order_col = MarketplaceListing.install_count.desc()  # type: ignore[union-attr]
+        elif sort == "rating":
+            order_col = MarketplaceListing.avg_rating.desc()  # type: ignore[union-attr]
+        elif sort == "name":
+            order_col = MarketplaceListing.name.asc()  # type: ignore[union-attr]
+
+        stmt = base.offset(offset).limit(limit).order_by(order_col)
+        result = await session.exec(stmt)
+        items = list(result.all())
+
+        return items, total
+
+    @staticmethod
+    async def install_by_id(
+        session: AsyncSession,
+        listing_id: UUID,
+        user_id: UUID,
+    ) -> MarketplaceInstall | None:
+        """Install a listing by ID — creates install record and bumps counter.
+
+        Returns None if the listing does not exist.
+        """
+        listing = await session.get(MarketplaceListing, listing_id)
+        if listing is None:
+            return None
+
+        install = MarketplaceInstall(
+            listing_id=listing_id,
+            user_id=user_id,
+            installed_version=listing.version,
+        )
+        session.add(install)
+
+        listing.install_count += 1
+        session.add(listing)
+
+        await session.commit()
+        await session.refresh(install)
+        return install
+
 
 __all__ = [
     "MarketplaceService",

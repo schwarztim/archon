@@ -27,6 +27,14 @@ from app.models.connector import (
 )
 from app.secrets.manager import VaultSecretsManager, get_secrets_manager
 from app.services import ConnectorService
+from app.services.connectors.schemas import (
+    CONNECTOR_TYPE_REGISTRY,
+    get_connector_schema,
+    get_secret_field_names,
+)
+from app.services.connectors.oauth import OAuthProviderRegistry
+from app.services.connectors.testers import ConnectionTester
+from app.services.connectors.health import HealthChecker
 
 try:
     from opentelemetry import trace
@@ -380,3 +388,197 @@ async def revoke_connector(
         )
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
+
+
+# ── Agent-09: Connector catalog, OAuth by type, test, health ────────
+
+
+@enterprise.get("/catalog/types")
+async def list_connector_type_schemas(
+    user: AuthenticatedUser = Depends(require_permission("connectors", "read")),
+) -> dict[str, Any]:
+    """Return all connector type schemas with credential field definitions.
+
+    Drives the frontend catalog grid and type-specific forms.
+    """
+    schemas = [s.model_dump(mode="json") for s in CONNECTOR_TYPE_REGISTRY]
+    return {
+        "data": schemas,
+        "meta": _meta(pagination={"total": len(schemas)}),
+    }
+
+
+@enterprise.get("/oauth/{provider_type}/authorize")
+async def oauth_authorize(
+    provider_type: str,
+    redirect_uri: str = Query(...),
+    user: AuthenticatedUser = Depends(require_permission("connectors", "create")),
+    secrets: VaultSecretsManager = Depends(get_secrets_manager),
+) -> dict[str, Any]:
+    """Return OAuth authorization URL for a provider type.
+
+    The frontend opens this URL in a popup window. After the user
+    authorizes, the provider redirects to the callback endpoint.
+    """
+    if not OAuthProviderRegistry.is_supported(provider_type):
+        raise HTTPException(
+            status_code=400,
+            detail=f"OAuth not supported for provider: {provider_type}",
+        )
+
+    # In production, client_id comes from Vault
+    vault_path = f"archon/{user.tenant_id}/oauth/{provider_type}"
+    try:
+        oauth_config = await secrets.get_secret(vault_path, user.tenant_id)
+        client_id = oauth_config.get("client_id", f"archon-{provider_type}-client")
+    except Exception:
+        client_id = f"archon-{provider_type}-client"
+
+    schema = get_connector_schema(provider_type)
+    scopes = schema.auth_methods if schema else None
+
+    authorization_url, state, code_verifier = OAuthProviderRegistry.build_authorize_url(
+        provider_type,
+        client_id=client_id,
+        redirect_uri=redirect_uri,
+        scopes=scopes,
+    )
+
+    OAuthProviderRegistry.store_pending_state(
+        state,
+        tenant_id=user.tenant_id,
+        connector_id="pending",
+        provider_type=provider_type,
+        redirect_uri=redirect_uri,
+        code_verifier=code_verifier,
+    )
+
+    logger.info(
+        "connector.oauth_authorize",
+        extra={
+            "tenant_id": user.tenant_id,
+            "provider_type": provider_type,
+            "action": "connector.oauth_authorize",
+        },
+    )
+
+    return {
+        "data": {
+            "authorization_url": authorization_url,
+            "state": state,
+        },
+        "meta": _meta(),
+    }
+
+
+@enterprise.post("/oauth/{provider_type}/callback")
+async def oauth_type_callback(
+    provider_type: str,
+    body: OAuthCallbackRequest,
+    user: AuthenticatedUser = Depends(require_auth),
+    secrets: VaultSecretsManager = Depends(get_secrets_manager),
+) -> dict[str, Any]:
+    """Complete OAuth callback for a specific provider type.
+
+    Exchanges authorization code for tokens and stores them in Vault.
+    """
+    pending = OAuthProviderRegistry.pop_pending_state(body.state)
+    if pending is None or pending["tenant_id"] != user.tenant_id:
+        raise HTTPException(status_code=400, detail="Invalid or expired OAuth state")
+
+    connector_id = pending["connector_id"]
+    vault_path = f"archon/connectors/{connector_id}/oauth_tokens"
+
+    result = await OAuthProviderRegistry.exchange_code_for_tokens(
+        provider_type,
+        body.code,
+        secrets_mgr=secrets,
+        tenant_id=user.tenant_id,
+        connector_id=connector_id,
+        vault_path=vault_path,
+    )
+
+    logger.info(
+        "connector.oauth_callback_completed",
+        extra={
+            "tenant_id": user.tenant_id,
+            "provider_type": provider_type,
+            "action": "connector.oauth_callback_completed",
+        },
+    )
+
+    return {
+        "data": result,
+        "meta": _meta(),
+    }
+
+
+@enterprise.post("/{connector_id}/test-connection")
+async def test_connector_connection(
+    connector_id: UUID,
+    user: AuthenticatedUser = Depends(require_permission("connectors", "read")),
+    secrets: VaultSecretsManager = Depends(get_secrets_manager),
+) -> dict[str, Any]:
+    """Test a connector's connectivity and credential validity.
+
+    Validates configuration and verifies Vault credentials.
+    Returns success/failure with diagnostic details.
+    """
+    try:
+        instance = await ConnectorService.get_connector(user.tenant_id, connector_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Connector not found")
+
+    config = instance.model_dump(mode="json").get("scopes", {})
+    result = await ConnectionTester.test(
+        instance.type,
+        config,
+        secrets_mgr=secrets,
+        tenant_id=user.tenant_id,
+        connector_id=str(connector_id),
+    )
+
+    logger.info(
+        "connector.test_connection",
+        extra={
+            "tenant_id": user.tenant_id,
+            "connector_id": str(connector_id),
+            "action": "connector.test_connection",
+            "success": result.success,
+        },
+    )
+
+    return {
+        "data": result.to_dict(),
+        "meta": _meta(),
+    }
+
+
+@enterprise.get("/{connector_id}/health")
+async def connector_health(
+    connector_id: UUID,
+    user: AuthenticatedUser = Depends(require_permission("connectors", "read")),
+    secrets: VaultSecretsManager = Depends(get_secrets_manager),
+) -> dict[str, Any]:
+    """Health check for a connected connector.
+
+    Returns status badge info: healthy/degraded/error with last check time.
+    """
+    try:
+        instance = await ConnectorService.get_connector(user.tenant_id, connector_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Connector not found")
+
+    config = instance.model_dump(mode="json")
+    result = await HealthChecker.check(
+        str(connector_id),
+        instance.type,
+        config,
+        secrets_mgr=secrets,
+        tenant_id=user.tenant_id,
+    )
+
+    return {
+        "data": result.model_dump(mode="json"),
+        "meta": _meta(),
+    }

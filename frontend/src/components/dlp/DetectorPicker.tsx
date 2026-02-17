@@ -16,57 +16,41 @@ import {
   BookOpen,
   Settings,
   Shield,
+  Cloud,
+  FileLock,
+  IdCard,
 } from "lucide-react";
+import { DetectorCard } from "@/components/dlp/DetectorCard";
 
 export interface DetectorInfo {
   id: string;
   name: string;
   category: string;
   sensitivity: string;
+  description?: string;
+  icon?: string;
 }
-
-// Icon mapping for each detector type
-const DETECTOR_ICONS: Record<string, React.ReactNode> = {
-  ssn: <Shield size={18} />,
-  credit_card: <CreditCard size={18} />,
-  email: <Mail size={18} />,
-  phone: <Phone size={18} />,
-  address: <MapPin size={18} />,
-  api_key: <Key size={18} />,
-  password: <Lock size={18} />,
-  oauth_token: <KeyRound size={18} />,
-  person_name: <User size={18} />,
-  dob: <Calendar size={18} />,
-  ip_address: <Globe size={18} />,
-  medical_record: <Heart size={18} />,
-  bank_account: <Landmark size={18} />,
-  passport: <BookOpen size={18} />,
-  custom: <Settings size={18} />,
-};
 
 const DETECTOR_DESCRIPTIONS: Record<string, string> = {
   ssn: "US Social Security Numbers (XXX-XX-XXXX)",
-  credit_card: "Visa, Mastercard, Amex, and other card numbers",
+  credit_card: "Visa, Mastercard, Amex with Luhn validation",
   email: "Email addresses in standard format",
-  phone: "Phone numbers in various formats",
-  address: "Street addresses and postal codes",
+  phone: "US and international phone numbers",
+  address: "Physical street addresses and postal codes",
+  passport: "Passport numbers from various countries",
+  drivers_license: "Driver's license numbers (US formats)",
   api_key: "API keys from major cloud providers",
   password: "Passwords and credential strings",
+  jwt_token: "JSON Web Tokens (Bearer tokens)",
+  aws_key: "AWS access key IDs and secret keys",
+  private_key: "RSA, EC, DSA, PGP private key blocks",
   oauth_token: "OAuth bearer and refresh tokens",
   person_name: "Person names and identifiers",
   dob: "Dates of birth in common formats",
   ip_address: "IPv4 and IPv6 addresses",
   medical_record: "Medical record and health IDs",
   bank_account: "Bank account and routing numbers",
-  passport: "Passport numbers from various countries",
-  custom: "User-defined regex or pattern",
-};
-
-const SENSITIVITY_CONFIG: Record<string, { label: string; color: string; dot: string }> = {
-  high: { label: "High", color: "bg-red-500/20 text-red-400", dot: "🔴" },
-  medium: { label: "Medium", color: "bg-yellow-500/20 text-yellow-400", dot: "🟡" },
-  low: { label: "Low", color: "bg-green-500/20 text-green-400", dot: "🟢" },
-  configurable: { label: "Custom", color: "bg-gray-500/20 text-gray-400", dot: "⚪" },
+  custom: "User-defined regex pattern with test preview",
 };
 
 // Fallback detectors when the API is not available
@@ -75,17 +59,21 @@ const FALLBACK_DETECTORS: DetectorInfo[] = [
   { id: "credit_card", name: "Credit Card", category: "pii", sensitivity: "high" },
   { id: "email", name: "Email Address", category: "pii", sensitivity: "medium" },
   { id: "phone", name: "Phone Number", category: "pii", sensitivity: "medium" },
-  { id: "address", name: "Physical Address", category: "pii", sensitivity: "medium" },
+  { id: "address", name: "Street Address", category: "pii", sensitivity: "medium" },
+  { id: "passport", name: "Passport Number", category: "pii", sensitivity: "high" },
+  { id: "drivers_license", name: "Driver's License", category: "pii", sensitivity: "high" },
   { id: "api_key", name: "API Key", category: "secret", sensitivity: "high" },
   { id: "password", name: "Password", category: "secret", sensitivity: "high" },
+  { id: "jwt_token", name: "JWT Token", category: "secret", sensitivity: "high" },
+  { id: "aws_key", name: "AWS Access Key", category: "secret", sensitivity: "critical" },
+  { id: "private_key", name: "Private Key", category: "secret", sensitivity: "critical" },
   { id: "oauth_token", name: "OAuth Token", category: "secret", sensitivity: "high" },
   { id: "person_name", name: "Person Name", category: "pii", sensitivity: "low" },
   { id: "dob", name: "Date of Birth", category: "pii", sensitivity: "medium" },
   { id: "ip_address", name: "IP Address", category: "network", sensitivity: "medium" },
   { id: "medical_record", name: "Medical Record", category: "phi", sensitivity: "high" },
   { id: "bank_account", name: "Bank Account", category: "pii", sensitivity: "high" },
-  { id: "passport", name: "Passport Number", category: "pii", sensitivity: "high" },
-  { id: "custom", name: "Custom Pattern", category: "custom", sensitivity: "configurable" },
+  { id: "custom", name: "Custom Regex", category: "custom", sensitivity: "configurable" },
 ];
 
 interface DetectorPickerProps {
@@ -96,23 +84,32 @@ interface DetectorPickerProps {
 
 export function DetectorPicker({ selected, onChange, detectors }: DetectorPickerProps) {
   const [searchQuery, setSearchQuery] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const allDetectors = detectors ?? FALLBACK_DETECTORS;
+
+  const categories = useMemo(() => {
+    const cats = new Set(allDetectors.map((d) => d.category));
+    return ["all", ...Array.from(cats)];
+  }, [allDetectors]);
 
   const filtered = useMemo(() => {
     const q = searchQuery.toLowerCase();
-    const list = allDetectors.filter(
-      (d) =>
+    const list = allDetectors.filter((d) => {
+      const matchesSearch =
         d.name.toLowerCase().includes(q) ||
         d.id.toLowerCase().includes(q) ||
-        d.category.toLowerCase().includes(q),
-    );
+        d.category.toLowerCase().includes(q) ||
+        (DETECTOR_DESCRIPTIONS[d.id] ?? "").toLowerCase().includes(q);
+      const matchesCategory = categoryFilter === "all" || d.category === categoryFilter;
+      return matchesSearch && matchesCategory;
+    });
     // Enabled detectors first
     return list.sort((a, b) => {
       const aSelected = selected.includes(a.id) ? 0 : 1;
       const bSelected = selected.includes(b.id) ? 0 : 1;
       return aSelected - bSelected;
     });
-  }, [allDetectors, searchQuery, selected]);
+  }, [allDetectors, searchQuery, categoryFilter, selected]);
 
   function toggle(id: string) {
     onChange(
@@ -122,64 +119,68 @@ export function DetectorPicker({ selected, onChange, detectors }: DetectorPicker
 
   return (
     <div>
-      {/* Search bar */}
-      <div className="relative mb-3">
-        <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500" />
-        <input
-          type="text"
-          className="w-full rounded-md border border-[#2a2d37] bg-white/5 py-1.5 pl-8 pr-3 text-sm text-gray-200 placeholder-gray-500 focus:border-purple-500 focus:outline-none"
-          placeholder="Search detectors..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-        />
+      {/* Search bar + category filter */}
+      <div className="mb-3 flex gap-2">
+        <div className="relative flex-1">
+          <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500" />
+          <input
+            type="text"
+            className="w-full rounded-md border border-[#2a2d37] bg-white/5 py-1.5 pl-8 pr-3 text-sm text-gray-200 placeholder-gray-500 focus:border-purple-500 focus:outline-none"
+            placeholder="Search detectors..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+        <select
+          className="rounded-md border border-[#2a2d37] bg-white/5 px-2 text-xs text-gray-300 focus:border-purple-500 focus:outline-none"
+          value={categoryFilter}
+          onChange={(e) => setCategoryFilter(e.target.value)}
+        >
+          {categories.map((cat) => (
+            <option key={cat} value={cat}>
+              {cat === "all" ? "All Categories" : cat.toUpperCase()}
+            </option>
+          ))}
+        </select>
       </div>
 
       {/* Selected count */}
-      <div className="mb-2 text-xs text-gray-500">
-        {selected.length} of {allDetectors.length} detectors enabled
+      <div className="mb-3 flex items-center justify-between">
+        <span className="text-xs text-gray-500">
+          {selected.length} of {allDetectors.length} detectors enabled
+        </span>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => onChange(allDetectors.map((d) => d.id))}
+            className="text-[10px] text-purple-400 hover:text-purple-300"
+          >
+            Select All
+          </button>
+          <button
+            type="button"
+            onClick={() => onChange([])}
+            className="text-[10px] text-gray-500 hover:text-gray-400"
+          >
+            Clear
+          </button>
+        </div>
       </div>
 
-      {/* Detector grid */}
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-        {filtered.map((det) => {
-          const isSelected = selected.includes(det.id);
-          const sens = SENSITIVITY_CONFIG[det.sensitivity] ?? SENSITIVITY_CONFIG.configurable;
-          return (
-            <button
-              key={det.id}
-              type="button"
-              onClick={() => toggle(det.id)}
-              className={`flex items-start gap-3 rounded-lg border p-3 text-left transition-colors ${
-                isSelected
-                  ? "border-purple-500 bg-purple-500/10"
-                  : "border-[#2a2d37] bg-white/5 hover:border-white/20"
-              }`}
-            >
-              {/* Icon */}
-              <span className={`mt-0.5 shrink-0 ${isSelected ? "text-purple-400" : "text-gray-500"}`}>
-                {DETECTOR_ICONS[det.id] ?? <Settings size={18} />}
-              </span>
-
-              {/* Info */}
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-white truncate">{det.name}</span>
-                  <span className={`inline-block shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${sens.color}`}>
-                    {sens.dot} {sens.label}
-                  </span>
-                </div>
-                <p className="mt-0.5 text-xs text-gray-500 truncate">
-                  {DETECTOR_DESCRIPTIONS[det.id] ?? det.category}
-                </p>
-              </div>
-
-              {/* Toggle indicator */}
-              <div className={`mt-1 h-4 w-7 shrink-0 rounded-full transition-colors ${isSelected ? "bg-purple-500" : "bg-gray-600"}`}>
-                <div className={`h-3 w-3 translate-y-0.5 rounded-full bg-white transition-transform ${isSelected ? "translate-x-3.5" : "translate-x-0.5"}`} />
-              </div>
-            </button>
-          );
-        })}
+      {/* Detector card grid */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {filtered.map((det) => (
+          <DetectorCard
+            key={det.id}
+            id={det.id}
+            name={det.name}
+            description={det.description ?? DETECTOR_DESCRIPTIONS[det.id]}
+            category={det.category}
+            sensitivity={det.sensitivity}
+            isSelected={selected.includes(det.id)}
+            onToggle={toggle}
+          />
+        ))}
       </div>
     </div>
   );

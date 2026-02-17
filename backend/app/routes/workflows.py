@@ -5,11 +5,13 @@ In-memory stub storage — full DB integration to follow.
 
 from __future__ import annotations
 
+import asyncio
+import json
 from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field as PField
 
 router = APIRouter(prefix="/workflows", tags=["workflows"])
@@ -18,6 +20,8 @@ router = APIRouter(prefix="/workflows", tags=["workflows"])
 
 _workflows: list[dict[str, Any]] = []
 _workflow_runs: list[dict[str, Any]] = []
+_workflow_run_steps: list[dict[str, Any]] = []
+_workflow_schedules: dict[str, dict[str, Any]] = {}
 
 
 # ── Helpers ─────────────────────────────────────────────────────────
@@ -32,6 +36,56 @@ def _meta(*, request_id: str | None = None, **extra: Any) -> dict[str, Any]:
 
 def _find_workflow(workflow_id: str) -> dict[str, Any] | None:
     return next((w for w in _workflows if w["id"] == workflow_id), None)
+
+
+def _find_run(run_id: str) -> dict[str, Any] | None:
+    return next((r for r in _workflow_runs if r["id"] == run_id), None)
+
+
+def _compute_next_runs(cron: str, count: int = 5, timezone_str: str = "UTC") -> list[str]:
+    """Compute next N approximate run times from a cron expression."""
+    if not cron:
+        return []
+    parts = cron.split()
+    if len(parts) != 5:
+        return []
+    min_str, hour_str, dom_str, _mon_str, dow_str = parts
+    target_min = 0 if min_str == "*" else int(min_str)
+    target_hour = None if hour_str == "*" else int(hour_str)
+    now = datetime.now(tz=timezone.utc)
+    results: list[str] = []
+    candidate = now.replace(second=0, microsecond=0)
+    for _ in range(count * 400):
+        candidate = candidate.replace(minute=target_min)
+        if target_hour is not None:
+            candidate = candidate.replace(hour=target_hour)
+        if candidate > now and len(results) < count:
+            # Check day-of-week filter
+            if dow_str != "*":
+                allowed_days = [int(d) for d in dow_str.split(",")]
+                py_dow = (candidate.weekday() + 1) % 7  # 0=Sun
+                if py_dow not in allowed_days:
+                    candidate = candidate.replace(hour=0, minute=0)
+                    from datetime import timedelta
+                    candidate += timedelta(days=1)
+                    continue
+            # Check day-of-month filter
+            if dom_str != "*":
+                if candidate.day != int(dom_str):
+                    from datetime import timedelta
+                    candidate += timedelta(days=1)
+                    continue
+            results.append(candidate.isoformat())
+            if len(results) >= count:
+                break
+        # Advance
+        if target_hour is not None:
+            from datetime import timedelta
+            candidate += timedelta(days=1)
+        else:
+            from datetime import timedelta
+            candidate += timedelta(hours=1)
+    return results
 
 
 # ── Request schemas ─────────────────────────────────────────────────
@@ -49,6 +103,7 @@ class WorkflowCreate(BaseModel):
     group_id: str = ""
     group_name: str = ""
     steps: list[WorkflowStepCreate] = PField(default_factory=list)
+    graph_definition: dict[str, Any] | None = None
     schedule: str | None = None
     is_active: bool = True
     created_by: str = ""
@@ -60,8 +115,15 @@ class WorkflowUpdate(BaseModel):
     group_id: str | None = None
     group_name: str | None = None
     steps: list[WorkflowStepCreate] | None = None
+    graph_definition: dict[str, Any] | None = None
     schedule: str | None = None
     is_active: bool | None = None
+
+
+class ScheduleSet(BaseModel):
+    """Request body for setting a workflow schedule."""
+    cron: str
+    timezone: str = "UTC"
 
 
 # ── Routes ──────────────────────────────────────────────────────────
@@ -113,6 +175,7 @@ async def create_workflow(body: WorkflowCreate) -> dict[str, Any]:
         "group_id": body.group_id,
         "group_name": body.group_name,
         "steps": steps,
+        "graph_definition": body.graph_definition,
         "schedule": body.schedule,
         "is_active": body.is_active,
         "created_at": now,
@@ -168,20 +231,47 @@ async def delete_workflow(workflow_id: str) -> None:
 
 @router.post("/{workflow_id}/execute", status_code=201)
 async def execute_workflow(workflow_id: str) -> dict[str, Any]:
-    """Execute a workflow — creates a workflow run."""
+    """Execute a workflow — creates a workflow run and simulates step execution."""
     wf = _find_workflow(workflow_id)
     if wf is None:
         raise HTTPException(status_code=404, detail="Workflow not found")
 
     now = datetime.now(tz=timezone.utc).isoformat()
+    run_id = str(uuid4())
     run: dict[str, Any] = {
-        "id": str(uuid4()),
+        "id": run_id,
         "workflow_id": workflow_id,
-        "status": "pending",
+        "status": "running",
+        "trigger_type": "manual",
         "started_at": now,
         "completed_at": None,
         "triggered_by": wf.get("created_by", ""),
+        "duration_ms": None,
+        "steps": [],
     }
+
+    # Create step records from workflow steps
+    for step in wf.get("steps", []):
+        step_record: dict[str, Any] = {
+            "id": str(uuid4()),
+            "run_id": run_id,
+            "step_id": step.get("step_id", str(uuid4())),
+            "name": step.get("name", ""),
+            "status": "completed",
+            "started_at": now,
+            "completed_at": now,
+            "duration_ms": 0,
+            "input_data": step.get("config", {}),
+            "output_data": {"result": "ok"},
+            "agent_execution_id": str(uuid4()),
+        }
+        _workflow_run_steps.append(step_record)
+        run["steps"].append(step_record)
+
+    completed_at = datetime.now(tz=timezone.utc).isoformat()
+    run["status"] = "completed"
+    run["completed_at"] = completed_at
+    run["duration_ms"] = 0
     _workflow_runs.append(run)
     return {"data": run, "meta": _meta()}
 
@@ -189,18 +279,136 @@ async def execute_workflow(workflow_id: str) -> dict[str, Any]:
 @router.get("/{workflow_id}/runs")
 async def list_workflow_runs(
     workflow_id: str,
+    status: str | None = Query(default=None),
+    trigger_type: str | None = Query(default=None),
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
 ) -> dict[str, Any]:
-    """List past runs for a workflow."""
+    """List past runs for a workflow with optional status and trigger filters."""
     wf = _find_workflow(workflow_id)
     if wf is None:
         raise HTTPException(status_code=404, detail="Workflow not found")
 
     runs = [r for r in _workflow_runs if r["workflow_id"] == workflow_id]
+    if status:
+        runs = [r for r in runs if r.get("status") == status]
+    if trigger_type:
+        runs = [r for r in runs if r.get("trigger_type") == trigger_type]
     total = len(runs)
     page = runs[offset : offset + limit]
     return {
         "data": page,
         "meta": _meta(pagination={"total": total, "limit": limit, "offset": offset}),
     }
+
+
+@router.get("/{workflow_id}/runs/{run_id}")
+async def get_workflow_run(workflow_id: str, run_id: str) -> dict[str, Any]:
+    """Get details of a specific workflow run including step data."""
+    wf = _find_workflow(workflow_id)
+    if wf is None:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+
+    run = _find_run(run_id)
+    if run is None or run.get("workflow_id") != workflow_id:
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    # Attach step details
+    steps = [s for s in _workflow_run_steps if s.get("run_id") == run_id]
+    result = {**run, "steps": steps}
+    return {"data": result, "meta": _meta()}
+
+
+# ── Schedule endpoints ──────────────────────────────────────────────
+
+@router.put("/{workflow_id}/schedule")
+async def set_schedule(workflow_id: str, body: ScheduleSet) -> dict[str, Any]:
+    """Set or update the schedule for a workflow."""
+    wf = _find_workflow(workflow_id)
+    if wf is None:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+
+    schedule_record: dict[str, Any] = {
+        "workflow_id": workflow_id,
+        "cron": body.cron,
+        "timezone": body.timezone,
+        "created_at": datetime.now(tz=timezone.utc).isoformat(),
+    }
+    _workflow_schedules[workflow_id] = schedule_record
+    wf["schedule"] = body.cron
+    wf["updated_at"] = datetime.now(tz=timezone.utc).isoformat()
+    return {"data": schedule_record, "meta": _meta()}
+
+
+@router.delete("/{workflow_id}/schedule", status_code=204)
+async def remove_schedule(workflow_id: str) -> None:
+    """Remove the schedule from a workflow."""
+    wf = _find_workflow(workflow_id)
+    if wf is None:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+
+    _workflow_schedules.pop(workflow_id, None)
+    wf["schedule"] = None
+    wf["updated_at"] = datetime.now(tz=timezone.utc).isoformat()
+
+
+@router.get("/{workflow_id}/schedule/preview")
+async def preview_schedule(
+    workflow_id: str,
+    count: int = Query(default=5, ge=1, le=20),
+) -> dict[str, Any]:
+    """Preview next N run times for a workflow's schedule."""
+    wf = _find_workflow(workflow_id)
+    if wf is None:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+
+    schedule = _workflow_schedules.get(workflow_id)
+    cron = schedule["cron"] if schedule else wf.get("schedule")
+    tz_str = schedule["timezone"] if schedule else "UTC"
+
+    if not cron:
+        return {"data": {"next_runs": [], "cron": None, "timezone": tz_str}, "meta": _meta()}
+
+    next_runs = _compute_next_runs(cron, count, tz_str)
+    return {
+        "data": {"next_runs": next_runs, "cron": cron, "timezone": tz_str},
+        "meta": _meta(),
+    }
+
+
+# ── WebSocket for execution streaming ───────────────────────────────
+
+@router.websocket("/{workflow_id}/executions/{exec_id}")
+async def ws_execution_stream(
+    websocket: WebSocket,
+    workflow_id: str,
+    exec_id: str,
+) -> None:
+    """Stream step execution events via WebSocket."""
+    await websocket.accept()
+    try:
+        run = _find_run(exec_id)
+        if run is None or run.get("workflow_id") != workflow_id:
+            await websocket.send_json({"error": "Run not found"})
+            await websocket.close(code=4004)
+            return
+
+        steps = [s for s in _workflow_run_steps if s.get("run_id") == exec_id]
+        for step in steps:
+            event = {
+                "type": "step_update",
+                "step_id": step["step_id"],
+                "name": step["name"],
+                "status": step["status"],
+                "duration_ms": step.get("duration_ms", 0),
+                "input_data": step.get("input_data"),
+                "output_data": step.get("output_data"),
+                "agent_execution_id": step.get("agent_execution_id"),
+            }
+            await websocket.send_json(event)
+            await asyncio.sleep(0.05)
+
+        await websocket.send_json({"type": "run_complete", "status": run["status"]})
+        await websocket.close()
+    except WebSocketDisconnect:
+        pass

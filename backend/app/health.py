@@ -68,11 +68,58 @@ async def _check_vault() -> dict[str, Any]:
 # ------------------------------------------------------------------
 
 
+async def _check_keycloak() -> dict[str, Any]:
+    """Check Keycloak connectivity."""
+    try:
+        from app.config import settings as app_settings
+
+        import httpx
+
+        url = f"{app_settings.KEYCLOAK_URL}/.well-known/openid-configuration"
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get(url)
+            if resp.status_code == 200:
+                return {"status": "ok"}
+            return {"status": "error", "error": f"HTTP {resp.status_code}"}
+    except ImportError:
+        return {"status": "error", "error": "httpx not installed"}
+    except Exception as exc:
+        logger.warning("keycloak_health_failed", error=str(exc))
+        return {"status": "error", "error": str(exc)}
+
+
 async def health_check() -> dict[str, Any]:
     """Liveness probe — always returns healthy if the process is alive."""
     return {
         "status": "healthy",
         "version": _VERSION,
+        "timestamp": datetime.now(tz=timezone.utc).isoformat(),
+    }
+
+
+async def health_check_full() -> dict[str, Any]:
+    """Full health check with all service statuses for the Settings page."""
+    db = await _check_db()
+    redis = await _check_redis()
+    vault = await _check_vault()
+    keycloak = await _check_keycloak()
+
+    vault_status = "connected"
+    if vault.get("status") != "ok":
+        vault_status = "stub" if "stub" in str(vault.get("details", vault.get("error", ""))) else "sealed"
+
+    services = {
+        "api": "up",
+        "database": "up" if db.get("status") == "ok" else "down",
+        "redis": "up" if redis.get("status") == "ok" else "down",
+        "vault": vault_status,
+        "keycloak": "up" if keycloak.get("status") == "ok" else "down",
+    }
+
+    return {
+        "status": "healthy",
+        "version": "1.0.0",
+        "services": services,
         "timestamp": datetime.now(tz=timezone.utc).isoformat(),
     }
 
@@ -107,8 +154,8 @@ async def health_endpoint() -> dict[str, Any]:
 
 @router.get("/api/v1/health")
 async def health_v1_endpoint() -> dict[str, Any]:
-    """Liveness probe via API prefix (Settings page compatibility)."""
-    return await health_check()
+    """Full health check via API prefix (Settings page compatibility)."""
+    return await health_check_full()
 
 
 @router.get("/ready")
@@ -117,4 +164,4 @@ async def ready_endpoint() -> dict[str, Any]:
     return await readiness_check()
 
 
-__all__ = ["health_check", "readiness_check", "router"]
+__all__ = ["health_check", "health_check_full", "readiness_check", "router"]

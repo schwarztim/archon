@@ -7,6 +7,7 @@ import { AgentsPage } from "@/pages/AgentsPage";
 import { BuilderPage } from "@/pages/BuilderPage";
 import { TemplatesPage } from "@/pages/TemplatesPage";
 import { ExecutionsPage } from "@/pages/ExecutionsPage";
+import { ExecutionDetailPage } from "@/pages/ExecutionDetailPage";
 import { WorkflowsPage } from "@/pages/WorkflowsPage";
 import { ModelRouterPage } from "@/pages/ModelRouterPage";
 import { LifecyclePage } from "@/pages/LifecyclePage";
@@ -19,6 +20,7 @@ import { GovernancePage } from "@/pages/GovernancePage";
 import { AuditPage } from "@/pages/AuditPage";
 import { ConnectorsPage } from "@/pages/ConnectorsPage";
 import { DocForgePage } from "@/pages/DocForgePage";
+import { MCPAppsPage } from "@/pages/MCPAppsPage";
 import { MarketplacePage } from "@/pages/MarketplacePage";
 import { TenantsPage } from "@/pages/TenantsPage";
 import { SSOConfigPage } from "@/pages/SSOConfigPage";
@@ -58,9 +60,11 @@ function AuthGate() {
         <Route element={<AppLayout />}>
           <Route index element={<DashboardPage />} />
           <Route path="agents" element={<AgentsPage />} />
+          <Route path="agents/:id/edit" element={<AgentsPage />} />
           <Route path="builder" element={<BuilderPage />} />
           <Route path="templates" element={<TemplatesPage />} />
           <Route path="executions" element={<ExecutionsPage />} />
+          <Route path="executions/:id" element={<ExecutionDetailPage />} />
           <Route path="workflows" element={<WorkflowsPage />} />
           <Route path="router" element={<ModelRouterPage />} />
           <Route path="lifecycle" element={<LifecyclePage />} />
@@ -72,9 +76,11 @@ function AuthGate() {
           <Route path="governance" element={<GovernancePage />} />
           <Route path="audit" element={<AuditPage />} />
           <Route path="connectors" element={<ConnectorsPage />} />
+          <Route path="mcp-apps" element={<MCPAppsPage />} />
           <Route path="docforge" element={<DocForgePage />} />
           <Route path="marketplace" element={<MarketplacePage />} />
           <Route path="tenants" element={<TenantsPage />} />
+          <Route path="tenants/:tenantId" element={<TenantsPage />} />
           <Route path="sso" element={<SSOConfigPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="admin/users" element={<UsersPage />} />

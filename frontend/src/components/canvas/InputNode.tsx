@@ -15,6 +15,8 @@ export const InputNode = memo(function InputNode({
   selected,
 }: NodeProps) {
   const inputData = data as unknown as InputNodeData;
+  const inputName = String(inputData.config.inputName ?? "");
+  const required = inputData.config.required !== false;
   return (
     <BaseNodeShell
       data={inputData}
@@ -23,7 +25,13 @@ export const InputNode = memo(function InputNode({
     >
       <p className="font-mono text-[10px] opacity-70">
         type: {inputData.config.inputType}
+        {required ? " (required)" : ""}
       </p>
+      {inputName && (
+        <p className="font-mono text-[10px] opacity-50 truncate max-w-[160px]">
+          {inputName}
+        </p>
+      )}
     </BaseNodeShell>
   );
 });

@@ -13,6 +13,17 @@ export async function searchListings(
   return apiGet<MarketplaceListing[]>("/marketplace/listings", params);
 }
 
+/** Browse the public marketplace catalog with search and sorting */
+export async function browseCatalog(
+  params: PaginationParams & {
+    query?: string;
+    category?: string;
+    sort?: string;
+  } = {},
+): Promise<ApiResponse<MarketplaceListing[]>> {
+  return apiGet<MarketplaceListing[]>("/marketplace/catalog", params);
+}
+
 /** Get a single listing */
 export async function getListing(
   id: string,
@@ -30,7 +41,7 @@ export async function createListing(
   return apiPost<MarketplaceListing>("/marketplace/listings", payload);
 }
 
-/** Install a listing */
+/** Install a listing by ID — creates an agent in the user's workspace */
 export async function installListing(
   listingId: string,
   tenantId: string,
@@ -38,6 +49,16 @@ export async function installListing(
   return apiPost<{ installation_id: string }>(
     `/marketplace/listings/${listingId}/install`,
     { tenant_id: tenantId },
+  );
+}
+
+/** Install a marketplace package by ID */
+export async function installPackage(
+  listingId: string,
+): Promise<ApiResponse<Record<string, unknown>>> {
+  return apiPost<Record<string, unknown>>(
+    `/marketplace/${listingId}/install`,
+    {},
   );
 }
 

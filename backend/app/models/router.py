@@ -186,14 +186,184 @@ class RoutingStats(SQLModel):
     circuit_breaker_trips: int = 0
 
 
+# ── Visual Routing Rule schemas ─────────────────────────────────────
+
+
+class RoutingCondition(SQLModel):
+    """A single condition in a visual routing rule."""
+
+    field: str = Field(description="capability | max_cost | min_context | sensitivity_level | tenant_tier | time_of_day | model_preference")
+    operator: str = Field(description="equals | not_equals | contains | greater_than | less_than | in | not_in")
+    value: str | float | list[str] = Field(description="Condition value")
+
+
+class VisualRoutingRule(SQLModel):
+    """A routing rule with structured conditions for the visual builder."""
+
+    id: UUID | None = Field(default=None)
+    name: str
+    description: str | None = None
+    conditions: list[RoutingCondition] = Field(default_factory=list)
+    target_model_id: str
+    priority: int = 0
+    enabled: bool = True
+
+
+class VisualRouteRequest(SQLModel):
+    """Request payload for the visual routing decision endpoint."""
+
+    capability: str | None = Field(default=None, description="chat | completion | embedding | vision | function_calling")
+    sensitivity_level: str | None = Field(default=None, description="low | medium | high | critical")
+    max_cost: float | None = Field(default=None, ge=0.0, description="Max cost per 1K tokens")
+    min_context: int | None = Field(default=None, ge=0, description="Min context window size")
+    tenant_tier: str | None = Field(default=None, description="free | standard | premium | enterprise")
+    preferred_model: str | None = Field(default=None, description="Preferred model family")
+
+
+class VisualRouteDecision(SQLModel):
+    """Response from the visual routing decision endpoint with explanation."""
+
+    model_id: str
+    model_name: str
+    provider_id: str
+    provider_name: str
+    reason: str
+    alternatives: list[dict[str, str]] = Field(default_factory=list)
+
+
+class FallbackChainConfig(SQLModel):
+    """Ordered list of fallback model IDs."""
+
+    model_ids: list[str] = Field(default_factory=list)
+
+
+# ── Provider Credential schemas ─────────────────────────────────────
+
+
+class CredentialField(SQLModel):
+    """Definition for a single credential field in a provider schema."""
+
+    name: str
+    label: str
+    field_type: str = Field(default="password", description="password | text | url | select")
+    required: bool = True
+    placeholder: str = ""
+    description: str = ""
+
+
+class ProviderCredentialSchema(SQLModel):
+    """Provider type-specific credential form schema."""
+
+    provider_type: str
+    label: str
+    fields: list[CredentialField] = Field(default_factory=list)
+
+
+class TestConnectionResult(SQLModel):
+    """Result of testing provider connectivity."""
+
+    success: bool
+    latency_ms: float = 0.0
+    models_found: int = 0
+    message: str = ""
+    error: str | None = None
+
+
+class ProviderHealthDetail(SQLModel):
+    """Detailed provider health with circuit breaker and metrics."""
+
+    provider_id: str
+    provider_name: str
+    status: str = Field(description="healthy | degraded | unhealthy | circuit_open")
+    metrics: dict[str, Any] = Field(default_factory=dict)
+    circuit_breaker: dict[str, Any] = Field(default_factory=dict)
+
+
+# ── Credential Schema Registry ──────────────────────────────────────
+
+
+PROVIDER_CREDENTIAL_SCHEMAS: dict[str, ProviderCredentialSchema] = {
+    "openai": ProviderCredentialSchema(
+        provider_type="openai",
+        label="OpenAI",
+        fields=[CredentialField(name="api_key", label="API Key", placeholder="sk-...")],
+    ),
+    "anthropic": ProviderCredentialSchema(
+        provider_type="anthropic",
+        label="Anthropic",
+        fields=[CredentialField(name="api_key", label="API Key", placeholder="sk-ant-...")],
+    ),
+    "azure_openai": ProviderCredentialSchema(
+        provider_type="azure_openai",
+        label="Azure OpenAI",
+        fields=[
+            CredentialField(name="api_key", label="API Key"),
+            CredentialField(name="endpoint_url", label="Endpoint URL", field_type="url", placeholder="https://your-resource.openai.azure.com/"),
+            CredentialField(name="deployment_name", label="Deployment Name", field_type="text"),
+            CredentialField(name="api_version", label="API Version", field_type="text", placeholder="2024-02-01"),
+        ],
+    ),
+    "ollama": ProviderCredentialSchema(
+        provider_type="ollama",
+        label="Ollama",
+        fields=[
+            CredentialField(name="base_url", label="Base URL", field_type="url", required=True, placeholder="http://localhost:11434"),
+        ],
+    ),
+    "huggingface": ProviderCredentialSchema(
+        provider_type="huggingface",
+        label="HuggingFace",
+        fields=[
+            CredentialField(name="api_token", label="API Token"),
+            CredentialField(name="endpoint_url", label="Endpoint URL", field_type="url", required=False),
+        ],
+    ),
+    "google": ProviderCredentialSchema(
+        provider_type="google",
+        label="Google AI",
+        fields=[
+            CredentialField(name="api_key", label="API Key"),
+            CredentialField(name="project_id", label="Project ID", field_type="text", required=False),
+        ],
+    ),
+    "aws_bedrock": ProviderCredentialSchema(
+        provider_type="aws_bedrock",
+        label="AWS Bedrock",
+        fields=[
+            CredentialField(name="access_key_id", label="Access Key ID", field_type="text"),
+            CredentialField(name="secret_access_key", label="Secret Access Key"),
+            CredentialField(name="region", label="Region", field_type="text", placeholder="us-east-1"),
+        ],
+    ),
+    "custom": ProviderCredentialSchema(
+        provider_type="custom",
+        label="Custom / OpenAI-Compatible",
+        fields=[
+            CredentialField(name="api_key", label="API Key", required=False),
+            CredentialField(name="base_url", label="Base URL", field_type="url", placeholder="https://api.example.com/v1"),
+        ],
+    ),
+}
+
+
 __all__ = [
+    "CredentialField",
     "DecisionFactor",
+    "FallbackChainConfig",
     "ModelProvider",
     "ModelRegistryEntry",
+    "PROVIDER_CREDENTIAL_SCHEMAS",
+    "ProviderCredentialSchema",
     "ProviderHealth",
+    "ProviderHealthDetail",
+    "RoutingCondition",
     "RoutingDecision",
     "RoutingPolicy",
     "RoutingRequest",
     "RoutingRule",
     "RoutingStats",
+    "TestConnectionResult",
+    "VisualRouteDecision",
+    "VisualRouteRequest",
+    "VisualRoutingRule",
 ]

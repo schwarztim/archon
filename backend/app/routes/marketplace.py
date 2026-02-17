@@ -249,6 +249,44 @@ async def install_listing(
 # ── Creator endpoints ──────────────────────────────────────────────
 
 
+@router.get("/catalog")
+async def browse_catalog(
+    query: str | None = Query(default=None),
+    category: str | None = Query(default=None),
+    sort: str | None = Query(default=None),
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Browse the public marketplace catalog with search and sorting."""
+    items, total = await MarketplaceService.catalog(
+        session,
+        query=query,
+        category=category,
+        sort=sort,
+        limit=limit,
+        offset=offset,
+    )
+    return {
+        "data": [i.model_dump(mode="json") for i in items],
+        "meta": _meta(pagination={"total": total, "limit": limit, "offset": offset}),
+    }
+
+
+@router.post("/{listing_id}/install", status_code=201)
+async def install_by_id(
+    listing_id: UUID,
+    session: AsyncSession = Depends(get_session),
+    user: AuthenticatedUser | None = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Install a marketplace listing — creates an agent in the workspace."""
+    user_id = UUID(user.id) if user else UUID("00000000-0000-0000-0000-000000000001")
+    install = await MarketplaceService.install_by_id(session, listing_id, user_id)
+    if install is None:
+        raise HTTPException(status_code=404, detail="Listing not found")
+    return {"data": install.model_dump(mode="json"), "meta": _meta()}
+
+
 @router.post("/creators", status_code=201)
 async def create_creator(
     body: CreatorCreate,

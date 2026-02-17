@@ -16,11 +16,17 @@ export const DatabaseQueryNode = memo(function DatabaseQueryNode({
   selected,
 }: NodeProps) {
   const nodeData = data as unknown as DatabaseQueryNodeData;
+  const query = String(nodeData.config.query ?? "");
   return (
     <BaseNodeShell data={nodeData} selected={selected} icon={<DatabaseIcon />}>
       <p className="font-mono text-[10px] opacity-70">
         {nodeData.config.dbType}
       </p>
+      {query && (
+        <p className="font-mono text-[10px] opacity-50 truncate max-w-[160px]">
+          {query}
+        </p>
+      )}
     </BaseNodeShell>
   );
 });

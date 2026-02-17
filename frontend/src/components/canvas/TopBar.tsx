@@ -13,6 +13,7 @@ interface TopBarProps {
   onToggleTheme: () => void;
   onAgentSaved?: (id: string) => void;
   isDark: boolean;
+  onToggleTestPanel?: () => void;
 }
 
 /** Validate graph before saving. Returns error messages or empty array. */
@@ -56,8 +57,9 @@ export function TopBar({
   onToggleTheme,
   onAgentSaved,
   isDark,
+  onToggleTestPanel,
 }: TopBarProps) {
-  const { nodes, edges, undo, redo, history, future, isDirty, markClean } =
+  const { nodes, edges, undo, redo, history, future, isDirty, markClean, showValidation, setShowValidation } =
     useCanvasStore();
   const createAgent = useCreateAgent();
   const updateAgent = useUpdateAgent();
@@ -73,6 +75,7 @@ export function TopBar({
     // Validate before saving
     const errors = validateGraph(nodes, edges);
     if (errors.length > 0) {
+      setShowValidation(true);
       showToast("error", errors.join(" "));
       return;
     }
@@ -110,6 +113,7 @@ export function TopBar({
     markClean,
     showToast,
     onAgentSaved,
+    setShowValidation,
   ]);
 
   const handleExportJSON = useCallback(() => {
@@ -219,6 +223,24 @@ export function TopBar({
         >
           Export
         </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setShowValidation(!showValidation)}
+          aria-label={showValidation ? "Hide validation errors" : "Show validation errors"}
+        >
+          {showValidation ? "✓ Validate" : "Validate"}
+        </Button>
+        {onToggleTestPanel && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onToggleTestPanel}
+            aria-label="Toggle test panel"
+          >
+            ▶ Test
+          </Button>
+        )}
         <Button
           variant="outline"
           size="sm"

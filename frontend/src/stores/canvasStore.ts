@@ -22,6 +22,10 @@ interface CanvasState {
   future: Array<{ nodes: AppNode[]; edges: AppEdge[] }>;
   /** Whether the canvas has unsaved changes */
   isDirty: boolean;
+  /** Whether to show validation errors on the canvas */
+  showValidation: boolean;
+  /** Last auto-save timestamp */
+  lastAutoSave: number | null;
 
   // Actions
   onNodesChange: (changes: NodeChange<AppNode>[]) => void;
@@ -37,6 +41,12 @@ interface CanvasState {
   redo: () => void;
   clearCanvas: () => void;
   markClean: () => void;
+  setShowValidation: (show: boolean) => void;
+  setLastAutoSave: (ts: number) => void;
+  /** Load a graph definition (nodes + edges) from API response */
+  loadGraph: (nodes: AppNode[], edges: AppEdge[]) => void;
+  /** Serialize the current graph for saving */
+  serializeGraph: () => { nodes: AppNode[]; edges: AppEdge[] };
 }
 
 function pushHistory(state: CanvasState): Partial<CanvasState> {
@@ -57,6 +67,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   history: [],
   future: [],
   isDirty: false,
+  showValidation: false,
+  lastAutoSave: null,
 
   onNodesChange: (changes) => {
     set((state) => ({
@@ -169,5 +181,29 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   markClean: () => {
     set({ isDirty: false });
+  },
+
+  setShowValidation: (show) => {
+    set({ showValidation: show });
+  },
+
+  setLastAutoSave: (ts) => {
+    set({ lastAutoSave: ts });
+  },
+
+  loadGraph: (nodes, edges) => {
+    set({
+      nodes,
+      edges,
+      selectedNodeId: null,
+      history: [],
+      future: [],
+      isDirty: false,
+    });
+  },
+
+  serializeGraph: () => {
+    const { nodes, edges } = get();
+    return { nodes, edges };
   },
 }));

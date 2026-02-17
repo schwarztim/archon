@@ -159,7 +159,6 @@ const labelClass = "mb-1 block text-xs font-medium text-gray-400";
 // ─── Component ──────────────────────────────────────────────────────
 
 export function AgentWizard({ onClose, onSubmit, isPending, quickCreate = false }: AgentWizardProps) {
-  const totalSteps = quickCreate ? 2 : 7;
   const [step, setStep] = useState(0);
 
   // Step 1

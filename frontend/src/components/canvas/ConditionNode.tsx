@@ -2,6 +2,7 @@ import { memo } from "react";
 import { type NodeProps } from "@xyflow/react";
 import { BaseNodeShell } from "./BaseNode";
 import type { ConditionNodeData } from "@/types";
+import type { ConditionGroup } from "@/types/nodeTypes";
 
 const GitBranchIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -17,17 +18,24 @@ export const ConditionNode = memo(function ConditionNode({
   selected,
 }: NodeProps) {
   const condData = data as unknown as ConditionNodeData;
+  const conditions = condData.config.conditions as ConditionGroup | undefined;
+  const condCount = conditions?.conditions?.length ?? 0;
+
   return (
     <BaseNodeShell
       data={condData}
       selected={selected}
       icon={<GitBranchIcon />}
     >
-      {condData.config.expression && (
+      {condCount > 0 ? (
         <p className="font-mono text-[10px] opacity-70 truncate max-w-[160px]">
-          {condData.config.expression}
+          {condCount} condition{condCount !== 1 ? "s" : ""} ({conditions?.logic})
         </p>
-      )}
+      ) : condData.config.expression ? (
+        <p className="font-mono text-[10px] opacity-70 truncate max-w-[160px]">
+          {String(condData.config.expression)}
+        </p>
+      ) : null}
     </BaseNodeShell>
   );
 });

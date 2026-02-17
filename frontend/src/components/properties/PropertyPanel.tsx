@@ -5,6 +5,12 @@ import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Textarea } from "@/components/ui/Textarea";
 import type { CustomNodeData } from "@/types";
+import {
+  CONDITION_OPERATORS,
+  type ConditionGroup,
+  type ConditionRow,
+  type KeyValuePair,
+} from "@/types/nodeTypes";
 
 // ─── Shared helpers ──────────────────────────────────────────────────
 
@@ -146,6 +152,182 @@ function TextField({
 
 // ─── Type-specific config panels ─────────────────────────────────────
 
+// ─── Reusable field components ───────────────────────────────────────
+
+function KeyValueEditor({
+  id,
+  label,
+  pairs,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  pairs: KeyValuePair[];
+  onChange: (pairs: KeyValuePair[]) => void;
+}) {
+  const updatePair = (index: number, field: "key" | "value", val: string) => {
+    const updated = pairs.map((p, i) => (i === index ? { ...p, [field]: val } : p));
+    onChange(updated);
+  };
+
+  const addPair = () => {
+    onChange([...pairs, { key: "", value: "" }]);
+  };
+
+  const removePair = (index: number) => {
+    onChange(pairs.filter((_, i) => i !== index));
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <Label>{label}</Label>
+      <div className="space-y-1" role="list" aria-label={label}>
+        {pairs.map((pair, i) => (
+          <div key={`${id}-${i}`} className="flex gap-1">
+            <Input
+              value={pair.key}
+              onChange={(e) => updatePair(i, "key", e.target.value)}
+              placeholder="Key"
+              className="h-7 text-xs flex-1"
+            />
+            <Input
+              value={pair.value}
+              onChange={(e) => updatePair(i, "value", e.target.value)}
+              placeholder="Value"
+              className="h-7 text-xs flex-1"
+            />
+            <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => removePair(i)} aria-label="Remove pair">
+              ✕
+            </Button>
+          </div>
+        ))}
+      </div>
+      <Button variant="outline" size="sm" className="h-7 text-xs w-full" onClick={addPair}>
+        + Add
+      </Button>
+    </div>
+  );
+}
+
+function ConditionBuilder({
+  conditions,
+  onChange,
+}: {
+  conditions: ConditionGroup;
+  onChange: (group: ConditionGroup) => void;
+}) {
+  const updateRow = (index: number, updates: Partial<ConditionRow>) => {
+    const updated = conditions.conditions.map((row, i) =>
+      i === index ? { ...row, ...updates } : row,
+    );
+    onChange({ ...conditions, conditions: updated });
+  };
+
+  const addRow = () => {
+    onChange({
+      ...conditions,
+      conditions: [...conditions.conditions, { field: "", operator: "equals", value: "" }],
+    });
+  };
+
+  const removeRow = (index: number) => {
+    onChange({
+      ...conditions,
+      conditions: conditions.conditions.filter((_, i) => i !== index),
+    });
+  };
+
+  const toggleLogic = () => {
+    onChange({ ...conditions, logic: conditions.logic === "AND" ? "OR" : "AND" });
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <Label>Conditions</Label>
+        <Button variant="outline" size="sm" className="h-6 text-[10px] px-2" onClick={toggleLogic}>
+          {conditions.logic}
+        </Button>
+      </div>
+      <div className="space-y-2" role="list" aria-label="Condition rows">
+        {conditions.conditions.map((row, i) => (
+          <div key={i} className="space-y-1 rounded-md border border-border p-2">
+            <div className="flex gap-1">
+              <Input
+                value={row.field}
+                onChange={(e) => updateRow(i, { field: e.target.value })}
+                placeholder="Field (e.g. input.status)"
+                className="h-7 text-xs flex-1"
+              />
+              <Button variant="ghost" size="sm" className="h-7 w-7 p-0 shrink-0" onClick={() => removeRow(i)} aria-label="Remove condition">
+                ✕
+              </Button>
+            </div>
+            <div className="flex gap-1">
+              <select
+                value={row.operator}
+                onChange={(e) => updateRow(i, { operator: e.target.value as ConditionRow["operator"] })}
+                className="h-7 flex-1 rounded-md border border-input bg-transparent px-2 text-xs"
+              >
+                {CONDITION_OPERATORS.map((op) => (
+                  <option key={op.value} value={op.value}>
+                    {op.label}
+                  </option>
+                ))}
+              </select>
+              <Input
+                value={row.value}
+                onChange={(e) => updateRow(i, { value: e.target.value })}
+                placeholder="Value"
+                className="h-7 text-xs flex-1"
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+      <Button variant="outline" size="sm" className="h-7 text-xs w-full" onClick={addRow}>
+        + Add Condition
+      </Button>
+    </div>
+  );
+}
+
+function ToggleField({
+  id,
+  label,
+  value,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  value: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between">
+      <Label htmlFor={id}>{label}</Label>
+      <button
+        id={id}
+        type="button"
+        role="switch"
+        aria-checked={value}
+        onClick={() => onChange(!value)}
+        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+          value ? "bg-primary" : "bg-muted"
+        }`}
+      >
+        <span
+          className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform ${
+            value ? "translate-x-4" : "translate-x-0.5"
+          }`}
+        />
+      </button>
+    </div>
+  );
+}
+
+// ─── Type-specific config panels ─────────────────────────────────────
+
 const MODEL_OPTIONS = [
   { value: "gpt-4o", label: "GPT-4o" },
   { value: "gpt-4o-mini", label: "GPT-4o Mini" },
@@ -250,6 +432,11 @@ function ToolConfigPanel({
   config: Record<string, unknown>;
   onChange: (key: string, value: unknown) => void;
 }) {
+  const rawParams = config.parameterPairs;
+  const paramPairs: KeyValuePair[] = Array.isArray(rawParams)
+    ? (rawParams as KeyValuePair[])
+    : [];
+
   return (
     <>
       <TextField
@@ -259,13 +446,11 @@ function ToolConfigPanel({
         onChange={(v) => onChange("toolName", v)}
         placeholder="e.g. search_web"
       />
-      <TextField
+      <KeyValueEditor
         id="config-parameters"
-        label="Parameters (JSON)"
-        value={typeof config.parameters === "string" ? config.parameters : JSON.stringify(config.parameters ?? {}, null, 2)}
-        onChange={(v) => onChange("parameters", v)}
-        multiline
-        placeholder='{"query": "…"}'
+        label="Parameters"
+        pairs={paramPairs}
+        onChange={(pairs) => onChange("parameterPairs", pairs)}
       />
     </>
   );
@@ -278,14 +463,15 @@ function ConditionConfigPanel({
   config: Record<string, unknown>;
   onChange: (key: string, value: unknown) => void;
 }) {
+  const conditions: ConditionGroup = (config.conditions as ConditionGroup) ?? {
+    logic: "AND",
+    conditions: [{ field: "", operator: "equals", value: "" }],
+  };
+
   return (
-    <TextField
-      id="config-expression"
-      label="Expression"
-      value={String(config.expression ?? "")}
-      onChange={(v) => onChange("expression", v)}
-      multiline
-      placeholder="input.value > 10"
+    <ConditionBuilder
+      conditions={conditions}
+      onChange={(group) => onChange("conditions", group)}
     />
   );
 }
@@ -299,15 +485,35 @@ function InputConfigPanel({
 }) {
   return (
     <>
+      <TextField
+        id="config-inputName"
+        label="Input Name"
+        value={String(config.inputName ?? "")}
+        onChange={(v) => onChange("inputName", v)}
+        placeholder="user_message"
+      />
+      <TextField
+        id="config-inputDescription"
+        label="Description"
+        value={String(config.inputDescription ?? "")}
+        onChange={(v) => onChange("inputDescription", v)}
+        placeholder="The user's message to the agent"
+      />
+      <ToggleField
+        id="config-required"
+        label="Required"
+        value={config.required !== false}
+        onChange={(v) => onChange("required", v)}
+      />
       <SelectField
         id="config-inputType"
         label="Input Type"
         value={String(config.inputType ?? "text")}
         options={[
           { value: "text", label: "Text" },
-          { value: "json", label: "JSON" },
+          { value: "number", label: "Number" },
           { value: "file", label: "File" },
-          { value: "image", label: "Image" },
+          { value: "json", label: "JSON" },
         ]}
         onChange={(v) => onChange("inputType", v)}
       />
@@ -329,17 +535,27 @@ function OutputConfigPanel({
   onChange: (key: string, value: unknown) => void;
 }) {
   return (
-    <SelectField
-      id="config-outputFormat"
-      label="Output Format"
-      value={String(config.outputFormat ?? "text")}
-      options={[
-        { value: "text", label: "Text" },
-        { value: "json", label: "JSON" },
-        { value: "markdown", label: "Markdown" },
-      ]}
-      onChange={(v) => onChange("outputFormat", v)}
-    />
+    <>
+      <TextField
+        id="config-outputName"
+        label="Output Name"
+        value={String(config.outputName ?? "")}
+        onChange={(v) => onChange("outputName", v)}
+        placeholder="result"
+      />
+      <SelectField
+        id="config-outputFormat"
+        label="Output Format"
+        value={String(config.outputFormat ?? "text")}
+        options={[
+          { value: "text", label: "Text" },
+          { value: "json", label: "JSON" },
+          { value: "stream", label: "Stream" },
+          { value: "markdown", label: "Markdown" },
+        ]}
+        onChange={(v) => onChange("outputFormat", v)}
+      />
+    </>
   );
 }
 
@@ -537,6 +753,12 @@ function MCPToolConfigPanel({
   config: Record<string, unknown>;
   onChange: (key: string, value: unknown) => void;
 }) {
+  // Parse existing params as key-value pairs
+  const rawParams = config.parameterMapping;
+  const paramPairs: KeyValuePair[] = Array.isArray(rawParams)
+    ? (rawParams as KeyValuePair[])
+    : [];
+
   return (
     <>
       <TextField
@@ -553,6 +775,12 @@ function MCPToolConfigPanel({
         onChange={(v) => onChange("toolName", v)}
         placeholder="e.g. search_code"
       />
+      <KeyValueEditor
+        id="config-params"
+        label="Parameter Mapping"
+        pairs={paramPairs}
+        onChange={(pairs) => onChange("parameterMapping", pairs)}
+      />
     </>
   );
 }
@@ -564,6 +792,12 @@ function HTTPRequestConfigPanel({
   config: Record<string, unknown>;
   onChange: (key: string, value: unknown) => void;
 }) {
+  // Parse headers as key-value pairs
+  const rawHeaders = config.headerPairs;
+  const headerPairs: KeyValuePair[] = Array.isArray(rawHeaders)
+    ? (rawHeaders as KeyValuePair[])
+    : [];
+
   return (
     <>
       <SelectField
@@ -580,13 +814,23 @@ function HTTPRequestConfigPanel({
         onChange={(v) => onChange("url", v)}
         placeholder="https://api.example.com/…"
       />
-      <TextField
+      <SelectField
+        id="config-authType"
+        label="Auth Type"
+        value={String(config.authType ?? "none")}
+        options={[
+          { value: "none", label: "None" },
+          { value: "bearer", label: "Bearer Token" },
+          { value: "basic", label: "Basic Auth" },
+          { value: "api_key", label: "API Key" },
+        ]}
+        onChange={(v) => onChange("authType", v)}
+      />
+      <KeyValueEditor
         id="config-headers"
-        label="Headers (JSON)"
-        value={String(config.headers ?? "{}")}
-        onChange={(v) => onChange("headers", v)}
-        multiline
-        placeholder='{"Authorization": "Bearer …"}'
+        label="Headers"
+        pairs={headerPairs}
+        onChange={(pairs) => onChange("headerPairs", pairs)}
       />
       <TextField
         id="config-body"
@@ -606,6 +850,12 @@ function DatabaseQueryConfigPanel({
   config: Record<string, unknown>;
   onChange: (key: string, value: unknown) => void;
 }) {
+  // Parse query params as key-value pairs
+  const rawParams = config.queryParams;
+  const queryParams: KeyValuePair[] = Array.isArray(rawParams)
+    ? (rawParams as KeyValuePair[])
+    : [];
+
   return (
     <>
       <SelectField
@@ -616,19 +866,25 @@ function DatabaseQueryConfigPanel({
         onChange={(v) => onChange("dbType", v)}
       />
       <TextField
-        id="config-connectionString"
-        label="Connection String"
-        value={String(config.connectionString ?? "")}
-        onChange={(v) => onChange("connectionString", v)}
-        placeholder="postgresql://user:pass@host/db"
+        id="config-connectorId"
+        label="Connector ID"
+        value={String(config.connectorId ?? "")}
+        onChange={(v) => onChange("connectorId", v)}
+        placeholder="Select a connector"
       />
       <TextField
         id="config-query"
-        label="Query"
+        label="SQL Query"
         value={String(config.query ?? "")}
         onChange={(v) => onChange("query", v)}
         multiline
         placeholder="SELECT * FROM …"
+      />
+      <KeyValueEditor
+        id="config-queryParams"
+        label="Query Parameters"
+        pairs={queryParams}
+        onChange={(pairs) => onChange("queryParams", pairs)}
       />
     </>
   );
@@ -788,13 +1044,21 @@ function VectorSearchConfigPanel({
         onChange={(v) => onChange("collection", v)}
         placeholder="my_vectors"
       />
-      <NumberField
+      <TextField
+        id="config-queryField"
+        label="Query Field"
+        value={String(config.queryField ?? "")}
+        onChange={(v) => onChange("queryField", v)}
+        placeholder="input.text"
+      />
+      <SliderField
         id="config-topK"
         label="Top K"
         value={Number(config.topK ?? 5)}
-        onChange={(v) => onChange("topK", v)}
         min={1}
         max={100}
+        step={1}
+        onChange={(v) => onChange("topK", v)}
       />
       <SliderField
         id="config-threshold"

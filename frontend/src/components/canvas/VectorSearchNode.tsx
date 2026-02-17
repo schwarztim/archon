@@ -18,7 +18,10 @@ export const VectorSearchNode = memo(function VectorSearchNode({
   return (
     <BaseNodeShell data={nodeData} selected={selected} icon={<SearchIcon />}>
       <p className="font-mono text-[10px] opacity-70">
-        {nodeData.config.collection} · top={nodeData.config.topK}
+        {nodeData.config.collection || "—"} · top={nodeData.config.topK}
+      </p>
+      <p className="font-mono text-[10px] opacity-50">
+        threshold: {nodeData.config.threshold}
       </p>
     </BaseNodeShell>
   );

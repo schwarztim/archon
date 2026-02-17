@@ -131,6 +131,40 @@ backend:
     minReplicas: 2
     maxReplicas: 10
     targetCPUUtilizationPercentage: 70
+  probes:
+    liveness:
+      httpGet:
+        path: /healthz
+        port: 8000
+      initialDelaySeconds: 10
+      periodSeconds: 15
+      timeoutSeconds: 5
+    readiness:
+      httpGet:
+        path: /readyz
+        port: 8000
+      initialDelaySeconds: 5
+      periodSeconds: 10
+      timeoutSeconds: 3
+  env:
+    - name: VAULT_ADDR
+      value: "http://vault:8200"
+
+# ── Worker ──────────────────────────────────────────────────────────
+worker:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: ghcr.io/archon-platform/backend
+    tag: "0.1.0"
+  command: ["python3", "-m", "app.worker"]
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
 
 # ── Frontend ────────────────────────────────────────────────────────
 frontend:
@@ -183,12 +217,28 @@ monitoring:
   prometheus:
     scrapeInterval: 15s
     retention: 15d
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
   grafana:
     enabled: true
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi
     dashboards:
       - archon-overview
       - archon-agents
       - archon-infrastructure
+      - archon-cost
+      - archon-security
   alerting:
     enabled: true
     rules:

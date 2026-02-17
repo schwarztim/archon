@@ -16,11 +16,15 @@ export const HTTPRequestNode = memo(function HTTPRequestNode({
   selected,
 }: NodeProps) {
   const nodeData = data as unknown as HTTPRequestNodeData;
+  const authType = String(nodeData.config.authType ?? "none");
   return (
     <BaseNodeShell data={nodeData} selected={selected} icon={<GlobeIcon />}>
       <p className="font-mono text-[10px] opacity-70 truncate max-w-[160px]">
         {nodeData.config.method} {nodeData.config.url}
       </p>
+      {authType !== "none" && (
+        <p className="font-mono text-[10px] opacity-50">auth: {authType}</p>
+      )}
     </BaseNodeShell>
   );
 });

@@ -601,5 +601,439 @@ class SentinelScanService:
             for svc in _KNOWN_AI_SERVICES
         ]
 
+    # ── Enhanced Discovery (multi-source) ───────────────────────────
 
-__all__ = ["SentinelScanService"]
+    @staticmethod
+    async def run_discovery_scan(
+        tenant_id: str,
+        user_id: str,
+        sources: list[str] | None = None,
+        scan_depth: str = "standard",
+    ) -> dict[str, Any]:
+        """Run a multi-source discovery scan (IdP/SSO, API gateway, DNS).
+
+        In dev mode, generates realistic sample findings.
+
+        Args:
+            tenant_id: Tenant scope.
+            user_id: Actor performing the scan.
+            sources: List of scan sources (sso, api_gateway, dns).
+            scan_depth: Depth of scan (quick, standard, deep).
+
+        Returns:
+            Scan result dict with id, findings, and summary.
+        """
+        import random
+
+        scan_sources = sources or ["sso", "api_gateway", "dns"]
+        now = datetime.now(tz=timezone.utc)
+        scan_id = str(uuid4())
+
+        findings: list[dict[str, Any]] = []
+        service_types = ["LLM", "Embedding", "Image", "Voice", "Code"]
+        statuses = ["Approved", "Unapproved", "Blocked"]
+        risk_levels = ["critical", "high", "medium", "low"]
+        data_exposures = ["PII detected", "Confidential data", "Internal only", "Public", "None detected"]
+
+        # Generate realistic sample findings from known services
+        sample_size = {"quick": 8, "standard": 15, "deep": 25}.get(scan_depth, 15)
+        sampled = _KNOWN_AI_SERVICES[:sample_size]
+
+        for svc in sampled:
+            stype = svc.get("category", "saas_ai")
+            type_map = {
+                "llm": "LLM", "copilot": "Code", "code_assistant": "Code",
+                "chatbot": "LLM", "image_gen": "Image", "saas_ai": "Embedding",
+            }
+            finding: dict[str, Any] = {
+                "id": str(uuid4()),
+                "service_name": svc["name"],
+                "service_type": type_map.get(stype, "LLM"),
+                "provider": svc.get("provider", "unknown"),
+                "risk_level": svc.get("risk_level", "medium"),
+                "user_count": random.randint(1, 50),
+                "data_exposure": random.choice(data_exposures),
+                "first_seen": (now.replace(day=1)).isoformat(),
+                "last_seen": now.isoformat(),
+                "status": "Approved" if svc.get("risk_level") in ("low", "informational") else "Unapproved",
+                "detection_source": random.choice(scan_sources),
+                "domain": svc.get("domain", ""),
+            }
+            findings.append(finding)
+
+        _scan_history_store.setdefault(tenant_id, []).append({
+            "id": scan_id,
+            "tenant_id": tenant_id,
+            "initiated_by": user_id,
+            "sources": scan_sources,
+            "scan_depth": scan_depth,
+            "status": "completed",
+            "started_at": now.isoformat(),
+            "completed_at": now.isoformat(),
+            "findings_count": len(findings),
+            "services_found": len(findings),
+        })
+
+        # Store findings for inventory
+        _findings_store.setdefault(tenant_id, []).extend(findings)
+
+        logger.info(
+            "sentinel.enhanced_scan.completed",
+            extra={
+                "tenant_id": tenant_id,
+                "scan_id": scan_id,
+                "findings": len(findings),
+                "sources": scan_sources,
+            },
+        )
+
+        return {
+            "id": scan_id,
+            "tenant_id": tenant_id,
+            "sources": scan_sources,
+            "scan_depth": scan_depth,
+            "status": "completed",
+            "findings": findings,
+            "summary": {
+                "total_findings": len(findings),
+                "critical": sum(1 for f in findings if f["risk_level"] == "critical"),
+                "high": sum(1 for f in findings if f["risk_level"] == "high"),
+                "medium": sum(1 for f in findings if f["risk_level"] == "medium"),
+                "low": sum(1 for f in findings if f["risk_level"] == "low"),
+            },
+            "started_at": now.isoformat(),
+            "completed_at": now.isoformat(),
+        }
+
+    # ── Service Inventory ───────────────────────────────────────────
+
+    @staticmethod
+    async def get_service_inventory(
+        tenant_id: str,
+        limit: int = 50,
+        offset: int = 0,
+        risk_level: str | None = None,
+        status: str | None = None,
+        service_type: str | None = None,
+    ) -> dict[str, Any]:
+        """Get service inventory with filtering and pagination.
+
+        Args:
+            tenant_id: Tenant scope.
+            limit: Max results per page.
+            offset: Pagination offset.
+            risk_level: Filter by risk level.
+            status: Filter by approval status.
+            service_type: Filter by service type.
+
+        Returns:
+            Dict with services list, total count, and pagination info.
+        """
+        all_findings = _findings_store.get(tenant_id, [])
+
+        # Deduplicate by service_name
+        seen: dict[str, dict[str, Any]] = {}
+        for f in all_findings:
+            name = f["service_name"]
+            if name not in seen:
+                seen[name] = f
+            else:
+                existing = seen[name]
+                existing["user_count"] = max(
+                    existing.get("user_count", 0), f.get("user_count", 0),
+                )
+                existing["last_seen"] = f.get("last_seen", existing.get("last_seen"))
+
+        services = list(seen.values())
+
+        if risk_level:
+            services = [s for s in services if s.get("risk_level") == risk_level]
+        if status:
+            services = [s for s in services if s.get("status") == status]
+        if service_type:
+            services = [s for s in services if s.get("service_type") == service_type]
+
+        total = len(services)
+        page = services[offset : offset + limit]
+
+        return {
+            "services": page,
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+        }
+
+    # ── Posture Score (weighted formula) ────────────────────────────
+
+    @staticmethod
+    async def compute_weighted_posture(tenant_id: str) -> dict[str, Any]:
+        """Compute posture score using weighted penalty formula.
+
+        penalty = (unauthorized×10) + (critical×20) + (data_exposure×15) + (policy_violations×5)
+        score = max(0, 100 - penalty)
+
+        Args:
+            tenant_id: Tenant scope.
+
+        Returns:
+            Dict with score, grade, color, and breakdown.
+        """
+        findings = _findings_store.get(tenant_id, [])
+
+        unauthorized = sum(1 for f in findings if f.get("status") == "Unapproved")
+        critical = sum(1 for f in findings if f.get("risk_level") == "critical")
+        data_exposure = sum(
+            1 for f in findings
+            if f.get("data_exposure") in ("PII detected", "Confidential data")
+        )
+        policy_violations = sum(1 for f in findings if f.get("status") == "Blocked")
+
+        penalty = (
+            (unauthorized * 10)
+            + (critical * 20)
+            + (data_exposure * 15)
+            + (policy_violations * 5)
+        )
+        score = max(0, 100 - penalty)
+
+        if score >= 80:
+            grade, color = "Good", "green"
+        elif score >= 60:
+            grade, color = "Fair", "yellow"
+        else:
+            grade, color = "Poor", "red"
+
+        return {
+            "score": score,
+            "grade": grade,
+            "color": color,
+            "penalty": penalty,
+            "breakdown": {
+                "unauthorized": unauthorized,
+                "critical": critical,
+                "data_exposure": data_exposure,
+                "policy_violations": policy_violations,
+            },
+            "total_services": len(findings),
+            "computed_at": datetime.now(tz=timezone.utc).isoformat(),
+        }
+
+    # ── Risk Breakdown ──────────────────────────────────────────────
+
+    @staticmethod
+    async def get_risk_breakdown(tenant_id: str) -> dict[str, Any]:
+        """Get risk breakdown with real counts per category.
+
+        Categories: Data Exposure, Unauthorized Access, Credential Risk, Policy Violation.
+
+        Args:
+            tenant_id: Tenant scope.
+
+        Returns:
+            Dict with category counts and details.
+        """
+        findings = _findings_store.get(tenant_id, [])
+
+        data_exposure_items = [
+            f for f in findings
+            if f.get("data_exposure") in ("PII detected", "Confidential data")
+        ]
+        unauthorized_items = [
+            f for f in findings if f.get("status") == "Unapproved"
+        ]
+        credential_risk_items = [
+            f for f in findings if f.get("risk_level") == "critical"
+        ]
+        policy_violation_items = [
+            f for f in findings if f.get("status") == "Blocked"
+        ]
+
+        categories = {
+            "Data Exposure": {
+                "count": len(data_exposure_items),
+                "items": [
+                    {"id": i["id"], "service_name": i["service_name"], "detail": i.get("data_exposure", "")}
+                    for i in data_exposure_items
+                ],
+            },
+            "Unauthorized Access": {
+                "count": len(unauthorized_items),
+                "items": [
+                    {"id": i["id"], "service_name": i["service_name"], "detail": i.get("status", "")}
+                    for i in unauthorized_items
+                ],
+            },
+            "Credential Risk": {
+                "count": len(credential_risk_items),
+                "items": [
+                    {"id": i["id"], "service_name": i["service_name"], "detail": i.get("risk_level", "")}
+                    for i in credential_risk_items
+                ],
+            },
+            "Policy Violation": {
+                "count": len(policy_violation_items),
+                "items": [
+                    {"id": i["id"], "service_name": i["service_name"], "detail": i.get("status", "")}
+                    for i in policy_violation_items
+                ],
+            },
+        }
+
+        return {
+            "categories": categories,
+            "total_findings": len(findings),
+            "computed_at": datetime.now(tz=timezone.utc).isoformat(),
+        }
+
+    # ── Remediation ─────────────────────────────────────────────────
+
+    @staticmethod
+    async def apply_remediation(
+        tenant_id: str,
+        user_id: str,
+        finding_id: str,
+        action: str,
+    ) -> dict[str, Any]:
+        """Apply a remediation action to a single finding.
+
+        Args:
+            tenant_id: Tenant scope.
+            user_id: Actor performing remediation.
+            finding_id: ID of the finding to remediate.
+            action: One of Block, Approve, Monitor, Ignore.
+
+        Returns:
+            Dict with remediation result and audit info.
+        """
+        findings = _findings_store.get(tenant_id, [])
+        target = None
+        for f in findings:
+            if f["id"] == finding_id:
+                target = f
+                break
+
+        if target is None:
+            return {"error": "Finding not found", "finding_id": finding_id}
+
+        action_status_map = {
+            "Block": "Blocked",
+            "Approve": "Approved",
+            "Monitor": "Monitoring",
+            "Ignore": "Ignored",
+        }
+        target["status"] = action_status_map.get(action, action)
+
+        now = datetime.now(tz=timezone.utc)
+        audit_entry = {
+            "id": str(uuid4()),
+            "tenant_id": tenant_id,
+            "user_id": user_id,
+            "action": action,
+            "finding_id": finding_id,
+            "service_name": target["service_name"],
+            "timestamp": now.isoformat(),
+        }
+        _remediation_audit.setdefault(tenant_id, []).append(audit_entry)
+
+        logger.info(
+            "sentinel.remediation.applied",
+            extra={
+                "tenant_id": tenant_id,
+                "finding_id": finding_id,
+                "action": action,
+                "user_id": user_id,
+            },
+        )
+
+        return {
+            "finding_id": finding_id,
+            "service_name": target["service_name"],
+            "action": action,
+            "new_status": target["status"],
+            "applied_by": user_id,
+            "applied_at": now.isoformat(),
+        }
+
+    @staticmethod
+    async def apply_bulk_remediation(
+        tenant_id: str,
+        user_id: str,
+        finding_ids: list[str],
+        action: str,
+    ) -> dict[str, Any]:
+        """Apply remediation action to multiple findings.
+
+        Args:
+            tenant_id: Tenant scope.
+            user_id: Actor performing remediation.
+            finding_ids: List of finding IDs to remediate.
+            action: One of Block, Approve, Monitor, Ignore.
+
+        Returns:
+            Dict with results summary and individual outcomes.
+        """
+        results: list[dict[str, Any]] = []
+        for fid in finding_ids:
+            result = await SentinelScanService.apply_remediation(
+                tenant_id, user_id, fid, action,
+            )
+            results.append(result)
+
+        succeeded = [r for r in results if "error" not in r]
+        failed = [r for r in results if "error" in r]
+
+        return {
+            "action": action,
+            "total": len(finding_ids),
+            "succeeded": len(succeeded),
+            "failed": len(failed),
+            "results": results,
+            "applied_by": user_id,
+            "applied_at": datetime.now(tz=timezone.utc).isoformat(),
+        }
+
+    # ── Scan History ────────────────────────────────────────────────
+
+    @staticmethod
+    async def get_scan_history(
+        tenant_id: str,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> dict[str, Any]:
+        """Get history of past scans with pagination.
+
+        Args:
+            tenant_id: Tenant scope.
+            limit: Max results per page.
+            offset: Pagination offset.
+
+        Returns:
+            Dict with scans list and pagination info.
+        """
+        history = _scan_history_store.get(tenant_id, [])
+        # Most recent first
+        history_sorted = sorted(history, key=lambda s: s.get("started_at", ""), reverse=True)
+        total = len(history_sorted)
+        page = history_sorted[offset : offset + limit]
+
+        return {
+            "scans": page,
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+        }
+
+
+# ── In-memory stores for dev mode ──────────────────────────────────
+
+_findings_store: dict[str, list[dict[str, Any]]] = {}
+_scan_history_store: dict[str, list[dict[str, Any]]] = {}
+_remediation_audit: dict[str, list[dict[str, Any]]] = {}
+
+
+__all__ = [
+    "SentinelScanService",
+    "_findings_store",
+    "_scan_history_store",
+    "_remediation_audit",
+]

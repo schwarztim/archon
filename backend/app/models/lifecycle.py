@@ -199,17 +199,102 @@ class ScheduledJob(BaseModel):
     status: str = "active"  # active | paused | completed
 
 
+class ApprovalGate(BaseModel):
+    """Configuration for approval gates between pipeline stages."""
+
+    from_stage: str
+    to_stage: str
+    required_approvers: int = PydanticField(default=1, ge=1)
+    auto_approve_after_hours: float | None = None
+    require_health_check: bool = True
+    require_tests_pass: bool = True
+    enabled: bool = True
+
+
+class PipelineStageInfo(BaseModel):
+    """A stage in the deployment pipeline with its deployed versions."""
+
+    stage: str
+    label: str
+    deployments: list[dict[str, Any]] = PydanticField(default_factory=list)
+    approval_gate: ApprovalGate | None = None
+
+
+class EnvironmentInfo(BaseModel):
+    """Summary of an environment's state."""
+
+    name: str
+    display_name: str
+    status: str = "active"
+    deployed_version: str | None = None
+    agent_id: UUID | None = None
+    agent_name: str | None = None
+    health_status: str = "unknown"
+    instance_count: int = 0
+    last_deploy_at: datetime | None = None
+    created_at: datetime = PydanticField(default_factory=_utcnow)
+
+
+class ConfigDiff(BaseModel):
+    """Comparison between two environment configurations."""
+
+    source_env: str
+    target_env: str
+    differences: list[dict[str, Any]] = PydanticField(default_factory=list)
+    source_version: str | None = None
+    target_version: str | None = None
+
+
+class DeploymentHistoryEntry(BaseModel):
+    """A single entry in the deployment history timeline."""
+
+    id: UUID
+    agent_id: UUID
+    agent_name: str | None = None
+    version_id: str
+    environment: str
+    strategy: str
+    status: str
+    deployed_by: str | None = None
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    duration_seconds: float | None = None
+    rollback_reason: str | None = None
+
+
+class HealthMetrics(BaseModel):
+    """Detailed post-deployment health metrics."""
+
+    deployment_id: UUID
+    status: str = "healthy"
+    response_time_p50: float = 0.0
+    response_time_p95: float = 0.0
+    response_time_p99: float = 0.0
+    error_rate: float = 0.0
+    throughput_rps: float = 0.0
+    uptime_pct: float = 100.0
+    auto_rollback_triggered: bool = False
+    auto_rollback_threshold: float = 0.05
+    checked_at: datetime = PydanticField(default_factory=_utcnow)
+
+
 __all__ = [
     "Anomaly",
+    "ApprovalGate",
+    "ConfigDiff",
     "CredentialRotationResult",
     "CronSchedule",
     "Deployment",
+    "DeploymentHistoryEntry",
     "DeploymentRecord",
     "DeploymentStrategy",
     "DeploymentStrategyType",
+    "EnvironmentInfo",
     "HealthCheck",
+    "HealthMetrics",
     "HealthScore",
     "LifecycleEvent",
     "LifecycleTransition",
+    "PipelineStageInfo",
     "ScheduledJob",
 ]

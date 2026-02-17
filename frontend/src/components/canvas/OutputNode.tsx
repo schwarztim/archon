@@ -15,6 +15,7 @@ export const OutputNode = memo(function OutputNode({
   selected,
 }: NodeProps) {
   const outputData = data as unknown as OutputNodeData;
+  const outputName = String(outputData.config.outputName ?? "");
   return (
     <BaseNodeShell
       data={outputData}
@@ -24,6 +25,11 @@ export const OutputNode = memo(function OutputNode({
       <p className="font-mono text-[10px] opacity-70">
         format: {outputData.config.outputFormat}
       </p>
+      {outputName && (
+        <p className="font-mono text-[10px] opacity-50 truncate max-w-[160px]">
+          {outputName}
+        </p>
+      )}
     </BaseNodeShell>
   );
 });

@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback } from "react";
-import { Play, Loader2, ChevronDown, ChevronUp, X, Clock, Zap, DollarSign, CheckCircle2, Circle, AlertCircle } from "lucide-react";
-import { apiGet } from "@/api/client";
-import { executeAgent, listExecutions } from "@/api/executions";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useNavigate } from "react-router-dom";
+import { Play, Loader2, ChevronDown, ChevronUp, X, Clock, Zap, DollarSign, CheckCircle2, Circle, AlertCircle, Trash2, RefreshCw, RotateCcw } from "lucide-react";
+import { listExecutions, createExecution, deleteExecution } from "@/api/executions";
 import { listAgents } from "@/api/agents";
 import { Button } from "@/components/ui/Button";
 import { Textarea } from "@/components/ui/Textarea";
@@ -14,15 +14,25 @@ interface AgentSummary {
 }
 
 interface ExecutionStep {
-  name: string;
+  name?: string;
+  step_name?: string;
+  step_type?: string;
   status: string;
+  duration_ms?: number;
+  token_usage?: number;
   tokens?: number;
+  cost?: number;
+  input?: unknown;
+  output?: unknown;
+  error?: string | null;
 }
 
 interface ExecutionMetrics {
   duration_ms?: number;
+  total_duration_ms?: number;
   total_tokens?: number;
   estimated_cost?: number;
+  total_cost?: number;
 }
 
 interface Execution {
@@ -67,7 +77,7 @@ function formatDuration(ms: number | undefined | null) {
 
 function formatCost(cost: number | undefined | null) {
   if (cost == null) return "—";
-  return `$${cost.toFixed(6)}`;
+  return `$${cost.toFixed(4)}`;
 }
 
 function truncateId(id: string) {
@@ -81,6 +91,14 @@ function stepIcon(status: string) {
   return <Circle size={14} className="text-gray-500" />;
 }
 
+function getDuration(m: ExecutionMetrics | null): number | undefined {
+  return m?.total_duration_ms ?? m?.duration_ms;
+}
+
+function getCost(m: ExecutionMetrics | null): number | undefined {
+  return m?.total_cost ?? m?.estimated_cost;
+}
+
 // ── Run Agent Modal ──────────────────────────────────────────────────
 
 function RunAgentModal({
@@ -90,10 +108,12 @@ function RunAgentModal({
 }: {
   agents: AgentSummary[];
   onClose: () => void;
-  onExecuted: () => void;
+  onExecuted: (executionId: string) => void;
 }) {
   const [selectedAgentId, setSelectedAgentId] = useState(agents[0]?.id ?? "");
   const [inputText, setInputText] = useState('{\n  "prompt": "Hello"\n}');
+  const [temperature, setTemperature] = useState("0.7");
+  const [maxTokens, setMaxTokens] = useState("1024");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -103,8 +123,16 @@ function RunAgentModal({
     setError(null);
     try {
       const parsed = JSON.parse(inputText);
-      await executeAgent(selectedAgentId, parsed);
-      onExecuted();
+      const configOverrides: Record<string, unknown> = {};
+      if (temperature) configOverrides.temperature = parseFloat(temperature);
+      if (maxTokens) configOverrides.max_tokens = parseInt(maxTokens, 10);
+
+      const res = await createExecution({
+        agent_id: selectedAgentId,
+        input_data: parsed,
+        config_overrides: Object.keys(configOverrides).length > 0 ? configOverrides : undefined,
+      });
+      onExecuted(res.data.id);
       onClose();
     } catch (err: unknown) {
       setError(err instanceof SyntaxError ? "Invalid JSON input" : "Execution failed");
@@ -144,6 +172,32 @@ function RunAgentModal({
           />
         </div>
 
+        <div className="mb-4 grid grid-cols-2 gap-3">
+          <div>
+            <Label className="mb-1 text-gray-300">Temperature</Label>
+            <input
+              type="number"
+              min="0"
+              max="2"
+              step="0.1"
+              value={temperature}
+              onChange={(e) => setTemperature(e.target.value)}
+              className="w-full rounded-md border border-[#2a2d37] bg-[#0f1117] px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+            />
+          </div>
+          <div>
+            <Label className="mb-1 text-gray-300">Max Tokens</Label>
+            <input
+              type="number"
+              min="1"
+              max="128000"
+              value={maxTokens}
+              onChange={(e) => setMaxTokens(e.target.value)}
+              className="w-full rounded-md border border-[#2a2d37] bg-[#0f1117] px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+            />
+          </div>
+        </div>
+
         {error && (
           <div className="mb-4 rounded border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-400">{error}</div>
         )}
@@ -152,7 +206,7 @@ function RunAgentModal({
           <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
           <Button size="sm" onClick={handleExecute} disabled={submitting || !selectedAgentId} className="bg-purple-600 hover:bg-purple-700 text-white">
             {submitting ? <Loader2 size={14} className="mr-1 animate-spin" /> : <Play size={14} className="mr-1" />}
-            Execute
+            Run
           </Button>
         </div>
       </div>
@@ -164,15 +218,15 @@ function RunAgentModal({
 
 function ExecutionDetail({ execution, agentName }: { execution: Execution; agentName: string }) {
   return (
-    <td colSpan={7} className="px-6 py-4">
+    <td colSpan={8} className="px-6 py-4">
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {/* Summary */}
         <div className="space-y-2">
           <h3 className="text-xs font-semibold uppercase text-gray-500">Summary</h3>
           <div className="flex flex-wrap gap-4 text-xs">
-            <span className="flex items-center gap-1 text-gray-400"><Clock size={12} /> {formatDuration(execution.metrics?.duration_ms)}</span>
+            <span className="flex items-center gap-1 text-gray-400"><Clock size={12} /> {formatDuration(getDuration(execution.metrics))}</span>
             <span className="flex items-center gap-1 text-gray-400"><Zap size={12} /> {execution.metrics?.total_tokens ?? "—"} tokens</span>
-            <span className="flex items-center gap-1 text-gray-400"><DollarSign size={12} /> {formatCost(execution.metrics?.estimated_cost)}</span>
+            <span className="flex items-center gap-1 text-gray-400"><DollarSign size={12} /> {formatCost(getCost(execution.metrics))}</span>
           </div>
           <div className="text-xs text-gray-500">Agent: <span className="text-gray-300">{agentName}</span></div>
           <div className="text-xs text-gray-500">Execution ID: <span className="text-gray-300 font-mono">{execution.id}</span></div>
@@ -186,8 +240,12 @@ function ExecutionDetail({ execution, agentName }: { execution: Execution; agent
               {execution.steps.map((step, i) => (
                 <div key={i} className="flex items-center gap-2 text-xs">
                   {stepIcon(step.status)}
-                  <span className="text-gray-300 capitalize">{step.name}</span>
-                  {step.tokens != null && <span className="text-gray-500">({step.tokens} tokens)</span>}
+                  <span className="text-gray-300 capitalize">{step.step_name ?? step.name}</span>
+                  {step.step_type && <span className="rounded bg-gray-700/50 px-1 text-[10px] text-gray-500">{step.step_type}</span>}
+                  {(step.token_usage ?? step.tokens) != null && <span className="text-gray-500">({step.token_usage ?? step.tokens} tokens)</span>}
+                  {step.duration_ms != null && <span className="text-gray-500">{formatDuration(step.duration_ms)}</span>}
+                  {step.cost != null && step.cost > 0 && <span className="text-gray-500">{formatCost(step.cost)}</span>}
+                  {step.error && <span className="text-red-400 text-[10px]">{step.error}</span>}
                 </div>
               ))}
             </div>
@@ -215,6 +273,7 @@ function ExecutionDetail({ execution, agentName }: { execution: Execution; agent
 // ── Main Page ────────────────────────────────────────────────────────
 
 export function ExecutionsPage() {
+  const navigate = useNavigate();
   const [executions, setExecutions] = useState<Execution[]>([]);
   const [agents, setAgents] = useState<AgentSummary[]>([]);
   const [agentMap, setAgentMap] = useState<Record<string, string>>({});
@@ -222,10 +281,16 @@ export function ExecutionsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showRunModal, setShowRunModal] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   // Filters
   const [filterStatus, setFilterStatus] = useState<string>("");
   const [filterAgentId, setFilterAgentId] = useState<string>("");
+  const [filterDateFrom, setFilterDateFrom] = useState<string>("");
+  const [filterDateTo, setFilterDateTo] = useState<string>("");
+
+  // Auto-refresh ref
+  const autoRefreshRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchExecutions = useCallback(async () => {
     setLoading(true);
@@ -235,13 +300,25 @@ export function ExecutionsPage() {
       if (filterStatus) params.status = filterStatus;
       if (filterAgentId) params.agent_id = filterAgentId;
       const res = await listExecutions(params);
-      setExecutions(Array.isArray(res.data) ? res.data : []);
+      let list = Array.isArray(res.data) ? res.data : [];
+
+      // Client-side date filtering
+      if (filterDateFrom) {
+        const from = new Date(filterDateFrom).getTime();
+        list = list.filter((e) => new Date(e.created_at).getTime() >= from);
+      }
+      if (filterDateTo) {
+        const to = new Date(filterDateTo).getTime() + 86400000; // end of day
+        list = list.filter((e) => new Date(e.created_at).getTime() <= to);
+      }
+
+      setExecutions(list);
     } catch {
       setError("Failed to load executions.");
     } finally {
       setLoading(false);
     }
-  }, [filterStatus, filterAgentId]);
+  }, [filterStatus, filterAgentId, filterDateFrom, filterDateTo]);
 
   const fetchAgents = useCallback(async () => {
     try {
@@ -253,12 +330,52 @@ export function ExecutionsPage() {
       for (const a of summaries) map[a.id] = a.name;
       setAgentMap(map);
     } catch {
-      // Non-critical — agent names just won't show
+      // Non-critical
     }
   }, []);
 
   useEffect(() => { void fetchAgents(); }, [fetchAgents]);
   useEffect(() => { void fetchExecutions(); }, [fetchExecutions]);
+
+  // Auto-refresh when any execution is running
+  useEffect(() => {
+    const hasRunning = executions.some((e) => e.status === "running" || e.status === "pending");
+    if (hasRunning) {
+      autoRefreshRef.current = setInterval(() => { void fetchExecutions(); }, 10000);
+    }
+    return () => {
+      if (autoRefreshRef.current) clearInterval(autoRefreshRef.current);
+    };
+  }, [executions, fetchExecutions]);
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    if (selectedIds.size === executions.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(executions.map((e) => e.id)));
+    }
+  }
+
+  async function handleBulkDelete() {
+    const ids = Array.from(selectedIds);
+    for (const id of ids) {
+      try { await deleteExecution(id); } catch { /* ignore */ }
+    }
+    setSelectedIds(new Set());
+    void fetchExecutions();
+  }
+
+  function handleRunExecuted(executionId: string) {
+    navigate(`/executions/${executionId}`);
+  }
 
   if (loading && executions.length === 0) {
     return (
@@ -284,9 +401,19 @@ export function ExecutionsPage() {
           <Play size={24} className="text-purple-400" />
           <h1 className="text-2xl font-bold text-white">Executions</h1>
         </div>
-        <Button size="sm" onClick={() => setShowRunModal(true)} className="bg-purple-600 hover:bg-purple-700 text-white">
-          <Play size={14} className="mr-1" /> Run Agent
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={() => void fetchExecutions()} className="text-gray-400 hover:text-white">
+            <RefreshCw size={14} className="mr-1" /> Refresh
+          </Button>
+          {selectedIds.size > 0 && (
+            <Button variant="ghost" size="sm" onClick={handleBulkDelete} className="text-red-400 hover:text-red-300">
+              <Trash2 size={14} className="mr-1" /> Delete ({selectedIds.size})
+            </Button>
+          )}
+          <Button size="sm" onClick={() => setShowRunModal(true)} className="bg-purple-600 hover:bg-purple-700 text-white">
+            <Play size={14} className="mr-1" /> Run Agent
+          </Button>
+        </div>
       </div>
       <p className="mb-4 text-gray-400">Monitor and manage real-time and historical agent execution runs.</p>
 
@@ -299,6 +426,7 @@ export function ExecutionsPage() {
         >
           <option value="">All Statuses</option>
           <option value="queued">Queued</option>
+          <option value="pending">Pending</option>
           <option value="running">Running</option>
           <option value="completed">Completed</option>
           <option value="failed">Failed</option>
@@ -314,6 +442,28 @@ export function ExecutionsPage() {
             <option key={a.id} value={a.id}>{a.name}</option>
           ))}
         </select>
+        <input
+          type="date"
+          value={filterDateFrom}
+          onChange={(e) => setFilterDateFrom(e.target.value)}
+          placeholder="From"
+          className="rounded-md border border-[#2a2d37] bg-[#0f1117] px-3 py-1.5 text-sm text-gray-300 focus:outline-none focus:ring-1 focus:ring-purple-500"
+        />
+        <input
+          type="date"
+          value={filterDateTo}
+          onChange={(e) => setFilterDateTo(e.target.value)}
+          placeholder="To"
+          className="rounded-md border border-[#2a2d37] bg-[#0f1117] px-3 py-1.5 text-sm text-gray-300 focus:outline-none focus:ring-1 focus:ring-purple-500"
+        />
+        {(filterStatus || filterAgentId || filterDateFrom || filterDateTo) && (
+          <button
+            onClick={() => { setFilterStatus(""); setFilterAgentId(""); setFilterDateFrom(""); setFilterDateTo(""); }}
+            className="text-xs text-gray-500 hover:text-white"
+          >
+            Clear filters
+          </button>
+        )}
       </div>
 
       {/* Table */}
@@ -328,7 +478,15 @@ export function ExecutionsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-[#2a2d37] text-left text-xs text-gray-500">
-                  <th className="w-5 px-4 py-2 font-medium" />
+                  <th className="w-8 px-4 py-2">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.size === executions.length && executions.length > 0}
+                      onChange={toggleSelectAll}
+                      className="rounded border-gray-600"
+                    />
+                  </th>
+                  <th className="w-5 px-2 py-2 font-medium" />
                   <th className="px-4 py-2 font-medium">ID</th>
                   <th className="px-4 py-2 font-medium">Agent</th>
                   <th className="px-4 py-2 font-medium">Status</th>
@@ -344,13 +502,22 @@ export function ExecutionsPage() {
                       key={e.id}
                       className="border-b border-[#2a2d37] hover:bg-white/5 cursor-pointer"
                       onClick={() => setExpandedId(expandedId === e.id ? null : e.id)}
+                      onDoubleClick={() => navigate(`/executions/${e.id}`)}
                     >
-                      <td className="px-4 py-2 text-gray-500">{expandedId === e.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</td>
+                      <td className="px-4 py-2" onClick={(ev) => ev.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(e.id)}
+                          onChange={() => toggleSelect(e.id)}
+                          className="rounded border-gray-600"
+                        />
+                      </td>
+                      <td className="px-2 py-2 text-gray-500">{expandedId === e.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</td>
                       <td className="px-4 py-2 font-mono text-xs text-gray-400">{truncateId(e.id)}</td>
                       <td className="px-4 py-2 font-medium text-white">{agentMap[e.agent_id] ?? truncateId(e.agent_id)}</td>
                       <td className="px-4 py-2">{statusBadge(e.status)}</td>
-                      <td className="px-4 py-2 text-gray-400">{formatDuration(e.metrics?.duration_ms)}</td>
-                      <td className="px-4 py-2 text-gray-400">{formatCost(e.metrics?.estimated_cost)}</td>
+                      <td className="px-4 py-2 text-gray-400">{formatDuration(getDuration(e.metrics))}</td>
+                      <td className="px-4 py-2 text-gray-400">{formatCost(getCost(e.metrics))}</td>
                       <td className="px-4 py-2 text-right text-gray-400">{new Date(e.created_at).toLocaleString()}</td>
                     </tr>
                     {expandedId === e.id && (
@@ -371,7 +538,7 @@ export function ExecutionsPage() {
         <RunAgentModal
           agents={agents}
           onClose={() => setShowRunModal(false)}
-          onExecuted={() => void fetchExecutions()}
+          onExecuted={handleRunExecuted}
         />
       )}
     </div>

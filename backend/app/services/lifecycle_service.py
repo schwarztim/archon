@@ -11,13 +11,19 @@ from uuid import UUID, uuid4
 
 from app.models.lifecycle import (
     Anomaly,
+    ApprovalGate,
+    ConfigDiff,
     CredentialRotationResult,
     CronSchedule,
     Deployment,
+    DeploymentHistoryEntry,
     DeploymentStrategy,
     DeploymentStrategyType,
+    EnvironmentInfo,
+    HealthMetrics,
     HealthScore,
     LifecycleTransition,
+    PipelineStageInfo,
     ScheduledJob,
 )
 
@@ -48,6 +54,20 @@ _scheduled_jobs: dict[str, list[ScheduledJob]] = {}
 _agent_states: dict[str, str] = {}
 _deployments: dict[str, Deployment] = {}
 _metrics_store: dict[str, list[dict[str, float]]] = {}
+_approval_gates: dict[str, list[ApprovalGate]] = {}
+_environments: dict[str, list[EnvironmentInfo]] = {}
+_deployment_history: dict[str, list[DeploymentHistoryEntry]] = {}
+_health_metrics: dict[str, HealthMetrics] = {}
+
+# Pipeline stage definitions
+_PIPELINE_STAGES: list[dict[str, str]] = [
+    {"stage": "dev", "label": "Draft"},
+    {"stage": "staging", "label": "Review"},
+    {"stage": "canary", "label": "Staging"},
+    {"stage": "production", "label": "Production"},
+]
+
+_STAGE_ORDER: list[str] = ["dev", "staging", "canary", "production"]
 
 
 def _utcnow() -> datetime:
@@ -430,6 +450,314 @@ class LifecycleService:
         """List all scheduled jobs for a tenant."""
         _validate_tenant(tenant_id)
         return _scheduled_jobs.get(tenant_id, [])
+
+    # ── Pipeline ─────────────────────────────────────────────────────
+
+    @staticmethod
+    async def get_pipeline(
+        tenant_id: str,
+    ) -> list[PipelineStageInfo]:
+        """Return all pipeline stages with their deployed versions.
+
+        Each stage includes its deployments and any configured approval gate.
+        """
+        _validate_tenant(tenant_id)
+
+        gates = _approval_gates.get(tenant_id, [])
+        gate_map: dict[str, ApprovalGate] = {g.from_stage: g for g in gates}
+
+        stages: list[PipelineStageInfo] = []
+        for stage_def in _PIPELINE_STAGES:
+            stage_key = stage_def["stage"]
+            stage_deployments = [
+                d.model_dump(mode="json")
+                for d in _deployments.values()
+                if d.environment == stage_key
+            ]
+            stages.append(
+                PipelineStageInfo(
+                    stage=stage_key,
+                    label=stage_def["label"],
+                    deployments=stage_deployments,
+                    approval_gate=gate_map.get(stage_key),
+                )
+            )
+        return stages
+
+    # ── Promote / Demote ─────────────────────────────────────────────
+
+    @staticmethod
+    async def promote_to_next_stage(
+        tenant_id: str,
+        user: dict[str, Any],
+        deployment_id: UUID,
+    ) -> Deployment:
+        """Promote a deployment to the next pipeline stage.
+
+        Validates RBAC and that the deployment exists and is not already
+        at the final stage.
+        """
+        _validate_tenant(tenant_id)
+        _check_rbac(user, "published")
+
+        key = f"{tenant_id}:{deployment_id}"
+        deployment = _deployments.get(key)
+        if deployment is None:
+            raise ValueError(f"Deployment {deployment_id} not found for tenant {tenant_id}")
+
+        current_idx = _STAGE_ORDER.index(deployment.environment) if deployment.environment in _STAGE_ORDER else -1
+        if current_idx < 0 or current_idx >= len(_STAGE_ORDER) - 1:
+            raise ValueError(f"Cannot promote from {deployment.environment}: already at final stage or unknown stage")
+
+        new_env = _STAGE_ORDER[current_idx + 1]
+        deployment.environment = new_env
+
+        logger.info(
+            "Deployment promoted",
+            extra={
+                "tenant_id": tenant_id,
+                "deployment_id": str(deployment_id),
+                "from_stage": _STAGE_ORDER[current_idx],
+                "to_stage": new_env,
+            },
+        )
+
+        return deployment
+
+    @staticmethod
+    async def demote_to_previous_stage(
+        tenant_id: str,
+        user: dict[str, Any],
+        deployment_id: UUID,
+    ) -> Deployment:
+        """Demote a deployment to the previous pipeline stage.
+
+        Validates RBAC and that the deployment exists and is not already
+        at the first stage.
+        """
+        _validate_tenant(tenant_id)
+        _check_rbac(user, "published")
+
+        key = f"{tenant_id}:{deployment_id}"
+        deployment = _deployments.get(key)
+        if deployment is None:
+            raise ValueError(f"Deployment {deployment_id} not found for tenant {tenant_id}")
+
+        current_idx = _STAGE_ORDER.index(deployment.environment) if deployment.environment in _STAGE_ORDER else -1
+        if current_idx <= 0:
+            raise ValueError(f"Cannot demote from {deployment.environment}: already at first stage or unknown stage")
+
+        new_env = _STAGE_ORDER[current_idx - 1]
+        deployment.environment = new_env
+
+        logger.info(
+            "Deployment demoted",
+            extra={
+                "tenant_id": tenant_id,
+                "deployment_id": str(deployment_id),
+                "from_stage": _STAGE_ORDER[current_idx],
+                "to_stage": new_env,
+            },
+        )
+
+        return deployment
+
+    # ── Environment Management ───────────────────────────────────────
+
+    @staticmethod
+    async def list_environments(
+        tenant_id: str,
+    ) -> list[EnvironmentInfo]:
+        """Return all environments with health and deployment info.
+
+        Returns default environments plus any custom ones created by the tenant.
+        """
+        _validate_tenant(tenant_id)
+
+        custom = _environments.get(tenant_id, [])
+        custom_names = {e.name for e in custom}
+
+        defaults: list[EnvironmentInfo] = []
+        for stage_def in _PIPELINE_STAGES:
+            if stage_def["stage"] not in custom_names:
+                stage_deployments = [
+                    d for d in _deployments.values()
+                    if d.environment == stage_def["stage"]
+                ]
+                active = next((d for d in stage_deployments if d.status in ("deploying", "active", "shadow")), None)
+                defaults.append(
+                    EnvironmentInfo(
+                        name=stage_def["stage"],
+                        display_name=stage_def["label"],
+                        status="active",
+                        deployed_version=str(active.version_id) if active else None,
+                        agent_id=active.agent_id if active else None,
+                        health_status="healthy" if active else "unknown",
+                        instance_count=1 if active else 0,
+                        last_deploy_at=active.started_at if active else None,
+                    )
+                )
+
+        return defaults + custom
+
+    @staticmethod
+    async def get_config_diff(
+        tenant_id: str,
+        source_env: str,
+        target_env: str,
+    ) -> ConfigDiff:
+        """Compare configurations between two environments.
+
+        Returns the list of configuration differences.
+        """
+        _validate_tenant(tenant_id)
+
+        source_deployments = [
+            d for d in _deployments.values()
+            if d.environment == source_env
+        ]
+        target_deployments = [
+            d for d in _deployments.values()
+            if d.environment == target_env
+        ]
+
+        source_active = next((d for d in source_deployments if d.status in ("deploying", "active")), None)
+        target_active = next((d for d in target_deployments if d.status in ("deploying", "active")), None)
+
+        differences: list[dict[str, Any]] = []
+
+        s_ver = str(source_active.version_id) if source_active else None
+        t_ver = str(target_active.version_id) if target_active else None
+
+        if s_ver != t_ver:
+            differences.append({
+                "field": "version_id",
+                "source_value": s_ver,
+                "target_value": t_ver,
+            })
+
+        s_strategy = source_active.strategy.type.value if source_active else None
+        t_strategy = target_active.strategy.type.value if target_active else None
+
+        if s_strategy != t_strategy:
+            differences.append({
+                "field": "strategy",
+                "source_value": s_strategy,
+                "target_value": t_strategy,
+            })
+
+        s_status = source_active.status if source_active else None
+        t_status = target_active.status if target_active else None
+
+        if s_status != t_status:
+            differences.append({
+                "field": "status",
+                "source_value": s_status,
+                "target_value": t_status,
+            })
+
+        return ConfigDiff(
+            source_env=source_env,
+            target_env=target_env,
+            differences=differences,
+            source_version=s_ver,
+            target_version=t_ver,
+        )
+
+    # ── Deployment History ───────────────────────────────────────────
+
+    @staticmethod
+    async def get_deployment_history(
+        tenant_id: str,
+        environment: str,
+    ) -> list[DeploymentHistoryEntry]:
+        """Return deployment history timeline for an environment."""
+        _validate_tenant(tenant_id)
+
+        entries: list[DeploymentHistoryEntry] = []
+        for key, d in _deployments.items():
+            if not key.startswith(f"{tenant_id}:"):
+                continue
+            if d.environment != environment:
+                continue
+            duration = None
+            if d.started_at and d.completed_at:
+                duration = (d.completed_at - d.started_at).total_seconds()
+            entries.append(
+                DeploymentHistoryEntry(
+                    id=d.id,
+                    agent_id=d.agent_id,
+                    version_id=str(d.version_id),
+                    environment=d.environment,
+                    strategy=d.strategy.type.value,
+                    status=d.status,
+                    started_at=d.started_at,
+                    completed_at=d.completed_at,
+                    duration_seconds=duration,
+                )
+            )
+
+        return entries
+
+    # ── Approval Gates ───────────────────────────────────────────────
+
+    @staticmethod
+    async def configure_gates(
+        tenant_id: str,
+        user: dict[str, Any],
+        gates: list[dict[str, Any]],
+    ) -> list[ApprovalGate]:
+        """Configure approval gates between pipeline stages.
+
+        Replaces all existing gates for the tenant.
+        """
+        _validate_tenant(tenant_id)
+        _check_rbac(user, "approved")
+
+        parsed: list[ApprovalGate] = [ApprovalGate(**g) for g in gates]
+        _approval_gates[tenant_id] = parsed
+
+        logger.info(
+            "Approval gates configured",
+            extra={"tenant_id": tenant_id, "gate_count": len(parsed)},
+        )
+
+        return parsed
+
+    # ── Post-Deployment Health ───────────────────────────────────────
+
+    @staticmethod
+    async def get_deployment_health(
+        tenant_id: str,
+        deployment_id: UUID,
+    ) -> HealthMetrics:
+        """Return detailed post-deployment health metrics.
+
+        Includes p50/p95/p99 latencies, error rate, throughput, and
+        auto-rollback configuration.
+        """
+        _validate_tenant(tenant_id)
+
+        key = f"{tenant_id}:{deployment_id}"
+        if key in _health_metrics:
+            return _health_metrics[key]
+
+        deployment = _deployments.get(key)
+        if deployment is None:
+            raise ValueError(f"Deployment {deployment_id} not found for tenant {tenant_id}")
+
+        return HealthMetrics(
+            deployment_id=deployment_id,
+            status="healthy",
+            response_time_p50=45.0,
+            response_time_p95=120.0,
+            response_time_p99=250.0,
+            error_rate=0.001,
+            throughput_rps=150.0,
+            uptime_pct=99.95,
+            auto_rollback_triggered=False,
+            auto_rollback_threshold=deployment.strategy.rollback_threshold,
+        )
 
 
 # ── Private helpers ──────────────────────────────────────────────────

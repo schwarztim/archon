@@ -22,11 +22,18 @@ class AuthenticatedUser(BaseModel):
 class SecretMetadata(BaseModel):
     """Metadata for a secret stored in the secrets backend."""
 
+    id: str = ""
     path: str
     version: int
     created_at: datetime
+    updated_at: datetime | None = None
     expires_at: datetime | None = None
     rotation_policy: str | None = None
+    secret_type: str = "custom"
+    last_rotated_at: datetime | None = None
+    rotation_policy_days: int | None = None
+    auto_rotate: bool = False
+    notify_before_days: int = 14
 
 
 class CertificateBundle(BaseModel):

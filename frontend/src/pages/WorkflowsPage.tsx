@@ -9,9 +9,11 @@ import {
   Calendar,
   Loader2,
   X,
-  ChevronDown,
+  History,
 } from "lucide-react";
-import { apiGet, apiPost, apiDelete } from "@/api/client";
+import type { Node, Edge } from "@xyflow/react";
+import "@xyflow/react/dist/style.css";
+import { apiGet } from "@/api/client";
 import type { ApiResponse } from "@/types";
 import { useApiQuery, useApiMutation } from "@/hooks/useApi";
 import type {
@@ -24,7 +26,11 @@ import {
   createWorkflow,
   executeWorkflow,
   deleteWorkflow,
+  listWorkflowRuns,
 } from "@/api/workflows";
+import { WorkflowCanvas, type WfNodeData } from "@/components/workflows/WorkflowCanvas";
+import { CronBuilder } from "@/components/workflows/CronBuilder";
+import { WorkflowRunHistory } from "@/components/workflows/WorkflowRunHistory";
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
@@ -54,11 +60,32 @@ function timeAgo(dateStr: string | null): string {
   return `${days}d ago`;
 }
 
-// ─── Agent type for step builder dropdown ────────────────────────────
+// ─── Schedule Helper (kept for list view display) ───────────────────
 
-interface AgentOption {
-  id: string;
-  name: string;
+function cronToHuman(cron: string): string {
+  if (!cron) return "";
+  const parts = cron.split(" ");
+  if (parts.length !== 5) return `Cron: ${cron}`;
+  const [minute, hour, dayMonth, , dayWeek] = parts;
+  const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
+  const CRON_DAY_MAP = [1, 2, 3, 4, 5, 6, 0];
+
+  const h = hour === "*" ? null : parseInt(hour);
+  const m = minute === "*" ? 0 : parseInt(minute);
+  const timeStr = h !== null ? `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}` : "every minute";
+
+  if (dayMonth !== "*" && dayMonth !== undefined) {
+    return `Monthly on day ${dayMonth} at ${timeStr}`;
+  }
+  if (dayWeek !== "*" && dayWeek !== undefined) {
+    const dayNames = dayWeek.split(",").map((d) => {
+      const idx = CRON_DAY_MAP.indexOf(parseInt(d));
+      return idx >= 0 ? DAY_LABELS[idx] : d;
+    });
+    return `Weekly on ${dayNames.join(", ")} at ${timeStr}`;
+  }
+  if (hour === "*") return `Every hour at minute ${m}`;
+  return `Daily at ${timeStr}`;
 }
 
 // ─── Component ───────────────────────────────────────────────────────
@@ -69,6 +96,8 @@ export function WorkflowsPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [showCreate, setShowCreate] = useState(false);
   const [page, setPage] = useState(0);
+  const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(null);
+  const [showRunHistory, setShowRunHistory] = useState(false);
   const limit = 20;
 
   // ── Data fetching ──────────────────────────────────────────────────
@@ -115,6 +144,14 @@ export function WorkflowsPage() {
     (id) => executeWorkflow(id),
     [["workflows-page"]],
   );
+
+  // ── Run History ───────────────────────────────────────────────────
+  const { data: runsData, isLoading: runsLoading } = useApiQuery<WorkflowRun[]>(
+    ["workflow-runs", selectedWorkflowId],
+    () => listWorkflowRuns(selectedWorkflowId!, {}),
+    { enabled: !!selectedWorkflowId && showRunHistory },
+  );
+  const runs = runsData?.data ?? [];
 
   // ── Loading / Error ────────────────────────────────────────────────
   if (isLoading) {
@@ -193,23 +230,21 @@ export function WorkflowsPage() {
             className="w-full rounded-lg border border-[#2a2d37] bg-[#1a1d27] py-2 pl-9 pr-3 text-sm text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none"
           />
         </div>
-        {allGroups.length > 0 && (
-          <select
-            value={groupFilter}
-            onChange={(e) => {
-              setGroupFilter(e.target.value);
-              setPage(0);
-            }}
-            className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none"
-          >
-            <option value="all">All Groups</option>
-            {allGroups.map((g) => (
-              <option key={g} value={g}>
-                {g}
-              </option>
-            ))}
-          </select>
-        )}
+        <select
+          value={groupFilter}
+          onChange={(e) => {
+            setGroupFilter(e.target.value);
+            setPage(0);
+          }}
+          className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none"
+        >
+          <option value="all">All Groups</option>
+          {allGroups.map((g) => (
+            <option key={g} value={g}>
+              {g}
+            </option>
+          ))}
+        </select>
         <select
           value={statusFilter}
           onChange={(e) => {
@@ -309,6 +344,17 @@ export function WorkflowsPage() {
                         </button>
                         <button
                           onClick={() => {
+                            setSelectedWorkflowId(wf.id);
+                            setShowRunHistory(true);
+                          }}
+                          className="rounded p-1 text-gray-400 hover:bg-purple-500/20 hover:text-purple-400"
+                          aria-label={`Run history for ${wf.name}`}
+                          title="Run history"
+                        >
+                          <History size={14} />
+                        </button>
+                        <button
+                          onClick={() => {
                             if (confirm(`Delete workflow "${wf.name}"?`)) {
                               deleteMutation.mutate(wf.id);
                             }
@@ -353,6 +399,31 @@ export function WorkflowsPage() {
         </div>
       )}
 
+      {/* Run History Modal */}
+      {showRunHistory && selectedWorkflowId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg border border-[#2a2d37] bg-[#12141e] p-6">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                <History size={18} className="text-purple-400" />
+                Run History
+              </h2>
+              <button
+                onClick={() => setShowRunHistory(false)}
+                className="text-gray-400 hover:text-white"
+                aria-label="Close"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <WorkflowRunHistory
+              runs={runs}
+              isLoading={runsLoading}
+            />
+          </div>
+        </div>
+      )}
+
       {/* Create Workflow Modal */}
       {showCreate && (
         <CreateWorkflowModal
@@ -371,12 +442,9 @@ export function WorkflowsPage() {
 
 // ─── Create Workflow Modal ───────────────────────────────────────────
 
-interface StepDraft {
-  key: string;
+interface AgentOption {
+  id: string;
   name: string;
-  agent_id: string;
-  config: string;
-  depends_on: string[];
 }
 
 function CreateWorkflowModal({
@@ -393,7 +461,9 @@ function CreateWorkflowModal({
   const [groupId, setGroupId] = useState("");
   const [groupName, setGroupName] = useState("");
   const [schedule, setSchedule] = useState("");
-  const [steps, setSteps] = useState<StepDraft[]>([]);
+  const [timezone, setTimezone] = useState("UTC");
+  const [graphNodes, setGraphNodes] = useState<Node[]>([]);
+  const [graphEdges, setGraphEdges] = useState<Edge[]>([]);
 
   // Load agents for dropdown
   const { data: agentsData } = useApiQuery<AgentOption[]>(
@@ -402,47 +472,44 @@ function CreateWorkflowModal({
   );
   const agents = agentsData?.data ?? [];
 
-  function addStep() {
-    setSteps((prev) => [
-      ...prev,
-      {
-        key: crypto.randomUUID(),
-        name: "",
-        agent_id: "",
-        config: "{}",
-        depends_on: [],
-      },
-    ]);
-  }
-
-  function removeStep(key: string) {
-    setSteps((prev) => prev.filter((s) => s.key !== key));
-  }
-
-  function updateStep(key: string, field: keyof StepDraft, value: unknown) {
-    setSteps((prev) =>
-      prev.map((s) => (s.key === key ? { ...s, [field]: value } : s)),
-    );
-  }
-
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!name) return;
 
-    const parsedSteps = steps.map((s) => {
-      let config: Record<string, unknown> = {};
-      try {
-        config = JSON.parse(s.config || "{}");
-      } catch {
-        /* use empty */
-      }
+    // Convert graph nodes to steps for the API
+    const parsedSteps = graphNodes.map((n) => {
+      const d = n.data as unknown as WfNodeData;
+      const deps = graphEdges.filter((e) => e.target === n.id).map((e) => e.source);
       return {
-        name: s.name,
-        agent_id: s.agent_id,
-        config,
-        depends_on: s.depends_on,
+        name: d.label,
+        agent_id: d.agent_id || "",
+        config: {
+          nodeType: d.nodeType,
+          timeout: d.timeout,
+          retryPolicy: d.retryPolicy,
+          onFailure: d.onFailure,
+          inputMapping: d.inputMapping,
+          condField: d.condField,
+          condOperator: d.condOperator,
+          condValue: d.condValue,
+          branches: d.branches,
+          maxIterations: d.maxIterations,
+          loopCondition: d.loopCondition,
+        },
+        depends_on: deps,
       };
     });
+
+    // Build graph_definition for persistence
+    const graphDef = {
+      nodes: graphNodes.map((n) => ({
+        id: n.id,
+        type: n.type ?? "agentCall",
+        position: n.position,
+        data: n.data as Record<string, unknown>,
+      })),
+      edges: graphEdges.map((e) => ({ id: e.id, source: e.source, target: e.target })),
+    };
 
     onSubmit({
       name,
@@ -450,6 +517,7 @@ function CreateWorkflowModal({
       group_id: groupId,
       group_name: groupName,
       steps: parsedSteps,
+      graph_definition: graphDef,
       schedule: schedule || null,
       is_active: true,
       created_by: "",
@@ -458,7 +526,7 @@ function CreateWorkflowModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg border border-[#2a2d37] bg-[#12141e] p-6">
+      <div className="max-h-[95vh] w-full max-w-5xl overflow-y-auto rounded-lg border border-[#2a2d37] bg-[#12141e] p-6">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-white">Create Workflow</h2>
           <button
@@ -519,146 +587,27 @@ function CreateWorkflowModal({
             </div>
           </div>
 
-          <label className="mb-1 block text-xs text-gray-400">
-            Schedule (cron, optional)
-          </label>
-          <input
-            type="text"
-            value={schedule}
-            onChange={(e) => setSchedule(e.target.value)}
-            className="mb-4 w-full rounded-lg border border-[#2a2d37] bg-[#1a1d27] px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none"
-            placeholder="0 */6 * * * (leave blank for manual)"
-          />
-
-          {/* Steps builder */}
+          {/* Schedule Visual Builder */}
           <div className="mb-4">
-            <div className="mb-2 flex items-center justify-between">
-              <label className="text-xs font-medium text-gray-400">
-                Steps
-              </label>
-              <button
-                type="button"
-                onClick={addStep}
-                className="flex items-center gap-1 rounded border border-[#2a2d37] px-2 py-1 text-xs text-gray-400 hover:bg-white/5"
-              >
-                <Plus size={12} />
-                Add Step
-              </button>
-            </div>
+            <CronBuilder
+              value={schedule}
+              onChange={setSchedule}
+              timezone={timezone}
+              onTimezoneChange={setTimezone}
+            />
+          </div>
 
-            {steps.length === 0 && (
-              <p className="rounded border border-dashed border-[#2a2d37] py-4 text-center text-xs text-gray-600">
-                No steps yet — click "Add Step" to begin.
-              </p>
-            )}
-
-            <div className="space-y-3">
-              {steps.map((step, idx) => (
-                <div
-                  key={step.key}
-                  className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-3"
-                >
-                  <div className="mb-2 flex items-center justify-between">
-                    <span className="text-xs font-medium text-purple-400">
-                      Step {idx + 1}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => removeStep(step.key)}
-                      className="text-gray-500 hover:text-red-400"
-                      aria-label="Remove step"
-                    >
-                      <Trash2 size={12} />
-                    </button>
-                  </div>
-
-                  <div className="mb-2 grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="mb-0.5 block text-[10px] text-gray-500">
-                        Step Name
-                      </label>
-                      <input
-                        type="text"
-                        value={step.name}
-                        onChange={(e) =>
-                          updateStep(step.key, "name", e.target.value)
-                        }
-                        className="w-full rounded border border-[#2a2d37] bg-[#12141e] px-2 py-1.5 text-xs text-white focus:border-purple-500 focus:outline-none"
-                        placeholder="Step name"
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-0.5 block text-[10px] text-gray-500">
-                        Agent
-                      </label>
-                      <select
-                        value={step.agent_id}
-                        onChange={(e) =>
-                          updateStep(step.key, "agent_id", e.target.value)
-                        }
-                        className="w-full rounded border border-[#2a2d37] bg-[#12141e] px-2 py-1.5 text-xs text-white focus:border-purple-500 focus:outline-none"
-                      >
-                        <option value="">Select agent...</option>
-                        {agents.map((a) => (
-                          <option key={a.id} value={a.id}>
-                            {a.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="mb-2">
-                    <label className="mb-0.5 block text-[10px] text-gray-500">
-                      Config (JSON)
-                    </label>
-                    <textarea
-                      value={step.config}
-                      onChange={(e) =>
-                        updateStep(step.key, "config", e.target.value)
-                      }
-                      rows={2}
-                      className="w-full rounded border border-[#2a2d37] bg-[#12141e] px-2 py-1.5 font-mono text-xs text-white focus:border-purple-500 focus:outline-none"
-                      placeholder="{}"
-                    />
-                  </div>
-
-                  {idx > 0 && (
-                    <div>
-                      <label className="mb-0.5 block text-[10px] text-gray-500">
-                        Depends On
-                      </label>
-                      <div className="flex flex-wrap gap-1">
-                        {steps.slice(0, idx).map((dep) => {
-                          const selected = step.depends_on.includes(dep.key);
-                          return (
-                            <button
-                              key={dep.key}
-                              type="button"
-                              onClick={() => {
-                                const newDeps = selected
-                                  ? step.depends_on.filter(
-                                      (d) => d !== dep.key,
-                                    )
-                                  : [...step.depends_on, dep.key];
-                                updateStep(step.key, "depends_on", newDeps);
-                              }}
-                              className={`rounded px-2 py-0.5 text-[10px] ${
-                                selected
-                                  ? "bg-purple-500/20 text-purple-300"
-                                  : "bg-[#12141e] text-gray-500 hover:bg-white/5"
-                              }`}
-                            >
-                              {dep.name || `Step ${steps.indexOf(dep) + 1}`}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
+          {/* Workflow Visual Graph Editor */}
+          <div className="mb-4">
+            <label className="mb-2 block text-xs font-medium text-gray-400">
+              Workflow Graph
+            </label>
+            <WorkflowCanvas
+              agents={agents}
+              onNodesChange={setGraphNodes}
+              onEdgesChange={setGraphEdges}
+              height="350px"
+            />
           </div>
 
           {/* Actions */}
