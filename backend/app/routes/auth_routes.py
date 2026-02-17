@@ -331,6 +331,45 @@ async def get_me(request: Request) -> dict[str, Any]:
             token = auth_header.removeprefix("Bearer ").strip()
 
     if not token:
+        # In dev mode, auto-authenticate as admin when no token is present
+        if _is_dev_mode():
+            dev_email = "admin@archon.local"
+            dev_user = _DEV_USERS[dev_email]
+            auto_token = _dev_create_token(dev_user, dev_email)
+            payload = jose_jwt.decode(
+                auto_token, settings.JWT_SECRET, algorithms=["HS256"],
+                options={"verify_aud": False, "verify_iss": False},
+            )
+            response = JSONResponse(content={
+                "data": {
+                    "user": {
+                        "id": dev_user["id"],
+                        "email": dev_email,
+                        "name": dev_user["name"],
+                        "roles": dev_user["roles"],
+                        "permissions": dev_user["permissions"],
+                        "tenant_id": dev_user["tenant_id"],
+                        "workspace_id": dev_user["workspace_id"],
+                        "mfa_enabled": False,
+                    },
+                    "access_token": auto_token,
+                    "expires_at": datetime.fromtimestamp(payload["exp"], tz=timezone.utc).isoformat(),
+                    "issued_at": datetime.fromtimestamp(payload["iat"], tz=timezone.utc).isoformat(),
+                    "refresh_token_expires_at": (
+                        datetime.fromtimestamp(payload["exp"], tz=timezone.utc) + timedelta(days=7)
+                    ).isoformat(),
+                },
+                "meta": _meta(),
+            })
+            response.set_cookie(
+                key="access_token",
+                value=auto_token,
+                httponly=True,
+                samesite="lax",
+                max_age=8 * 3600,
+                path="/",
+            )
+            return response
         raise HTTPException(status_code=401, detail="Not authenticated")
 
     # ── Try HS256 dev-mode token first ──────────────────────────────
