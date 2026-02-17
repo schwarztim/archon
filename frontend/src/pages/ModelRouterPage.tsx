@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   GitFork,
   Plus,
@@ -602,7 +602,8 @@ export function ModelRouterPage() {
                   const health = providerHealth.find((h) => h.provider_id === p.id);
                   const testResult = testResults[p.id];
                   return (
-                    <tr key={p.id} className="border-b border-[#2a2d37] hover:bg-white/5">
+                    <React.Fragment key={p.id}>
+                    <tr className="border-b border-[#2a2d37] hover:bg-white/5">
                       <td className="px-4 py-2 font-medium text-white">{p.name}</td>
                       <td className="px-4 py-2 text-gray-400">{PROVIDER_TYPES.find((pt) => pt.value === p.api_type)?.label ?? p.api_type}</td>
                       <td className="px-4 py-2">
@@ -662,6 +663,7 @@ export function ModelRouterPage() {
                         </td>
                       </tr>
                     )}
+                    </React.Fragment>
                   );
                 })}
               </tbody>
