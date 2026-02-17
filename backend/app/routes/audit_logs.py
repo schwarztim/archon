@@ -13,6 +13,8 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
+from app.middleware.auth import get_current_user
+from app.interfaces.models.enterprise import AuthenticatedUser
 from app.services import AuditLogService
 
 router = APIRouter(prefix="/audit-logs", tags=["audit-logs"])
@@ -73,6 +75,7 @@ async def export_audit_logs(
     limit: int = Query(default=100, ge=1, le=10000),
     offset: int = Query(default=0, ge=0),
     session: AsyncSession = Depends(get_session),
+    _user: AuthenticatedUser = Depends(get_current_user),
 ) -> Any:
     """Export audit log entries as JSON or CSV."""
     entries, total = await _fetch_entries(
@@ -83,7 +86,7 @@ async def export_audit_logs(
         limit=limit,
         offset=offset,
     )
-    rows = [e.model_dump(mode="json") for e in entries]
+    rows = [e.model_dump(mode="json") for e in entries] if entries else []
 
     if format == "csv":
         buf = io.StringIO()
@@ -113,6 +116,7 @@ async def list_audit_logs(
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     session: AsyncSession = Depends(get_session),
+    _user: AuthenticatedUser = Depends(get_current_user),
 ) -> dict[str, Any]:
     """List audit log entries with filters.
 
@@ -127,7 +131,7 @@ async def list_audit_logs(
         offset=offset,
     )
     return {
-        "data": [e.model_dump(mode="json") for e in entries],
+        "data": [e.model_dump(mode="json") for e in entries] if entries else [],
         "meta": _meta(
             pagination={"total": total, "limit": limit, "offset": offset},
         ),

@@ -70,7 +70,11 @@ async def _check_vault() -> dict[str, Any]:
 
 async def health_check() -> dict[str, Any]:
     """Liveness probe — always returns healthy if the process is alive."""
-    return {"status": "healthy", "version": _VERSION}
+    return {
+        "status": "healthy",
+        "version": _VERSION,
+        "timestamp": datetime.now(tz=timezone.utc).isoformat(),
+    }
 
 
 async def readiness_check() -> dict[str, Any]:
