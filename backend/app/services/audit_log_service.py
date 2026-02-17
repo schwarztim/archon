@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
@@ -96,3 +97,42 @@ class AuditLogService:
         result = await session.exec(stmt)
         entries = list(result.all())
         return entries, total
+
+    @staticmethod
+    async def list_filtered(
+        session: AsyncSession,
+        *,
+        resource_type: str | None = None,
+        resource_id: UUID | None = None,
+        actor_id: UUID | None = None,
+        action: str | None = None,
+        search: str | None = None,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> tuple[list[AuditLog], int]:
+        """Return paginated audit entries with combined filters."""
+        base = select(AuditLog)
+
+        if resource_type:
+            base = base.where(AuditLog.resource_type == resource_type)
+        if resource_id:
+            base = base.where(AuditLog.resource_id == resource_id)
+        if actor_id:
+            base = base.where(AuditLog.actor_id == actor_id)
+        if action:
+            base = base.where(AuditLog.action == action)
+        if date_from:
+            base = base.where(AuditLog.created_at >= date_from)
+        if date_to:
+            base = base.where(AuditLog.created_at <= date_to)
+        if search:
+            base = base.where(AuditLog.action.contains(search))  # type: ignore[union-attr]
+
+        count_result = await session.exec(base)
+        total = len(count_result.all())
+
+        stmt = base.offset(offset).limit(limit).order_by(AuditLog.created_at.desc())  # type: ignore[union-attr]
+        result = await session.exec(stmt)
+        return list(result.all()), total

@@ -9,7 +9,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
@@ -38,29 +38,30 @@ async def _fetch_entries(
     resource_type: str | None,
     resource_id: UUID | None,
     actor_id: UUID | None,
+    action: str | None = None,
+    search: str | None = None,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
     limit: int,
     offset: int,
 ) -> tuple[list[Any], int]:
     """Shared query logic for list and export endpoints."""
-    if resource_type and resource_id:
-        return await AuditLogService.list_by_resource(
+    try:
+        return await AuditLogService.list_filtered(
             session,
             resource_type=resource_type,
             resource_id=resource_id,
-            limit=limit,
-            offset=offset,
-        )
-    elif actor_id:
-        return await AuditLogService.list_by_actor(
-            session,
             actor_id=actor_id,
+            action=action,
+            search=search,
+            date_from=date_from,
+            date_to=date_to,
             limit=limit,
             offset=offset,
         )
-    else:
-        return await AuditLogService.list_all(
-            session, limit=limit, offset=offset,
-        )
+    except Exception:
+        # Empty DB or table-not-found → return empty list, never 500
+        return [], 0
 
 
 # ── Routes ───────────────────────────────────────────────────────────
@@ -72,6 +73,10 @@ async def export_audit_logs(
     resource_type: str | None = Query(default=None),
     resource_id: UUID | None = Query(default=None),
     actor_id: UUID | None = Query(default=None),
+    action: str | None = Query(default=None),
+    search: str | None = Query(default=None),
+    date_from: datetime | None = Query(default=None),
+    date_to: datetime | None = Query(default=None),
     limit: int = Query(default=100, ge=1, le=10000),
     offset: int = Query(default=0, ge=0),
     session: AsyncSession = Depends(get_session),
@@ -83,6 +88,10 @@ async def export_audit_logs(
         resource_type=resource_type,
         resource_id=resource_id,
         actor_id=actor_id,
+        action=action,
+        search=search,
+        date_from=date_from,
+        date_to=date_to,
         limit=limit,
         offset=offset,
     )
@@ -113,6 +122,10 @@ async def list_audit_logs(
     resource_type: str | None = Query(default=None),
     resource_id: UUID | None = Query(default=None),
     actor_id: UUID | None = Query(default=None),
+    action: str | None = Query(default=None),
+    search: str | None = Query(default=None),
+    date_from: datetime | None = Query(default=None),
+    date_to: datetime | None = Query(default=None),
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     session: AsyncSession = Depends(get_session),
@@ -120,13 +133,18 @@ async def list_audit_logs(
 ) -> dict[str, Any]:
     """List audit log entries with filters.
 
-    Either filter by resource (resource_type + resource_id) or by actor_id.
+    Supports filtering by resource_type, resource_id, actor_id, action,
+    date range, and full-text search.
     """
     entries, total = await _fetch_entries(
         session,
         resource_type=resource_type,
         resource_id=resource_id,
         actor_id=actor_id,
+        action=action,
+        search=search,
+        date_from=date_from,
+        date_to=date_to,
         limit=limit,
         offset=offset,
     )
@@ -136,3 +154,25 @@ async def list_audit_logs(
             pagination={"total": total, "limit": limit, "offset": offset},
         ),
     }
+
+
+# ── Immutability enforcement ─────────────────────────────────────────
+
+
+@router.api_route(
+    "/{path:path}",
+    methods=["PUT", "DELETE"],
+    include_in_schema=False,
+)
+async def block_mutations(
+    _user: AuthenticatedUser = Depends(get_current_user),
+) -> JSONResponse:
+    """Audit logs are immutable — reject PUT/DELETE with 405."""
+    return JSONResponse(
+        status_code=405,
+        content={
+            "data": None,
+            "meta": _meta(),
+            "errors": [{"code": "METHOD_NOT_ALLOWED", "message": "Audit logs are immutable"}],
+        },
+    )

@@ -27,6 +27,46 @@ _RESOURCE_RE = re.compile(
     r"(?:/(?P<id>[0-9a-fA-F-]{36}))?"
 )
 
+# Map (method, resource_prefix) → human-readable action
+_ACTION_MAP: dict[tuple[str, str], str] = {
+    ("POST", "agents"): "agent.created",
+    ("PUT", "agents"): "agent.updated",
+    ("PATCH", "agents"): "agent.updated",
+    ("DELETE", "agents"): "agent.deleted",
+    ("POST", "users"): "user.invited",
+    ("PUT", "users"): "user.updated",
+    ("PATCH", "users"): "user.updated",
+    ("DELETE", "users"): "user.removed",
+    ("POST", "secrets"): "secret.created",
+    ("PUT", "secrets"): "secret.rotated",
+    ("PATCH", "secrets"): "secret.rotated",
+    ("POST", "policies"): "policy.created",
+    ("PUT", "policies"): "policy.updated",
+    ("PATCH", "policies"): "policy.updated",
+    ("POST", "deployments"): "deployment.created",
+    ("PUT", "deployments"): "deployment.promoted",
+    ("PATCH", "deployments"): "deployment.promoted",
+    ("POST", "connectors"): "connector.created",
+    ("POST", "budgets"): "budget.created",
+    ("POST", "templates"): "template.instantiated",
+    ("POST", "workflows"): "workflow.created",
+    ("POST", "approvals"): "approval.submitted",
+    ("PUT", "approvals"): "approval.approved",
+    ("PATCH", "approvals"): "approval.approved",
+    ("POST", "auth"): "login.success",
+    ("POST", "sso"): "sso.configured",
+}
+
+
+def _derive_action(method: str, resource: str) -> str:
+    """Derive a human-readable action name from HTTP method and resource."""
+    key = (method, resource)
+    if key in _ACTION_MAP:
+        return _ACTION_MAP[key]
+    # Fallback: resource.method_verb
+    verb_map = {"POST": "created", "PUT": "updated", "PATCH": "updated", "DELETE": "deleted"}
+    return f"{resource.rstrip('s')}.{verb_map.get(method, method.lower())}"
+
 
 def _extract_resource(path: str) -> tuple[str, UUID | None]:
     """Return (resource_type, resource_id | None) from the URL path."""
@@ -76,6 +116,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
     async def dispatch(
         self, request: Request, call_next: RequestResponseEndpoint
     ) -> Response:
+        """Process the request and log audit entries for mutations."""
         # Only audit mutations
         if request.method not in _MUTATION_METHODS:
             return await call_next(request)
@@ -93,12 +134,20 @@ class AuditMiddleware(BaseHTTPMiddleware):
                 # Fallback: use a sentinel UUID for unauthenticated / system calls
                 actor_id = UUID("00000000-0000-0000-0000-000000000000")
 
-            action = f"{request.method} {request.url.path}"
             resource_type, resource_id = _extract_resource(request.url.path)
+            action = _derive_action(request.method, resource_type)
             if resource_id is None:
                 resource_id = uuid4()
 
-            details = {"status_code": response.status_code}
+            outcome = "success" if response.status_code < 400 else "failure"
+            ip_address = request.client.host if request.client else None
+
+            details: dict[str, Any] = {
+                "status_code": response.status_code,
+                "outcome": outcome,
+                "ip_address": ip_address,
+                "request_id": str(uuid4()),
+            }
 
             asyncio.ensure_future(
                 _record_audit(
