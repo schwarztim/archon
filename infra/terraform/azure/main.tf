@@ -90,6 +90,8 @@ resource "azurerm_kubernetes_cluster" "main" {
     type = "SystemAssigned"
   }
 
+  api_server_authorized_ip_ranges = var.api_server_authorized_ip_ranges
+
   network_profile {
     network_plugin    = "azure"
     network_policy    = "calico"
@@ -177,7 +179,7 @@ resource "azurerm_storage_account" "main" {
   resource_group_name      = azurerm_resource_group.main.name
   location                 = azurerm_resource_group.main.location
   account_tier             = "Standard"
-  account_replication_type = var.environment == "production" ? "GRS" : "LRS"
+  account_replication_type = "GRS"
   min_tls_version          = "TLS1_2"
 
   blob_properties {
@@ -208,7 +210,7 @@ resource "azurerm_key_vault" "main" {
   sku_name            = "standard"
 
   purge_protection_enabled   = var.environment == "production"
-  soft_delete_retention_days = 7
+  soft_delete_retention_days = 90
 
   tags = {
     Project     = "archon"

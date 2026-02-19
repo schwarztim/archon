@@ -104,3 +104,9 @@ variable "redis_sku_name" {
   type        = string
   default     = "Standard"
 }
+
+variable "api_server_authorized_ip_ranges" {
+  description = "Authorized IP ranges for AKS API server access"
+  type        = list(string)
+  default     = []
+}

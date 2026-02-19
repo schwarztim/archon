@@ -48,7 +48,7 @@ variable "public_subnet_cidrs" {
 variable "cluster_endpoint_public_access" {
   description = "Whether the EKS API server endpoint is public"
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "node_instance_types" {
@@ -109,4 +109,10 @@ variable "redis_node_type" {
   description = "ElastiCache Redis node type"
   type        = string
   default     = "cache.t3.medium"
+}
+
+variable "elasticache_auth_token" {
+  description = "Auth token for ElastiCache Redis (requires transit encryption)"
+  type        = string
+  sensitive   = true
 }

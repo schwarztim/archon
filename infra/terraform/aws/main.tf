@@ -164,6 +164,16 @@ resource "aws_iam_role_policy_attachment" "eks_vpc_resource_controller" {
   role       = aws_iam_role.eks_cluster.name
 }
 
+resource "aws_kms_key" "eks" {
+  description             = "KMS key for EKS secret encryption"
+  deletion_window_in_days = 7
+  enable_key_rotation     = true
+
+  tags = {
+    Name = "${var.cluster_name}-eks-kms"
+  }
+}
+
 resource "aws_eks_cluster" "main" {
   name     = var.cluster_name
   version  = var.kubernetes_version
@@ -173,6 +183,13 @@ resource "aws_eks_cluster" "main" {
     subnet_ids              = concat(aws_subnet.private[*].id, aws_subnet.public[*].id)
     endpoint_private_access = true
     endpoint_public_access  = var.cluster_endpoint_public_access
+  }
+
+  encryption_config {
+    provider {
+      key_arn = aws_kms_key.eks.arn
+    }
+    resources = ["secrets"]
   }
 
   depends_on = [
@@ -293,8 +310,9 @@ resource "aws_db_instance" "postgres" {
   multi_az            = var.environment == "production"
   skip_final_snapshot = var.environment != "production"
 
-  backup_retention_period = 7
-  deletion_protection     = var.environment == "production"
+  backup_retention_period                = 7
+  deletion_protection                    = var.environment == "production"
+  iam_database_authentication_enabled    = true
 
   tags = {
     Name = "${var.cluster_name}-postgres"
@@ -345,6 +363,7 @@ resource "aws_elasticache_replication_group" "redis" {
 
   at_rest_encryption_enabled = true
   transit_encryption_enabled = true
+  auth_token                 = var.elasticache_auth_token
   automatic_failover_enabled = var.environment == "production"
 
   tags = {
