@@ -290,38 +290,117 @@ async def reconcile_invoice(
 
 
 @router.get("/summary")
-async def cost_summary_dashboard() -> dict[str, Any]:
-    """Return dashboard summary data for the Cost page (mock/placeholder)."""
+async def cost_summary_dashboard(
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Return dashboard summary data for the Cost page with real DB queries."""
     from datetime import timedelta
 
-    today = datetime.now(tz=timezone.utc)
+    from sqlalchemy import func
+    from sqlmodel import select
+
+    today = datetime.utcnow()
+    seven_days_ago = today - timedelta(days=7)
+
+    # Total spend in the current period
+    total_stmt = select(func.coalesce(func.sum(TokenLedger.total_cost), 0.0)).where(
+        TokenLedger.created_at >= seven_days_ago,
+    )
+    total_result = await session.exec(total_stmt)
+    total_spend = float(total_result.one() or 0.0)
+
+    # Budget: get the first active global/tenant budget for display
+    budget_stmt = select(Budget).where(Budget.is_active == True).limit(1)  # noqa: E712
+    budget_result = await session.exec(budget_stmt)
+    budget_row = budget_result.first()
+    budget_limit = budget_row.limit_amount if budget_row else 1000.00
+    budget_used_pct = round((total_spend / budget_limit) * 100, 1) if budget_limit > 0 else 0
+
+    # Daily spend for the last 7 days
     daily_spend = []
     for i in range(6, -1, -1):
         d = today - timedelta(days=i)
-        daily_spend.append({"date": d.strftime("%Y-%m-%d"), "amount": 0.00})
+        day_start = d.replace(hour=0, minute=0, second=0, microsecond=0)
+        day_end = day_start + timedelta(days=1)
+        day_stmt = select(func.coalesce(func.sum(TokenLedger.total_cost), 0.0)).where(
+            TokenLedger.created_at >= day_start,
+            TokenLedger.created_at < day_end,
+        )
+        day_result = await session.exec(day_stmt)
+        day_amount = float(day_result.one() or 0.0)
+        daily_spend.append({"date": d.strftime("%Y-%m-%d"), "amount": round(day_amount, 2)})
 
-    breakdown_by_agent = [
-        {"name": "research-agent", "tokens_used": 0, "cost": 0.00, "pct_of_total": 0},
-        {"name": "code-gen-agent", "tokens_used": 0, "cost": 0.00, "pct_of_total": 0},
-        {"name": "chat-agent", "tokens_used": 0, "cost": 0.00, "pct_of_total": 0},
-    ]
-    breakdown_by_model = [
-        {"name": "gpt-4", "tokens_used": 0, "cost": 0.00, "pct_of_total": 0},
-        {"name": "gpt-4o-mini", "tokens_used": 0, "cost": 0.00, "pct_of_total": 0},
-        {"name": "claude-3-5-sonnet", "tokens_used": 0, "cost": 0.00, "pct_of_total": 0},
-    ]
-    breakdown_by_user = [
-        {"name": "alice@example.com", "tokens_used": 0, "cost": 0.00, "pct_of_total": 0},
-        {"name": "bob@example.com", "tokens_used": 0, "cost": 0.00, "pct_of_total": 0},
-    ]
+    # Projected spend: extrapolate from daily average over 30 days
+    daily_avg = total_spend / 7.0 if total_spend > 0 else 0.0
+    projected_spend = round(daily_avg * 30, 2)
+
+    # Breakdown by model
+    model_stmt = (
+        select(TokenLedger.model_id, func.sum(TokenLedger.total_tokens), func.sum(TokenLedger.total_cost))
+        .where(TokenLedger.created_at >= seven_days_ago)
+        .group_by(TokenLedger.model_id)
+        .order_by(func.sum(TokenLedger.total_cost).desc())
+        .limit(5)
+    )
+    model_result = await session.exec(model_stmt)
+    breakdown_by_model = []
+    for name, tokens, cost in model_result.all():
+        pct = round((float(cost) / total_spend) * 100, 1) if total_spend > 0 else 0
+        breakdown_by_model.append({
+            "name": name,
+            "tokens_used": int(tokens or 0),
+            "cost": round(float(cost or 0), 2),
+            "pct_of_total": pct,
+        })
+
+    # Breakdown by agent_id (top 5)
+    agent_stmt = (
+        select(TokenLedger.agent_id, func.sum(TokenLedger.total_tokens), func.sum(TokenLedger.total_cost))
+        .where(TokenLedger.created_at >= seven_days_ago, TokenLedger.agent_id.isnot(None))  # type: ignore[union-attr]
+        .group_by(TokenLedger.agent_id)
+        .order_by(func.sum(TokenLedger.total_cost).desc())
+        .limit(5)
+    )
+    agent_result = await session.exec(agent_stmt)
+    breakdown_by_agent = []
+    for agent_id, tokens, cost in agent_result.all():
+        pct = round((float(cost) / total_spend) * 100, 1) if total_spend > 0 else 0
+        breakdown_by_agent.append({
+            "name": str(agent_id),
+            "tokens_used": int(tokens or 0),
+            "cost": round(float(cost or 0), 2),
+            "pct_of_total": pct,
+        })
+
+    # Breakdown by user_id (top 5)
+    user_stmt = (
+        select(TokenLedger.user_id, func.sum(TokenLedger.total_tokens), func.sum(TokenLedger.total_cost))
+        .where(TokenLedger.created_at >= seven_days_ago, TokenLedger.user_id.isnot(None))  # type: ignore[union-attr]
+        .group_by(TokenLedger.user_id)
+        .order_by(func.sum(TokenLedger.total_cost).desc())
+        .limit(5)
+    )
+    user_result = await session.exec(user_stmt)
+    breakdown_by_user = []
+    for uid, tokens, cost in user_result.all():
+        pct = round((float(cost) / total_spend) * 100, 1) if total_spend > 0 else 0
+        breakdown_by_user.append({
+            "name": str(uid),
+            "tokens_used": int(tokens or 0),
+            "cost": round(float(cost or 0), 2),
+            "pct_of_total": pct,
+        })
+
+    # Determine top model
+    top_model = breakdown_by_model[0]["name"] if breakdown_by_model else "N/A"
 
     return {
         "data": {
-            "total_spend": 0.00,
-            "budget_limit": 1000.00,
-            "budget_used_pct": 0,
-            "projected_spend": 0.00,
-            "top_model": "gpt-4",
+            "total_spend": round(total_spend, 2),
+            "budget_limit": budget_limit,
+            "budget_used_pct": budget_used_pct,
+            "projected_spend": projected_spend,
+            "top_model": top_model,
             "daily_spend": daily_spend,
             "breakdown_by_agent": breakdown_by_agent,
             "breakdown_by_model": breakdown_by_model,

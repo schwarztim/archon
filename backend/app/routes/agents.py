@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, Field as PField
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -122,11 +122,12 @@ async def update_agent(
 async def delete_agent(
     agent_id: UUID,
     session: AsyncSession = Depends(get_session),
-) -> None:
+) -> Response:
     """Delete an agent."""
     deleted = await agent_service.delete_agent(session, agent_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Agent not found")
+    return Response(status_code=204)
 
 
 # ── Mock execution helpers ───────────────────────────────────────────
