@@ -120,6 +120,19 @@ async def get_current_user(
     if not token:
         token = request.cookies.get("access_token")
     if not token:
+        # Dev-mode bypass: return a synthetic admin user so every
+        # authenticated route works without a real token / Keycloak.
+        if settings.AUTH_DEV_MODE:
+            logger.debug("Dev-mode auth bypass — returning synthetic admin user")
+            return AuthenticatedUser(
+                id="00000000-0000-0000-0000-000000000001",
+                email="admin@archon.local",
+                tenant_id="00000000-0000-0000-0000-000000000100",
+                roles=["admin", "operator"],
+                permissions=["*"],
+                mfa_verified=True,
+                session_id="dev-session",
+            )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated",
