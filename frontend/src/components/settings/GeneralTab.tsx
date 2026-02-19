@@ -1,8 +1,9 @@
-import { useState } from "react";
-import { Info, ExternalLink } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Info, ExternalLink, Loader2, Save } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
+import { useSettings, useUpdateSettings } from "@/hooks/useSettings";
 
 function Card({
   icon: Icon,
@@ -34,9 +35,48 @@ function InfoRow({ label, children }: { label: string; children: React.ReactNode
 }
 
 export function GeneralTab() {
+  const { data, isLoading, error } = useSettings();
+  const updateSettings = useUpdateSettings();
+
   const [platformName, setPlatformName] = useState("Archon");
   const [defaultLang, setDefaultLang] = useState("en");
   const [tz, setTz] = useState("UTC");
+  const [dirty, setDirty] = useState(false);
+
+  useEffect(() => {
+    if (data?.data) {
+      setPlatformName(data.data.platform_name ?? "Archon");
+      setDefaultLang(data.data.default_language ?? "en");
+      setTz(data.data.timezone ?? "UTC");
+      setDirty(false);
+    }
+  }, [data]);
+
+  const markDirty = () => setDirty(true);
+
+  const handleSave = () => {
+    updateSettings.mutate({
+      platform_name: platformName,
+      default_language: defaultLang,
+      timezone: tz,
+    }, { onSuccess: () => setDirty(false) });
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-gray-400">
+        <Loader2 size={14} className="animate-spin" /> Loading settings…
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-lg border border-red-500/20 bg-red-500/5 p-4 text-sm text-red-400">
+        Failed to load settings: {(error as Error).message}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -47,7 +87,7 @@ export function GeneralTab() {
             <Input
               id="platform-name"
               value={platformName}
-              onChange={(e) => setPlatformName(e.target.value)}
+              onChange={(e) => { setPlatformName(e.target.value); markDirty(); }}
             />
           </div>
 
@@ -68,7 +108,7 @@ export function GeneralTab() {
             <select
               id="default-lang"
               value={defaultLang}
-              onChange={(e) => setDefaultLang(e.target.value)}
+              onChange={(e) => { setDefaultLang(e.target.value); markDirty(); }}
               className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             >
               <option value="en">English</option>
@@ -83,7 +123,7 @@ export function GeneralTab() {
             <select
               id="timezone"
               value={tz}
-              onChange={(e) => setTz(e.target.value)}
+              onChange={(e) => { setTz(e.target.value); markDirty(); }}
               className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             >
               <option value="UTC">UTC</option>
@@ -94,16 +134,37 @@ export function GeneralTab() {
               <option value="Asia/Tokyo">Asia/Tokyo</option>
             </select>
           </div>
+
+          <div className="flex items-center gap-3">
+            <Button
+              size="sm"
+              onClick={handleSave}
+              disabled={!dirty || updateSettings.isPending}
+            >
+              {updateSettings.isPending ? (
+                <Loader2 size={14} className="mr-1.5 animate-spin" />
+              ) : (
+                <Save size={14} className="mr-1.5" />
+              )}
+              Save Changes
+            </Button>
+            {updateSettings.isSuccess && !dirty && (
+              <span className="text-xs text-green-400">Saved</span>
+            )}
+            {updateSettings.isError && (
+              <span className="text-xs text-red-400">Failed to save</span>
+            )}
+          </div>
         </div>
       </Card>
 
       <Card icon={Info} title="Platform Info">
         <div className="space-y-2">
           <InfoRow label="Version">
-            <span className="font-mono">1.0.0</span>
+            <span className="font-mono">{data?.data?.version ?? "1.0.0"}</span>
           </InfoRow>
           <InfoRow label="API Prefix">
-            <code className="rounded bg-[#2a2d37] px-1.5 py-0.5 text-xs font-mono">/api/v1</code>
+            <code className="rounded bg-[#2a2d37] px-1.5 py-0.5 text-xs font-mono">{data?.data?.api_prefix ?? "/api/v1"}</code>
           </InfoRow>
         </div>
       </Card>

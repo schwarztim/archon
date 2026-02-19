@@ -3,6 +3,7 @@ import { Bell, Mail, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
+import { useTestNotification } from "@/hooks/useSettings";
 
 function Card({
   icon: Icon,
@@ -36,47 +37,24 @@ export function NotificationsTab() {
     deployment: true,
     security_alert: true,
   });
-  const [testStatus, setTestStatus] = useState<string | null>(null);
 
-  const handleTestEmail = async () => {
-    setTestStatus("sending...");
-    try {
-      const res = await fetch("/api/v1/settings/notifications/test", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ channel: "email", recipient: smtpFrom }),
-      });
-      if (res.ok) {
-        setTestStatus("Test email sent!");
-      } else {
-        const json = await res.json();
-        setTestStatus(json.detail || "Failed to send");
-      }
-    } catch {
-      setTestStatus("Failed to send");
-    }
+  const testNotification = useTestNotification();
+
+  const handleTestEmail = () => {
+    testNotification.mutate({ channel: "email", recipient: smtpFrom });
   };
 
-  const handleTestSlack = async () => {
-    setTestStatus("sending...");
-    try {
-      const res = await fetch("/api/v1/settings/notifications/test", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ channel: "slack" }),
-      });
-      if (res.ok) {
-        setTestStatus("Test Slack message sent!");
-      } else {
-        const json = await res.json();
-        setTestStatus(json.detail || "Failed to send");
-      }
-    } catch {
-      setTestStatus("Failed to send");
-    }
+  const handleTestSlack = () => {
+    testNotification.mutate({ channel: "slack" });
   };
+
+  const testStatus = testNotification.isPending
+    ? "sending..."
+    : testNotification.isSuccess
+      ? testNotification.data?.data?.message ?? "Test sent!"
+      : testNotification.isError
+        ? "Failed to send"
+        : null;
 
   return (
     <div className="space-y-6">

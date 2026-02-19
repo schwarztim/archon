@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Key, Webhook, Gauge, Copy, Trash2, Plus, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
+import { useApiKeys, useCreateApiKey, useDeleteApiKey } from "@/hooks/useSettings";
 
 function Card({
   icon: Icon,
@@ -24,50 +25,35 @@ function Card({
   );
 }
 
-interface ApiKeyItem {
-  id: string;
-  name: string;
-  key_prefix: string;
-  key?: string;
-  scopes: string[];
-  created_at: string;
-}
-
 export function APITab() {
-  const [keys, setKeys] = useState<ApiKeyItem[]>([]);
+  const { data, isLoading } = useApiKeys();
+  const createKey = useCreateApiKey();
+  const deleteKey = useDeleteApiKey();
+
+  const keys = data?.data ?? [];
   const [newKeyName, setNewKeyName] = useState("");
-  const [creating, setCreating] = useState(false);
+  // Track newly created key to show the full key value once
+  const [newlyCreatedKey, setNewlyCreatedKey] = useState<string | null>(null);
   const [webhookUrl, setWebhookUrl] = useState("");
   const [rateLimitRpm, setRateLimitRpm] = useState(1000);
 
-  const handleCreateKey = async () => {
-    if (!newKeyName.trim()) return;
-    setCreating(true);
-    try {
-      const res = await fetch("/api/v1/settings/api-keys", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ name: newKeyName, scopes: ["read", "write"] }),
-      });
-      if (res.ok) {
-        const json = await res.json();
-        setKeys((prev) => [...prev, json.data]);
-        setNewKeyName("");
-      }
-    } finally {
-      setCreating(false);
+  useEffect(() => {
+    if (createKey.isSuccess && createKey.data?.data?.key) {
+      setNewlyCreatedKey(createKey.data.data.key);
     }
+  }, [createKey.isSuccess, createKey.data]);
+
+  const handleCreateKey = () => {
+    if (!newKeyName.trim()) return;
+    setNewlyCreatedKey(null);
+    createKey.mutate(
+      { name: newKeyName, scopes: ["read", "write"] },
+      { onSuccess: () => setNewKeyName("") },
+    );
   };
 
-  const handleRevokeKey = async (id: string) => {
-    const res = await fetch(`/api/v1/settings/api-keys/${id}`, {
-      method: "DELETE",
-      credentials: "include",
-    });
-    if (res.ok) {
-      setKeys((prev) => prev.filter((k) => k.id !== id));
-    }
+  const handleRevokeKey = (id: string) => {
+    deleteKey.mutate(id);
   };
 
   return (
@@ -84,13 +70,33 @@ export function APITab() {
             onChange={(e) => setNewKeyName(e.target.value)}
             className="max-w-xs"
           />
-          <Button size="sm" onClick={handleCreateKey} disabled={creating || !newKeyName.trim()}>
-            {creating ? <Loader2 size={14} className="mr-1.5 animate-spin" /> : <Plus size={14} className="mr-1.5" />}
+          <Button size="sm" onClick={handleCreateKey} disabled={createKey.isPending || !newKeyName.trim()}>
+            {createKey.isPending ? <Loader2 size={14} className="mr-1.5 animate-spin" /> : <Plus size={14} className="mr-1.5" />}
             Create Key
           </Button>
         </div>
 
-        {keys.length === 0 ? (
+        {newlyCreatedKey && (
+          <div className="mb-4 rounded-md border border-green-500/20 bg-green-500/5 p-3 text-sm text-green-400">
+            New key created — copy it now, it won't be shown again:{" "}
+            <code className="font-mono">{newlyCreatedKey}</code>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="ml-2"
+              onClick={() => navigator.clipboard.writeText(newlyCreatedKey)}
+              title="Copy key"
+            >
+              <Copy size={14} />
+            </Button>
+          </div>
+        )}
+
+        {isLoading ? (
+          <div className="flex items-center gap-2 text-sm text-gray-400">
+            <Loader2 size={14} className="animate-spin" /> Loading API keys…
+          </div>
+        ) : keys.length === 0 ? (
           <p className="text-sm text-gray-500">No API keys created yet.</p>
         ) : (
           <div className="space-y-2">
@@ -102,24 +108,15 @@ export function APITab() {
                 <div>
                   <span className="text-sm font-medium">{k.name}</span>
                   <span className="ml-2 text-xs text-gray-500">
-                    {k.key ? k.key : `${k.key_prefix}...`}
+                    {k.key_prefix}...
                   </span>
                 </div>
                 <div className="flex gap-1">
-                  {k.key && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => navigator.clipboard.writeText(k.key!)}
-                      title="Copy key"
-                    >
-                      <Copy size={14} />
-                    </Button>
-                  )}
                   <Button
                     variant="ghost"
                     size="icon"
                     onClick={() => handleRevokeKey(k.id)}
+                    disabled={deleteKey.isPending}
                     title="Revoke key"
                   >
                     <Trash2 size={14} className="text-red-400" />

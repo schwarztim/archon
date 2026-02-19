@@ -40,7 +40,7 @@ export function SystemHealthTab() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/v1/health", { credentials: "include" });
+      const res = await fetch("/health", { credentials: "include" });
       if (res.ok) {
         setHealth(await res.json());
       } else {
