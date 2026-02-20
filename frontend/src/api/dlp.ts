@@ -7,7 +7,8 @@ export async function scanText(payload: {
   text: string;
   policy_ids?: string[];
 }): Promise<ApiResponse<DLPScanResult>> {
-  return apiPost<DLPScanResult>("/api/v1/dlp/scan", payload);
+  const { text, ...rest } = payload;
+  return apiPost<DLPScanResult>("/dlp/scan", { content: text, ...rest });
 }
 
 /** Redact sensitive entities from text */
@@ -15,9 +16,10 @@ export async function redactText(payload: {
   text: string;
   policy_ids?: string[];
 }): Promise<ApiResponse<{ clean_text: string; entities_redacted: number }>> {
+  const { text, ...rest } = payload;
   return apiPost<{ clean_text: string; entities_redacted: number }>(
-    "/api/v1/dlp/redact",
-    payload,
+    "/dlp/redact",
+    { content: text, ...rest },
   );
 }
 
@@ -25,14 +27,14 @@ export async function redactText(payload: {
 export async function listPolicies(
   params: PaginationParams = {},
 ): Promise<ApiResponse<DLPPolicy[]>> {
-  return apiGet<DLPPolicy[]>("/api/v1/dlp/policies", params);
+  return apiGet<DLPPolicy[]>("/dlp/policies", params);
 }
 
 /** Create a DLP policy */
 export async function createPolicy(
   payload: Omit<DLPPolicy, "id" | "created_at" | "updated_at">,
 ): Promise<ApiResponse<DLPPolicy>> {
-  return apiPost<DLPPolicy>("/api/v1/dlp/policies", payload);
+  return apiPost<DLPPolicy>("/dlp/policies", payload);
 }
 
 /** Update a DLP policy */
@@ -40,12 +42,12 @@ export async function updatePolicy(
   id: string,
   payload: Partial<Omit<DLPPolicy, "id" | "created_at" | "updated_at">>,
 ): Promise<ApiResponse<DLPPolicy>> {
-  return apiPut<DLPPolicy>(`/api/v1/dlp/policies/${id}`, payload);
+  return apiPut<DLPPolicy>(`/dlp/policies/${id}`, payload);
 }
 
 /** Delete a DLP policy */
 export async function deletePolicy(id: string): Promise<void> {
-  return apiDelete(`/api/v1/dlp/policies/${id}`);
+  return apiDelete(`/dlp/policies/${id}`);
 }
 
 /** Check guardrails */
@@ -53,7 +55,7 @@ export async function checkGuardrails(payload: {
   content: string;
   direction: string;
 }): Promise<ApiResponse<unknown>> {
-  return apiPost<unknown>("/api/v1/dlp/guardrails", payload);
+  return apiPost<unknown>("/dlp/guardrails", payload);
 }
 
 /** Detector type definition */
@@ -68,7 +70,7 @@ export interface DetectorType {
 
 /** List built-in detector types */
 export async function listDetectorTypes(): Promise<ApiResponse<DetectorType[]>> {
-  return apiGet<DetectorType[]>("/api/v1/dlp/detectors");
+  return apiGet<DetectorType[]>("/dlp/detectors");
 }
 
 // ── New endpoints for Agent 12 ──────────────────────────────────────
@@ -85,7 +87,7 @@ export interface DLPMetricsData {
 
 /** Fetch DLP metrics */
 export async function fetchMetrics(): Promise<ApiResponse<DLPMetricsData>> {
-  return apiGet<DLPMetricsData>("/api/v1/dlp/metrics");
+  return apiGet<DLPMetricsData>("/dlp/metrics");
 }
 
 /** Detection list item */
@@ -103,7 +105,7 @@ export interface DLPDetectionItem {
 export async function fetchDetections(
   params: PaginationParams = {},
 ): Promise<ApiResponse<DLPDetectionItem[]>> {
-  return apiGet<DLPDetectionItem[]>("/api/v1/dlp/detections", params);
+  return apiGet<DLPDetectionItem[]>("/dlp/detections", params);
 }
 
 /** Manual scan / policy test request */
@@ -138,7 +140,7 @@ export interface ManualScanResult {
 export async function manualScan(
   payload: ManualScanPayload,
 ): Promise<ApiResponse<ManualScanResult>> {
-  return apiPost<ManualScanResult>("/api/v1/dlp/scan/test", payload);
+  return apiPost<ManualScanResult>("/dlp/scan/test", payload);
 }
 
 /** Policy stats response */
@@ -155,5 +157,5 @@ export interface PolicyStats {
 export async function fetchPolicyStats(
   policyId: string,
 ): Promise<ApiResponse<PolicyStats>> {
-  return apiGet<PolicyStats>(`/api/v1/dlp/policies/${policyId}/stats`);
+  return apiGet<PolicyStats>(`/dlp/policies/${policyId}/stats`);
 }

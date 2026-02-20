@@ -35,6 +35,7 @@ from app.services.connectors.schemas import (
 from app.services.connectors.oauth import OAuthProviderRegistry
 from app.services.connectors.testers import ConnectionTester
 from app.services.connectors.health import HealthChecker
+from starlette.responses import Response
 
 try:
     from opentelemetry import trace
@@ -184,20 +185,21 @@ async def update_connector(
     }
 
 
-@router.delete("/{connector_id}", status_code=204)
+@router.delete("/{connector_id}", status_code=204, response_class=Response)
 async def delete_connector(
     connector_id: UUID,
     session: AsyncSession = Depends(get_session),
-) -> None:
+) -> Response:
     """Delete a connector."""
     deleted = await ConnectorService.delete(session, connector_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Connector not found")
+    return Response(status_code=204)
 
 
 # ── Enterprise Connector Hub routes ─────────────────────────────────
 
-enterprise = APIRouter(prefix="/api/v1/connectors", tags=["Enterprise Connectors"])
+enterprise = APIRouter(prefix="/connectors", tags=["Enterprise Connectors"])
 
 
 @enterprise.get("/types")

@@ -47,7 +47,7 @@ export function PlanCard({
 }: PlanCardProps) {
   const [isEditing, setIsEditing] = useState(false);
   const badge = TYPE_BADGE[step.type] ?? TYPE_BADGE.default;
-  const BadgeIcon = badge.icon;
+  const BadgeIcon = badge?.icon;
 
   return (
     <div className="rounded-lg border border-[#2a2d37] bg-[#0f1117] p-4 transition-colors hover:border-purple-500/30">
@@ -124,9 +124,9 @@ export function PlanCard({
                 </span>
                 <h4 className="text-sm font-medium text-white">{step.name}</h4>
                 <span
-                  className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${badge.color}`}
+                  className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${badge?.color}`}
                 >
-                  <BadgeIcon size={10} />
+                  {BadgeIcon && <BadgeIcon size={10} />}
                   {step.type.toUpperCase()}
                 </span>
               </div>

@@ -1,12 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Play, Loader2, ChevronDown, ChevronUp, X, Clock, Zap, DollarSign, CheckCircle2, Circle, AlertCircle, Trash2, RefreshCw, RotateCcw } from "lucide-react";
+import { Play, Loader2, ChevronDown, ChevronUp, X, Clock, Zap, DollarSign, CheckCircle2, Circle, AlertCircle, Trash2, RefreshCw } from "lucide-react";
 import { listExecutions, createExecution, deleteExecution } from "@/api/executions";
 import { listAgents } from "@/api/agents";
 import { Button } from "@/components/ui/Button";
 import { Textarea } from "@/components/ui/Textarea";
 import { Label } from "@/components/ui/Label";
-import type { ExecutionStatus as ExecStatus } from "@/types/models";
 
 interface AgentSummary {
   id: string;

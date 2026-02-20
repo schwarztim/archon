@@ -317,6 +317,7 @@ class SandboxService:
 
         # Issue dynamic credentials via SecretsManager (never production secrets)
         lease_id: str | None = None
+        _credential_warning: str | None = None
         if secrets_manager is not None:
             try:
                 cred: DynamicCredential = await secrets_manager.get_dynamic_credential(
@@ -326,10 +327,19 @@ class SandboxService:
                 )
                 lease_id = cred.lease_id
                 sandbox.credential_lease_ids.append(cred.lease_id)
-            except Exception:
+            except Exception as exc:
                 logger.warning(
-                    "Dynamic credential issue failed; proceeding without credentials",
-                    extra={"sandbox_id": str(sandbox_id), "tenant_id": tenant_id},
+                    "Dynamic credential acquisition failed; proceeding without credentials",
+                    extra={
+                        "sandbox_id": str(sandbox_id),
+                        "tenant_id": tenant_id,
+                        "error": str(exc),
+                        "error_type": type(exc).__name__,
+                        "security_note": "sandbox will run without scoped database credentials",
+                    },
+                )
+                _credential_warning = (
+                    f"credential acquisition failed ({type(exc).__name__}): {exc}"
                 )
 
         sandbox.status = SandboxStatus.RUNNING
@@ -339,6 +349,7 @@ class SandboxService:
             agent_id=agent_id,
             status=ExecutionStatus.RUNNING,
             input_data=input_data,
+            output_data={"_credential_warning": _credential_warning} if _credential_warning else None,
             credential_lease_id=lease_id,
         )
 

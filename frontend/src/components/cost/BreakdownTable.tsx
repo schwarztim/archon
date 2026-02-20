@@ -18,12 +18,6 @@ function formatCurrency(value: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value);
 }
 
-function formatTokens(n: number) {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return String(n);
-}
-
 type Tab = "model" | "agent" | "user" | "team";
 
 export function BreakdownTable({ breakdownByModel, breakdownByAgent, breakdownByUser, breakdownByTeam }: BreakdownTableProps) {

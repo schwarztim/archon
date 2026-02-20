@@ -22,6 +22,7 @@ from app.secrets.manager import VaultSecretsManager, get_secrets_manager
 from app.services.audit_log_service import AuditLogService
 from app.services.mcp_security import MCPSecurityGuardian
 from app.services.mcp_security_service import MCPSecurityService
+from starlette.responses import Response
 
 router = APIRouter(prefix="/mcp-security", tags=["mcp-security"])
 
@@ -207,15 +208,16 @@ async def update_authorization(
     return {"data": auth.model_dump(mode="json"), "meta": _meta()}
 
 
-@router.delete("/authorizations/{auth_id}", status_code=204)
+@router.delete("/authorizations/{auth_id}", status_code=204, response_class=Response)
 async def delete_authorization(
     auth_id: UUID,
     session: AsyncSession = Depends(get_session),
-) -> None:
+) -> Response:
     """Delete a tool authorization policy."""
     deleted = await MCPSecurityGuardian.delete_authorization(session, auth_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Authorization not found")
+    return Response(status_code=204)
 
 
 # ── Sandbox Endpoints ───────────────────────────────────────────────
@@ -408,7 +410,7 @@ async def get_event(
 # ── Enterprise OAuth-Scoped MCP Endpoints ───────────────────────────
 
 # V1 API router for enterprise MCP security endpoints
-v1_router = APIRouter(prefix="/api/v1/mcp", tags=["mcp-security-v1"])
+v1_router = APIRouter(prefix="/mcp", tags=["mcp-security-v1"])
 
 
 class AuthorizeToolCallRequest(BaseModel):

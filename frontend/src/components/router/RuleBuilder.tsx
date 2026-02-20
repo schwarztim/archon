@@ -45,7 +45,7 @@ export default function RuleBuilder({
   rules,
   models,
   onRulesChange,
-}: RuleBuilderProps): JSX.Element {
+}: RuleBuilderProps) {
   const [dragIndex, setDragIndex] = useState<number | null>(null);
 
   const addRule = useCallback(() => {
@@ -72,7 +72,7 @@ export default function RuleBuilder({
   const toggleRule = useCallback(
     (index: number) => {
       const next = [...rules];
-      next[index] = { ...next[index], enabled: !next[index].enabled };
+      next[index] = { ...next[index]!, enabled: !next[index]!.enabled };
       onRulesChange(next);
     },
     [rules, onRulesChange],
@@ -81,7 +81,7 @@ export default function RuleBuilder({
   const updateRuleName = useCallback(
     (index: number, name: string) => {
       const next = [...rules];
-      next[index] = { ...next[index], name };
+      next[index] = { ...next[index]!, name };
       onRulesChange(next);
     },
     [rules, onRulesChange],
@@ -90,7 +90,7 @@ export default function RuleBuilder({
   const updateTargetModel = useCallback(
     (index: number, targetModelId: string) => {
       const next = [...rules];
-      next[index] = { ...next[index], target_model_id: targetModelId };
+      next[index] = { ...next[index]!, target_model_id: targetModelId };
       onRulesChange(next);
     },
     [rules, onRulesChange],
@@ -105,8 +105,8 @@ export default function RuleBuilder({
         value: "",
       };
       next[ruleIndex] = {
-        ...next[ruleIndex],
-        conditions: [...next[ruleIndex].conditions, newCond],
+        ...next[ruleIndex]!,
+        conditions: [...next[ruleIndex]!.conditions, newCond],
       };
       onRulesChange(next);
     },
@@ -117,8 +117,8 @@ export default function RuleBuilder({
     (ruleIndex: number, condIndex: number) => {
       const next = [...rules];
       next[ruleIndex] = {
-        ...next[ruleIndex],
-        conditions: next[ruleIndex].conditions.filter((_, i) => i !== condIndex),
+        ...next[ruleIndex]!,
+        conditions: next[ruleIndex]!.conditions.filter((_, i) => i !== condIndex),
       };
       onRulesChange(next);
     },
@@ -128,9 +128,9 @@ export default function RuleBuilder({
   const updateCondition = useCallback(
     (ruleIndex: number, condIndex: number, field: keyof RoutingCondition, val: string) => {
       const next = [...rules];
-      const conditions = [...next[ruleIndex].conditions];
-      conditions[condIndex] = { ...conditions[condIndex], [field]: val };
-      next[ruleIndex] = { ...next[ruleIndex], conditions };
+      const conditions = [...next[ruleIndex]!.conditions];
+      conditions[condIndex] = { ...conditions[condIndex]!, [field]: val };
+      next[ruleIndex] = { ...next[ruleIndex]!, conditions };
       onRulesChange(next);
     },
     [rules, onRulesChange],
@@ -145,7 +145,7 @@ export default function RuleBuilder({
     if (dragIndex === null || dragIndex === index) return;
     const next = [...rules];
     const [moved] = next.splice(dragIndex, 1);
-    next.splice(index, 0, moved);
+    next.splice(index, 0, moved!);
     onRulesChange(next.map((r, i) => ({ ...r, priority: i })));
     setDragIndex(index);
   }, [dragIndex, rules, onRulesChange]);

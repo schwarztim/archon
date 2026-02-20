@@ -4,7 +4,7 @@ import type {
   AppNode,
   AppEdge,
 } from "@/types";
-import { apiGet, apiPost, apiPut, apiDelete, type PaginationParams } from "./client";
+import { apiGet, apiPost, apiPut, apiDelete } from "./client";
 
 /** Fetch all agent definitions (paginated) */
 export async function listAgents(

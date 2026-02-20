@@ -68,6 +68,7 @@ export async function deleteConnector(id: string): Promise<void> {
 }
 
 /** Test a connector's connection */
+// TODO: Backend route POST /connectors/{id}/test-connection only exists on enterprise router (not registered in main.py)
 export async function testConnection(
   connectorId: string,
 ): Promise<ApiResponse<ConnectionTestResult>> {
@@ -75,6 +76,7 @@ export async function testConnection(
 }
 
 /** Get connector health */
+// TODO: Backend route GET /connectors/{id}/health only exists on enterprise router (not registered in main.py)
 export async function getHealth(
   connectorId: string,
 ): Promise<ApiResponse<ConnectorHealth>> {
@@ -82,11 +84,13 @@ export async function getHealth(
 }
 
 /** Get all connector type schemas (catalog) */
+// TODO: Backend route GET /connectors/catalog/types only exists on enterprise router (not registered in main.py)
 export async function listConnectorTypes(): Promise<ApiResponse<ConnectorTypeSchema[]>> {
   return apiGet<ConnectorTypeSchema[]>("/connectors/catalog/types");
 }
 
 /** Start OAuth authorize flow for a provider */
+// TODO: Backend route GET /connectors/oauth/{type}/authorize only exists on enterprise router (not registered in main.py)
 export async function oauthAuthorize(
   providerType: string,
   redirectUri: string,
@@ -98,6 +102,7 @@ export async function oauthAuthorize(
 }
 
 /** Complete OAuth callback */
+// TODO: Backend route POST /connectors/oauth/{type}/callback only exists on enterprise router (not registered in main.py)
 export async function oauthCallback(
   providerType: string,
   code: string,

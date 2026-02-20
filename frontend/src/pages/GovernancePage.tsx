@@ -26,7 +26,7 @@ export function GovernancePage() {
   const [auditLoading, setAuditLoading] = useState(false);
   const [auditFilter, setAuditFilter] = useState({ action: "", resource_type: "" });
   const [policyRefreshKey, setPolicyRefreshKey] = useState(0);
-  const [approvalRefreshKey, setApprovalRefreshKey] = useState(0);
+  const [approvalRefreshKey] = useState(0);
 
   async function fetchAuditTrail() {
     setAuditLoading(true);

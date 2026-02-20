@@ -63,13 +63,13 @@ export default function VaultStatusBanner() {
 
   return (
     <div
-      className={`flex items-center gap-3 rounded-lg border p-3 ${style.bg} ${style.borderColor}`}
+      className={`flex items-center gap-3 rounded-lg border p-3 ${style?.bg} ${style?.borderColor}`}
       role="status"
       aria-label={`Vault status: ${status.mode}`}
     >
-      <span className="text-lg">{style.icon}</span>
+      <span className="text-lg">{style?.icon}</span>
       <div className="flex-1">
-        <span className={`text-sm font-semibold ${style.text}`}>
+        <span className={`text-sm font-semibold ${style?.text}`}>
           Vault: {status.mode.charAt(0).toUpperCase() + status.mode.slice(1)}
         </span>
         {status.cluster_name && (
@@ -77,7 +77,7 @@ export default function VaultStatusBanner() {
             ({status.cluster_name})
           </span>
         )}
-        <p className={`text-xs ${style.text} mt-0.5`}>{status.message}</p>
+        <p className={`text-xs ${style?.text} mt-0.5`}>{status.message}</p>
       </div>
       <button
         onClick={fetchStatus}

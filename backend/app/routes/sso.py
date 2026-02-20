@@ -150,16 +150,87 @@ async def test_sso_connection() -> dict[str, Any]:
     """Test SSO IdP connectivity.
 
     Validates that the configured IdP is reachable and responds
-    correctly. Full implementation requires network access to the IdP.
+    correctly by fetching the OIDC discovery document or SAML metadata.
     """
     request_id = str(uuid4())
 
     logger.info("SSO connection test requested", extra={"request_id": request_id})
 
-    return {
-        "data": {
-            "status": "success",
-            "message": "Connection test not yet implemented — endpoint is reachable.",
-        },
-        "meta": _meta(request_id=request_id),
-    }
+    protocol = _sso_config.protocol
+    if not protocol:
+        return {
+            "data": {
+                "status": "error",
+                "message": "No SSO protocol configured. Set protocol to 'oidc' or 'saml' first.",
+            },
+            "meta": _meta(request_id=request_id),
+        }
+
+    import httpx
+
+    target_url: str = ""
+    if protocol == "oidc":
+        discovery_url = _sso_config.oidc.discovery_url
+        if not discovery_url:
+            return {
+                "data": {"status": "error", "message": "OIDC discovery URL is not configured."},
+                "meta": _meta(request_id=request_id),
+            }
+        # Append well-known path if not already present
+        target_url = (
+            discovery_url
+            if "/.well-known/" in discovery_url
+            else discovery_url.rstrip("/") + "/.well-known/openid-configuration"
+        )
+    elif protocol == "saml":
+        target_url = _sso_config.saml.metadata_url
+        if not target_url:
+            return {
+                "data": {"status": "error", "message": "SAML metadata URL is not configured."},
+                "meta": _meta(request_id=request_id),
+            }
+    else:
+        return {
+            "data": {"status": "error", "message": f"Unsupported protocol: {protocol}"},
+            "meta": _meta(request_id=request_id),
+        }
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(target_url)
+            resp.raise_for_status()
+
+        logger.info(
+            "SSO connection test succeeded",
+            extra={"request_id": request_id, "protocol": protocol, "url": target_url},
+        )
+        return {
+            "data": {
+                "status": "success",
+                "message": f"{protocol.upper()} provider is reachable and returned HTTP {resp.status_code}.",
+                "protocol": protocol,
+                "url_tested": target_url,
+            },
+            "meta": _meta(request_id=request_id),
+        }
+    except httpx.TimeoutException:
+        msg = f"Connection to {protocol.upper()} provider timed out ({target_url})."
+        logger.warning("SSO connection test timeout", extra={"request_id": request_id, "url": target_url})
+        return {
+            "data": {"status": "error", "message": msg, "protocol": protocol, "url_tested": target_url},
+            "meta": _meta(request_id=request_id),
+        }
+    except httpx.HTTPStatusError as exc:
+        msg = f"{protocol.upper()} provider returned HTTP {exc.response.status_code}."
+        logger.warning("SSO connection test HTTP error", extra={"request_id": request_id, "status": exc.response.status_code})
+        return {
+            "data": {"status": "error", "message": msg, "protocol": protocol, "url_tested": target_url},
+            "meta": _meta(request_id=request_id),
+        }
+    except Exception as exc:
+        msg = f"Failed to reach {protocol.upper()} provider: {exc}"
+        logger.warning("SSO connection test failed", extra={"request_id": request_id, "error": str(exc)})
+        return {
+            "data": {"status": "error", "message": msg, "protocol": protocol, "url_tested": target_url},
+            "meta": _meta(request_id=request_id),
+        }

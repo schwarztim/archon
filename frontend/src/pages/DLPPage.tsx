@@ -2,23 +2,14 @@ import { useState, useEffect, useCallback } from "react";
 import {
   ShieldAlert,
   Search,
-  EyeOff,
   Plus,
   Loader2,
-  CheckCircle2,
-  AlertTriangle,
   Shield,
   X,
   Trash2,
-  BarChart3,
-  Ban,
-  FileWarning,
-  TrendingUp,
-  Activity,
   LayoutDashboard,
   List,
   FlaskConical,
-  Settings,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { apiGet, apiPost, apiDelete } from "@/api/client";
@@ -40,24 +31,6 @@ interface DLPPolicy {
   sensitivity: string;
   created_at: string;
   updated_at: string;
-}
-
-interface ScanResult {
-  findings: Array<{
-    type: string;
-    value: string;
-    confidence: number;
-    location: string;
-  }>;
-  policy_id: string | null;
-  risk_level: string;
-}
-
-interface DLPMetrics {
-  scans_today: number;
-  detections: number;
-  blocked: number;
-  redacted: number;
 }
 
 type TabId = "dashboard" | "policies" | "test" | "detections";

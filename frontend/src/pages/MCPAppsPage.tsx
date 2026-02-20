@@ -13,7 +13,6 @@ import {
   ArrowLeft,
   type LucideIcon,
 } from "lucide-react";
-import { Button } from "@/components/ui/Button";
 import { cn } from "@/utils/cn";
 import { ChatInterface } from "@/components/mcp/ChatInterface";
 import type { ChatMessage, MCPComponentPayload } from "@/api/mcp";

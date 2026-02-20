@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -28,7 +27,7 @@ interface ClaimMapperProps {
 export function ClaimMapper({ mappings, onChange, disabled }: ClaimMapperProps) {
   function updateRow(index: number, field: keyof ClaimMapping, value: string) {
     const updated = [...mappings];
-    updated[index] = { ...updated[index], [field]: value };
+    updated[index] = { ...updated[index]!, [field]: value };
     onChange(updated);
   }
 

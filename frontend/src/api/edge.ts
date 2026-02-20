@@ -34,5 +34,5 @@ export async function deployModel(payload: {
 
 /** Get fleet-wide status */
 export async function getFleetStatus(): Promise<ApiResponse<FleetStatus>> {
-  return apiGet<FleetStatus>("/edge/devices");
+  return apiGet<FleetStatus>("/edge/fleet/status");
 }

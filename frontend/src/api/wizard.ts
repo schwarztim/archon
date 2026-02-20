@@ -100,6 +100,8 @@ export interface FullPipelineResult {
 }
 
 // ─── API Calls ───────────────────────────────────────────────────────
+// TODO: Backend wizard.py has prefix="/api/v1/wizard" AND is registered with API_PREFIX — double prefix bug.
+// Frontend paths below are correct in intent (/wizard/...) but won't resolve until backend is fixed.
 
 /** Step 1: Describe — NLP analysis of a description */
 export async function wizardDescribe(

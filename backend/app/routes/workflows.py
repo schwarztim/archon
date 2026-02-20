@@ -6,7 +6,7 @@ In-memory stub storage — full DB integration to follow.
 from __future__ import annotations
 
 import asyncio
-import json
+import logging
 from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
@@ -14,7 +14,15 @@ from uuid import uuid4
 from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field as PField
 
+from starlette.responses import Response
+from app.services.workflow_engine import (
+    WorkflowEngineError,
+    WorkflowValidationError,
+    execute_workflow_dag,
+)
+
 router = APIRouter(prefix="/workflows", tags=["workflows"])
+logger = logging.getLogger(__name__)
 
 # ── In-memory stores ────────────────────────────────────────────────
 
@@ -219,19 +227,20 @@ async def update_workflow(workflow_id: str, body: WorkflowUpdate) -> dict[str, A
     return {"data": wf, "meta": _meta()}
 
 
-@router.delete("/{workflow_id}", status_code=204)
-async def delete_workflow(workflow_id: str) -> None:
+@router.delete("/{workflow_id}", status_code=204, response_class=Response)
+async def delete_workflow(workflow_id: str) -> Response:
     """Delete a workflow."""
     global _workflows
     before = len(_workflows)
     _workflows = [w for w in _workflows if w["id"] != workflow_id]
     if len(_workflows) == before:
         raise HTTPException(status_code=404, detail="Workflow not found")
+        return Response(status_code=204)
 
 
 @router.post("/{workflow_id}/execute", status_code=201)
 async def execute_workflow(workflow_id: str) -> dict[str, Any]:
-    """Execute a workflow — creates a workflow run and simulates step execution."""
+    """Execute a workflow using the LangGraph engine."""
     wf = _find_workflow(workflow_id)
     if wf is None:
         raise HTTPException(status_code=404, detail="Workflow not found")
@@ -250,28 +259,49 @@ async def execute_workflow(workflow_id: str) -> dict[str, Any]:
         "steps": [],
     }
 
-    # Create step records from workflow steps
-    for step in wf.get("steps", []):
+    try:
+        result = await execute_workflow_dag(wf)
+    except WorkflowValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except WorkflowEngineError as exc:
+        logger.error(
+            "workflow.execution.failed",
+            exc_info=True,
+            extra={"workflow_id": workflow_id},
+        )
+        raise HTTPException(status_code=500, detail="Workflow execution failed") from exc
+    except Exception as exc:  # noqa: BLE001
+        logger.exception(
+            "workflow.execution.unexpected_error",
+            extra={"workflow_id": workflow_id},
+        )
+        raise HTTPException(status_code=500, detail="Workflow execution failed") from exc
+
+    run_steps: list[dict[str, Any]] = []
+    for step_result in result.get("steps", []):
         step_record: dict[str, Any] = {
             "id": str(uuid4()),
             "run_id": run_id,
-            "step_id": step.get("step_id", str(uuid4())),
-            "name": step.get("name", ""),
-            "status": "completed",
-            "started_at": now,
-            "completed_at": now,
-            "duration_ms": 0,
-            "input_data": step.get("config", {}),
-            "output_data": {"result": "ok"},
-            "agent_execution_id": str(uuid4()),
+            "step_id": step_result.get("step_id", str(uuid4())),
+            "name": step_result.get("name", ""),
+            "status": step_result.get("status", "skipped"),
+            "started_at": step_result.get("started_at"),
+            "completed_at": step_result.get("completed_at"),
+            "duration_ms": step_result.get("duration_ms", 0) or 0,
+            "input_data": step_result.get("input_data", {}),
+            "output_data": step_result.get("output_data"),
+            "agent_execution_id": step_result.get("agent_execution_id"),
         }
+        if step_result.get("error"):
+            step_record["error"] = step_result["error"]
         _workflow_run_steps.append(step_record)
-        run["steps"].append(step_record)
+        run_steps.append(step_record)
 
     completed_at = datetime.now(tz=timezone.utc).isoformat()
-    run["status"] = "completed"
+    run["status"] = result.get("status", "failed")
     run["completed_at"] = completed_at
-    run["duration_ms"] = 0
+    run["duration_ms"] = result.get("duration_ms", 0)
+    run["steps"] = run_steps
     _workflow_runs.append(run)
     return {"data": run, "meta": _meta()}
 
@@ -340,8 +370,8 @@ async def set_schedule(workflow_id: str, body: ScheduleSet) -> dict[str, Any]:
     return {"data": schedule_record, "meta": _meta()}
 
 
-@router.delete("/{workflow_id}/schedule", status_code=204)
-async def remove_schedule(workflow_id: str) -> None:
+@router.delete("/{workflow_id}/schedule", status_code=204, response_class=Response)
+async def remove_schedule(workflow_id: str) -> Response:
     """Remove the schedule from a workflow."""
     wf = _find_workflow(workflow_id)
     if wf is None:
@@ -350,6 +380,7 @@ async def remove_schedule(workflow_id: str) -> None:
     _workflow_schedules.pop(workflow_id, None)
     wf["schedule"] = None
     wf["updated_at"] = datetime.now(tz=timezone.utc).isoformat()
+    return Response(status_code=204)
 
 
 @router.get("/{workflow_id}/schedule/preview")
@@ -411,4 +442,7 @@ async def ws_execution_stream(
         await websocket.send_json({"type": "run_complete", "status": run["status"]})
         await websocket.close()
     except WebSocketDisconnect:
-        pass
+        logger.debug(
+            "workflow.ws.client_disconnected",
+            extra={"workflow_id": workflow_id, "exec_id": exec_id},
+        )

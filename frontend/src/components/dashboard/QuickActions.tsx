@@ -26,7 +26,7 @@ export function QuickActions({ onCreateAgent, onRunAgent }: QuickActionsProps) {
       if (!file) return;
       try {
         const text = await file.text();
-        const _definition = JSON.parse(text);
+        JSON.parse(text);
         navigate("/agents");
       } catch {
         // Import error handled silently

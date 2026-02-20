@@ -104,6 +104,7 @@ export interface ProviderHealth {
 }
 
 /** List registered providers */
+// TODO: No backend route for GET /router/providers exists — only /providers/{id}/api-key and /providers/{id}/test-connection
 export async function listProviders(
   params: PaginationParams = {},
 ): Promise<ApiResponse<Provider[]>> {
@@ -111,6 +112,7 @@ export async function listProviders(
 }
 
 /** Register a new provider */
+// TODO: No backend route for POST /router/providers exists
 export async function createProvider(
   payload: Omit<Provider, "id">,
 ): Promise<ApiResponse<Provider>> {
@@ -118,6 +120,7 @@ export async function createProvider(
 }
 
 /** Check provider health */
+// TODO: No backend route for GET /router/providers/health exists
 export async function getProviderHealth(): Promise<ApiResponse<ProviderHealth[]>> {
   return apiGet<ProviderHealth[]>("/router/providers/health");
 }
@@ -140,6 +143,7 @@ export interface ProviderCredentialSchema {
 }
 
 /** Get per-provider credential form schemas */
+// TODO: No backend route for GET /router/providers/credential-schemas exists
 export async function getCredentialSchemas(): Promise<
   ApiResponse<Record<string, ProviderCredentialSchema>>
 > {
@@ -149,6 +153,7 @@ export async function getCredentialSchemas(): Promise<
 }
 
 /** Save provider credentials to Vault */
+// TODO: No backend route for PUT /router/providers/{id}/credentials exists — backend has POST /providers/{id}/api-key
 export async function saveProviderCredentials(
   providerId: string,
   credentials: Record<string, string>,
@@ -160,6 +165,7 @@ export async function saveProviderCredentials(
 }
 
 /** Delete a provider and clean up Vault secrets */
+// TODO: No backend route for DELETE /router/providers/{id} exists
 export async function deleteProvider(id: string): Promise<void> {
   return apiDelete(`/router/providers/${id}`);
 }
@@ -179,7 +185,7 @@ export async function testConnection(
   providerId: string,
 ): Promise<ApiResponse<TestConnectionResult>> {
   return apiPost<TestConnectionResult>(
-    `/router/providers/${providerId}/test`,
+    `/router/providers/${providerId}/test-connection`,
     {},
   );
 }
@@ -208,6 +214,7 @@ export interface ProviderHealthDetail {
 }
 
 /** Get detailed health for a single provider */
+// TODO: No backend route for GET /router/providers/{id}/health exists
 export async function getProviderHealthDetail(
   providerId: string,
 ): Promise<ApiResponse<ProviderHealthDetail>> {
@@ -217,6 +224,7 @@ export async function getProviderHealthDetail(
 }
 
 /** Get detailed health for all tenant providers */
+// TODO: No backend route for GET /router/providers/health/detail exists
 export async function getAllProviderHealthDetail(): Promise<
   ApiResponse<ProviderHealthDetail[]>
 > {
@@ -251,6 +259,7 @@ export interface VisualRouteDecision {
 }
 
 /** Get visual routing rules */
+// TODO: No backend route for GET /router/rules/visual exists
 export async function getVisualRules(): Promise<
   ApiResponse<VisualRoutingRule[]>
 > {
@@ -258,6 +267,7 @@ export async function getVisualRules(): Promise<
 }
 
 /** Save visual routing rules (bulk) */
+// TODO: No backend route for PUT /router/rules/visual exists
 export async function saveVisualRules(
   rules: VisualRoutingRule[],
 ): Promise<ApiResponse<VisualRoutingRule[]>> {
@@ -265,6 +275,7 @@ export async function saveVisualRules(
 }
 
 /** Route with visual rules and get explanation */
+// TODO: No backend route for POST /router/route/visual exists
 export async function routeVisual(payload: {
   capability?: string;
   sensitivity_level?: string;
@@ -283,6 +294,7 @@ export interface FallbackChainConfig {
 }
 
 /** Get fallback chain configuration */
+// TODO: No backend route for GET /router/fallback exists
 export async function getFallbackChain(): Promise<
   ApiResponse<FallbackChainConfig>
 > {
@@ -290,6 +302,7 @@ export async function getFallbackChain(): Promise<
 }
 
 /** Save fallback chain ordering */
+// TODO: No backend route for PUT /router/fallback exists
 export async function saveFallbackChain(
   config: FallbackChainConfig,
 ): Promise<ApiResponse<FallbackChainConfig>> {

@@ -32,6 +32,7 @@ from app.models.template import (
 )
 from app.secrets.manager import VaultSecretsManager, get_secrets_manager
 from app.services.template_service import TemplateService
+from starlette.responses import Response
 
 router = APIRouter(prefix="/templates", tags=["templates"])
 
@@ -340,15 +341,16 @@ async def update_template(
     }
 
 
-@router.delete("/{template_id}", status_code=204)
+@router.delete("/{template_id}", status_code=204, response_class=Response)
 async def delete_template(
     template_id: UUID,
     session: AsyncSession = Depends(get_session),
-) -> None:
+) -> Response:
     """Delete a template (legacy)."""
     deleted = await TemplateService.delete(session, template_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Template not found")
+    return Response(status_code=204)
 
 
 @router.post("/{template_id}/instantiate", status_code=201)

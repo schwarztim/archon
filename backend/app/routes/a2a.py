@@ -28,6 +28,7 @@ from app.models.a2a import (
 from app.secrets.manager import VaultSecretsManager, get_secrets_manager
 from app.services.a2a import A2AClient, A2APublisher
 from app.services.a2a_service import A2AService
+from starlette.responses import Response
 
 logger = logging.getLogger(__name__)
 
@@ -221,15 +222,16 @@ async def update_published_card(
     return {"data": card.model_dump(mode="json"), "meta": _meta()}
 
 
-@router.delete("/publish/{card_id}", status_code=204)
+@router.delete("/publish/{card_id}", status_code=204, response_class=Response)
 async def unpublish_card(
     card_id: UUID,
     session: AsyncSession = Depends(get_session),
-) -> None:
+) -> Response:
     """Unpublish (delete) an A2A agent card."""
     deleted = await A2APublisher.unpublish_card(session, card_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Published card not found")
+    return Response(status_code=204)
 
 
 # ── Tasks ───────────────────────────────────────────────────────────
@@ -364,7 +366,7 @@ async def get_well_known_card(
 
 # ── Enterprise Federation Routes ────────────────────────────────────
 
-federation_router = APIRouter(prefix="/api/v1/a2a", tags=["a2a-federation"])
+federation_router = APIRouter(prefix="/a2a", tags=["a2a-federation"])
 
 
 @federation_router.post("/partners", status_code=status.HTTP_201_CREATED)

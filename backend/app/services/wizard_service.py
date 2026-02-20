@@ -207,6 +207,148 @@ _HARDCODED_SECRET_PATTERNS: list[re.Pattern[str]] = [
 ]
 
 
+# ── Node type templates ─────────────────────────────────────────────
+
+
+def _generate_node_function(node: PlannedNode) -> str:
+    """Generate type-specific node function with meaningful default logic."""
+    node_type = node.node_type
+    node_id = node.node_id
+    label = node.label
+    description = node.description
+    config = node.config
+    
+    # Base template structure
+    base = f'async def {node_id}(state: dict[str, Any]) -> dict[str, Any]:\n    """Node: {label} — {description}"""'
+    
+    # Type-specific implementations
+    if node_type == "input":
+        return textwrap.dedent(f"""\
+            {base}
+                # Extract and validate input from state
+                user_input = state.get("input", "")
+                if not user_input:
+                    raise ValueError("Input node requires 'input' key in state")
+                
+                state["messages"] = state.get("messages", [])
+                state["messages"].append({{"role": "user", "content": user_input}})
+                state["current_node"] = "{node_id}"
+                return state""")
+    
+    elif node_type == "output":
+        return textwrap.dedent(f"""\
+            {base}
+                # Format final output response
+                messages = state.get("messages", [])
+                result = state.get("result", "")
+                
+                output = {{
+                    "response": result,
+                    "message_history": messages,
+                    "status": "completed",
+                }}
+                
+                state["output"] = output
+                state["current_node"] = "{node_id}"
+                return state""")
+    
+    elif node_type == "router":
+        model = config.get("model", "gpt-4o-mini")
+        return textwrap.dedent(f"""\
+            {base}
+                # Route based on intent classification
+                # Model: {model}
+                from app.services.llm import classify_intent
+                
+                messages = state.get("messages", [])
+                last_message = messages[-1]["content"] if messages else ""
+                
+                intent = await classify_intent(last_message, model="{model}")
+                state["intent"] = intent
+                state["next_node"] = intent  # Router decision
+                state["current_node"] = "{node_id}"
+                return state""")
+    
+    elif node_type == "llm":
+        model = config.get("model", "gpt-4o")
+        return textwrap.dedent(f"""\
+            {base}
+                # Process with language model
+                # Model: {model}
+                from app.services.llm import generate_completion
+                
+                messages = state.get("messages", [])
+                system_prompt = "You are a helpful AI assistant."
+                
+                response = await generate_completion(
+                    messages=messages,
+                    model="{model}",
+                    system_prompt=system_prompt,
+                )
+                
+                state["messages"].append({{"role": "assistant", "content": response}})
+                state["result"] = response
+                state["current_node"] = "{node_id}"
+                return state""")
+    
+    elif node_type == "tool":
+        connector = config.get("connector", "unknown")
+        return textwrap.dedent(f"""\
+            {base}
+                # Interact with external tool/connector
+                # Connector: {connector}
+                from app.connectors import get_connector
+                
+                connector_instance = get_connector("{connector}")
+                credentials = state.get("credentials", {{}}).get("{connector}")
+                
+                if not credentials:
+                    raise ValueError("Tool node requires credentials in state")
+                
+                # Execute connector action
+                tool_input = state.get("tool_input", {{}})
+                result = await connector_instance.execute(tool_input, credentials)
+                
+                state["tool_result"] = result
+                state["result"] = result
+                state["current_node"] = "{node_id}"
+                return state""")
+    
+    elif node_type == "auth":
+        vault_path = config.get("vault_path", "")
+        return textwrap.dedent(f"""\
+            {base}
+                # Authenticate with connector via Vault
+                # Vault path: {vault_path}
+                from app.secrets.manager import get_secrets_manager
+                
+                secrets_manager = await get_secrets_manager()
+                tenant_id = state.get("tenant_id", TENANT_ID)
+                
+                credentials = await secrets_manager.get_secret(
+                    "{vault_path}",
+                    tenant_id,
+                )
+                
+                # Store credentials in state for downstream tool nodes
+                if "credentials" not in state:
+                    state["credentials"] = {{}}
+                # Store under connector name so tool nodes can find it
+                connector_name = "{vault_path}".rsplit("/", 1)[-1] if "{vault_path}" else "{node_id}"
+                state["credentials"][connector_name] = credentials
+                state["current_node"] = "{node_id}"
+                return state""")
+    
+    else:
+        # Fallback for unknown node types
+        return textwrap.dedent(f"""\
+            {base}
+                # Generic node implementation
+                # Node type: {node_type}
+                state["current_node"] = "{node_id}"
+                return state""")
+
+
 # ── NLWizardService ────────────────────────────────────────────────
 
 
@@ -466,14 +608,8 @@ class NLWizardService:
             for cr in plan.credential_requirements
         )
 
-        node_funcs = "\n\n".join(
-            textwrap.dedent(f"""\
-            async def {node.node_id}(state: dict[str, Any]) -> dict[str, Any]:
-                \"\"\"Node: {node.label} — {node.description}\"\"\"
-                # TODO: implement {node.node_type} logic
-                return state""")
-            for node in plan.nodes
-        )
+        # Node templates with type-specific logic
+        node_funcs = "\n\n".join(_generate_node_function(node) for node in plan.nodes)
 
         python_source = textwrap.dedent(f"""\
             \"\"\"Auto-generated agent: {agent_name}\"\"\"

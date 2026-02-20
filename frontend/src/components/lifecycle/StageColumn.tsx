@@ -40,7 +40,6 @@ function statusBadge(status: string) {
 }
 
 export function StageColumn({
-  stage,
   label,
   deployments,
   color,

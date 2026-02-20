@@ -738,7 +738,7 @@ function InputMappingEditor({
             value={m.source}
             onChange={(e) => {
               const next = [...mappings];
-              next[i] = { ...next[i], source: e.target.value };
+              next[i] = { ...next[i]!, source: e.target.value };
               onChange(next);
             }}
             placeholder="source"
@@ -750,7 +750,7 @@ function InputMappingEditor({
             value={m.target}
             onChange={(e) => {
               const next = [...mappings];
-              next[i] = { ...next[i], target: e.target.value };
+              next[i] = { ...next[i]!, target: e.target.value };
               onChange(next);
             }}
             placeholder="target"

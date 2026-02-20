@@ -1,4 +1,4 @@
-import { useState } from "react";
+
 import {
   Bot,
   Brain,
@@ -56,13 +56,11 @@ function SummaryCard({
 // ─── Mini Graph Preview ──────────────────────────────────────────────
 
 function GraphPreview({
-  identity,
   model,
   tools,
   knowledge,
   connectors,
 }: {
-  identity: IdentityData;
   model: ModelData;
   tools: ToolsData;
   knowledge: KnowledgeData;
@@ -115,7 +113,6 @@ export function ReviewStep({
     <div className="space-y-4">
       {/* Graph Preview */}
       <GraphPreview
-        identity={identity}
         model={model}
         tools={tools}
         knowledge={knowledge}

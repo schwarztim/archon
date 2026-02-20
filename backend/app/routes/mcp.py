@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
 from app.services.mcp import MCPService
+from starlette.responses import Response
 
 router = APIRouter(prefix="/mcp", tags=["mcp"])
 
@@ -204,15 +205,16 @@ async def update_component(
     return {"data": component.model_dump(mode="json"), "meta": _meta()}
 
 
-@router.delete("/components/{component_id}", status_code=204)
+@router.delete("/components/{component_id}", status_code=204, response_class=Response)
 async def delete_component(
     component_id: UUID,
     session: AsyncSession = Depends(get_session),
-) -> None:
+) -> Response:
     """Delete an MCP component."""
     deleted = await MCPService.delete_component(session, component_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Component not found")
+    return Response(status_code=204)
 
 
 @router.get("/components/{component_id}/render")

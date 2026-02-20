@@ -1,12 +1,12 @@
 """Enterprise wizard routes — Natural Language → Agent pipeline.
 
 Endpoints:
-  POST /api/v1/wizard/describe  — NLP analysis of a description
-  POST /api/v1/wizard/plan      — structured build plan
-  POST /api/v1/wizard/build     — generate agent definition + source
-  POST /api/v1/wizard/validate  — security scan & compliance check
-  POST /api/v1/wizard/refine    — iterative refinement (max 3)
-  POST /api/v1/wizard/full      — all-in-one pipeline
+  POST /wizard/describe  — NLP analysis of a description
+  POST /wizard/plan      — structured build plan
+  POST /wizard/build     — generate agent definition + source
+  POST /wizard/validate  — security scan & compliance check
+  POST /wizard/refine    — iterative refinement (max 3)
+  POST /wizard/full      — all-in-one pipeline
 
 All routes are authenticated, RBAC-checked, tenant-scoped, and audit-logged.
 """
@@ -34,7 +34,7 @@ from app.services.wizard_service import NLWizardService
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v1/wizard", tags=["wizard"])
+router = APIRouter(prefix="/wizard", tags=["wizard"])
 
 _wizard = NLWizardService()
 

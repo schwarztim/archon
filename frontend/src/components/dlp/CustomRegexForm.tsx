@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Settings, Play, CheckCircle2, AlertTriangle, Plus, X } from "lucide-react";
+import { Settings, Play, CheckCircle2, AlertTriangle, Plus } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 
 interface CustomRegexFormProps {

@@ -1,12 +1,10 @@
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import {
   ScrollText,
   Search,
   Download,
   ShieldOff,
-  Calendar,
   Filter,
-  X,
 } from "lucide-react";
 import { useAuth } from "@/providers/auth-provider";
 import { apiGet } from "@/api/client";

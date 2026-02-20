@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import {
   Bot,
   Plus,
@@ -16,7 +15,6 @@ import {
   Clock,
   Zap,
 } from "lucide-react";
-import { useAuth } from "@/providers/auth-provider";
 import { apiGet, apiPost, apiPut, apiDelete } from "@/api/client";
 import type { ApiResponse } from "@/types";
 import { useApiQuery, useApiMutation } from "@/hooks/useApi";
@@ -86,8 +84,6 @@ function timeAgo(dateStr: string | null): string {
 // ─── Component ───────────────────────────────────────────────────────
 
 export function AgentsPage() {
-  const navigate = useNavigate();
-  const { user } = useAuth();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [tagFilter, setTagFilter] = useState<string>("all");

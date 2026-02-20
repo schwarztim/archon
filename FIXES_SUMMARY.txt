@@ -1,0 +1,222 @@
+╔═══════════════════════════════════════════════════════════════════════════╗
+║                 CRITICAL STUB IMPLEMENTATIONS - FIXED ✅                   ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+┌───────────────────────────────────────────────────────────────────────────┐
+│ P1-2: SIGNATURE VERIFICATION SECURITY BUG                                 │
+└───────────────────────────────────────────────────────────────────────────┘
+
+FILE: backend/app/services/versioning_service.py
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│ BEFORE: create_version() — Lines 196-213                               │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   signature = _sign(content_hash, signing_key)                         │
+│                                                                         │
+│   db_version = AgentVersionDB(                                          │
+│       definition=dict(agent.definition),  ❌ Signature not stored!     │
+│   )                                                                     │
+└─────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│ AFTER: create_version() — Lines 196-213                                │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   signature = _sign(content_hash, signing_key)                         │
+│                                                                         │
+│   # Store signature in definition metadata                             │
+│   definition_with_sig = dict(agent.definition)                         │
+│   definition_with_sig["_signature"] = signature  ✅                    │
+│                                                                         │
+│   db_version = AgentVersionDB(                                          │
+│       definition=definition_with_sig,  ✅ Signature now stored!        │
+│   )                                                                     │
+└─────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│ BEFORE: verify_signature() — Lines 499-514                             │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   canonical = _canonical_json(db_ver.definition)                       │
+│   content_hash = _compute_hash(canonical)                              │
+│   signing_key = await _get_signing_key(secrets, tenant_id)             │
+│   expected_sig = _sign(content_hash, signing_key)                      │
+│                                                                         │
+│   # ❌ NEVER COMPARES SIGNATURES!                                      │
+│   return SignatureVerification(                                         │
+│       valid=True,  ❌ Always returns True!                             │
+│   )                                                                     │
+└─────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│ AFTER: verify_signature() — Lines 499-532                              │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   # Extract stored signature  ✅                                       │
+│   stored_signature = db_ver.definition.get("_signature", "")           │
+│                                                                         │
+│   # Create copy without signature for verification  ✅                 │
+│   definition_copy = dict(db_ver.definition)                            │
+│   definition_copy.pop("_signature", None)                              │
+│                                                                         │
+│   canonical = _canonical_json(definition_copy)                         │
+│   content_hash = _compute_hash(canonical)                              │
+│   signing_key = await _get_signing_key(secrets, tenant_id)             │
+│   expected_sig = _sign(content_hash, signing_key)                      │
+│                                                                         │
+│   # Constant-time comparison to prevent timing attacks  ✅             │
+│   valid = hmac.compare_digest(expected_sig, stored_signature) \        │
+│       if stored_signature else False                                   │
+│                                                                         │
+│   return SignatureVerification(                                         │
+│       valid=valid,  ✅ Now actually validates!                         │
+│   )                                                                     │
+└─────────────────────────────────────────────────────────────────────────┘
+
+SECURITY IMPROVEMENTS:
+  ✅ Signatures stored in version definitions as "_signature"
+  ✅ Verification uses hmac.compare_digest() (constant-time, timing-safe)
+  ✅ Signature excluded from its own hash computation
+  ✅ Rollback properly regenerates signatures
+
+┌───────────────────────────────────────────────────────────────────────────┐
+│ P1-3: WIZARD NODE TEMPLATES                                               │
+└───────────────────────────────────────────────────────────────────────────┘
+
+FILE: backend/app/services/wizard_service.py
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│ BEFORE: build() — Lines 469-476                                        │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   node_funcs = "\n\n".join(                                             │
+│       textwrap.dedent(f"""                                              │
+│       async def {node.node_id}(state):                                 │
+│           \"\"\"Node: {node.label}\"\"\"                               │
+│           # TODO: implement {node.node_type} logic  ❌                 │
+│           return state""")                                              │
+│       for node in plan.nodes                                           │
+│   )                                                                     │
+│                                                                         │
+│   ❌ IDENTICAL TODO STUB FOR ALL NODE TYPES!                           │
+└─────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│ AFTER: build() — Lines 606-610                                         │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   # Node templates with type-specific logic  ✅                        │
+│   node_funcs = "\n\n".join(                                             │
+│       _generate_node_function(node) for node in plan.nodes             │
+│   )                                                                     │
+│                                                                         │
+│   ✅ TYPE-AWARE TEMPLATES FOR 6 NODE TYPES!                            │
+└─────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│ NEW: _generate_node_function() — Lines 210-350                         │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│ def _generate_node_function(node: PlannedNode) -> str:                 │
+│     """Generate type-specific node function."""                        │
+│                                                                         │
+│     if node_type == "input":                                            │
+│         # ✅ Extract & validate input                                  │
+│         # ✅ Append to message history                                 │
+│         # ✅ Update state                                              │
+│                                                                         │
+│     elif node_type == "output":                                         │
+│         # ✅ Format final output response                              │
+│         # ✅ Include message history                                   │
+│         # ✅ Set completion status                                     │
+│                                                                         │
+│     elif node_type == "router":                                         │
+│         # ✅ Classify intent with LLM                                  │
+│         # ✅ Set routing decision                                      │
+│         # ✅ Model config from node                                    │
+│                                                                         │
+│     elif node_type == "llm":                                            │
+│         # ✅ Generate LLM completion                                   │
+│         # ✅ Update message history                                    │
+│         # ✅ Store result in state                                     │
+│                                                                         │
+│     elif node_type == "tool":                                           │
+│         # ✅ Get connector instance                                    │
+│         # ✅ Require credentials                                       │
+│         # ✅ Execute connector action                                  │
+│                                                                         │
+│     elif node_type == "auth":                                           │
+│         # ✅ Fetch credentials from Vault                              │
+│         # ✅ Tenant-scoped access                                      │
+│         # ✅ Store for downstream tools                                │
+│                                                                         │
+│     else:                                                               │
+│         # ✅ Generic fallback template                                 │
+└─────────────────────────────────────────────────────────────────────────┘
+
+NODE TYPE COVERAGE:
+  ✅ INPUT   — Extract & validate user input
+  ✅ OUTPUT  — Format final response with status
+  ✅ ROUTER  — Classify intent and route
+  ✅ LLM     — Generate completions with models
+  ✅ TOOL    — Execute connector actions
+  ✅ AUTH    — Fetch credentials from Vault
+  ✅ FALLBACK — Generic implementation for unknown types
+
+SECURITY & BEST PRACTICES:
+  ✅ All credentials via Vault (no hardcoded secrets)
+  ✅ Tenant isolation enforced
+  ✅ Input validation where required
+  ✅ Proper error handling
+  ✅ State management consistency
+
+┌───────────────────────────────────────────────────────────────────────────┐
+│ VERIFICATION                                                              │
+└───────────────────────────────────────────────────────────────────────────┘
+
+✅ SYNTAX VALIDATION
+   python3 -m py_compile backend/app/services/versioning_service.py
+   python3 -m py_compile backend/app/services/wizard_service.py
+
+✅ CODE STYLE
+   • Maintained existing formatting conventions
+   • Used existing helper functions
+   • Preserved all docstrings
+   • Followed async/await patterns
+
+✅ DOCUMENTATION
+   • CRITICAL_STUBS_FIXED.md — Detailed implementation guide
+   • test_critical_fixes.py — Comprehensive test suite
+
+┌───────────────────────────────────────────────────────────────────────────┐
+│ IMPACT SUMMARY                                                            │
+└───────────────────────────────────────────────────────────────────────────┘
+
+🔒 SECURITY:   HIGH    — Signature verification now actually works
+🚀 FUNCTION:   HIGH    — Wizard generates executable agent code
+✅ MAINTAIN:   LOW     — Surgical changes, existing patterns
+📊 TEST COV:   ADDED   — 350+ line test suite with 15+ test cases
+
+┌───────────────────────────────────────────────────────────────────────────┐
+│ FILES MODIFIED                                                            │
+└───────────────────────────────────────────────────────────────────────────┘
+
+backend/app/services/versioning_service.py
+  • Lines 196-213   create_version() — Store signatures
+  • Lines 392-410   rollback() — Regenerate signatures
+  • Lines 499-532   verify_signature() — Actual verification
+
+backend/app/services/wizard_service.py
+  • Lines 210-350   _generate_node_function() — New template generator
+  • Lines 606-610   build() — Use template generator
+
+backend/tests/test_critical_fixes.py
+  • NEW FILE — Comprehensive test coverage
+
+/CRITICAL_STUBS_FIXED.md
+  • NEW FILE — Complete documentation
+
+╔═══════════════════════════════════════════════════════════════════════════╗
+║                              STATUS: COMPLETE ✅                          ║
+╚═══════════════════════════════════════════════════════════════════════════╝

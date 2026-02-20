@@ -143,8 +143,15 @@ async def _get_signing_key(secrets: VaultSecretsManager, tenant_id: str) -> str:
     try:
         data = await secrets.get_secret(_SIGNING_KEY_PATH, tenant_id)
         return data.get("key", "")
-    except Exception:
-        logger.warning("Signing key unavailable, using fallback")
+    except Exception as exc:
+        logger.error(
+            "Signing key retrieval failed — using insecure fallback key",
+            extra={
+                "error_type": type(exc).__name__,
+                "tenant_id": tenant_id,
+                "security_note": "fallback key is not tenant-specific; rotate Vault credentials immediately",
+            },
+        )
         return "archon-fallback-signing-key"
 
 
@@ -199,11 +206,15 @@ class VersioningService:
         signing_key = await _get_signing_key(secrets, tenant_id)
         signature = _sign(content_hash, signing_key)
 
+        # Store signature in definition metadata
+        definition_with_sig = dict(agent.definition)
+        definition_with_sig["_signature"] = signature
+
         # Persist the DB record
         db_version = AgentVersionDB(
             agent_id=agent_id,
             version=next_version,
-            definition=dict(agent.definition),
+            definition=definition_with_sig,
             change_log=change_reason,
             created_by=UUID(user.id),
         )
@@ -388,15 +399,22 @@ class VersioningService:
         latest = await _latest_version(session, agent_id, tenant_id)
         next_version = _bump_version(latest.version if latest else None)
 
-        canonical = _canonical_json(target.definition)
+        # Create definition copy without old signature
+        rollback_definition = dict(target.definition)
+        rollback_definition.pop("_signature", None)
+        
+        canonical = _canonical_json(rollback_definition)
         content_hash = _compute_hash(canonical)
         signing_key = await _get_signing_key(secrets, tenant_id)
         signature = _sign(content_hash, signing_key)
+        
+        # Store new signature
+        rollback_definition["_signature"] = signature
 
         db_version = AgentVersionDB(
             agent_id=agent_id,
             version=next_version,
-            definition=dict(target.definition),
+            definition=rollback_definition,
             change_log=f"Rollback to {target.version} ({target.id})",
             created_by=UUID(user.id),
         )
@@ -498,19 +516,27 @@ class VersioningService:
         if db_ver is None:
             raise ValueError(f"Version {version_id} not found")
 
-        canonical = _canonical_json(db_ver.definition)
+        # Extract stored signature from definition metadata
+        stored_signature = db_ver.definition.get("_signature", "")
+        
+        # Create a copy without the signature for verification
+        definition_copy = dict(db_ver.definition)
+        definition_copy.pop("_signature", None)
+        
+        canonical = _canonical_json(definition_copy)
         content_hash = _compute_hash(canonical)
         signing_key = await _get_signing_key(secrets, tenant_id)
         expected_sig = _sign(content_hash, signing_key)
 
-        # In a full implementation the stored signature would be compared;
-        # here we verify the content hash is reproducible.
+        # Constant-time comparison to prevent timing attacks
+        valid = hmac.compare_digest(expected_sig, stored_signature) if stored_signature else False
+        
         return SignatureVerification(
             version_id=version_id,
-            valid=True,
+            valid=valid,
             signer_email=str(db_ver.created_by),
             signed_at=db_ver.created_at,
-            content_hash_matches=True,
+            content_hash_matches=valid,
         )
 
     # ── Export history ──────────────────────────────────────────────
@@ -578,8 +604,20 @@ class VersioningService:
         # Check model references
         model_ref = definition.get("model")
         if model_ref and isinstance(model_ref, str):
-            # In production this would query model registry
-            pass
+            # Validate model reference format (provider/model-name or just model-name)
+            valid_providers = {"openai", "anthropic", "google", "azure", "cohere"}
+            if "/" in model_ref:
+                provider, model_name = model_ref.split("/", 1)
+                if provider not in valid_providers:
+                    issues.append(f"Unknown model provider: {provider}")
+                    models_ok = False
+                if not model_name:
+                    issues.append("Model name is empty after provider prefix")
+                    models_ok = False
+            elif not model_ref.strip():
+                issues.append("Model reference is blank")
+                models_ok = False
+            # TODO: Query model registry to verify model is available and not deprecated
 
         # Check connector references
         connectors = definition.get("connectors", [])

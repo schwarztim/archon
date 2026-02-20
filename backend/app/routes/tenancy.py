@@ -26,6 +26,7 @@ from app.models.tenancy import (
 )
 from app.services.tenant_service import TenantService
 from app.services.tenancy import TenantManager
+from starlette.responses import Response
 
 router = APIRouter(prefix="/tenants", tags=["tenants"])
 
@@ -213,15 +214,16 @@ async def update_tenant(
     return {"data": tenant.model_dump(mode="json"), "meta": _meta()}
 
 
-@router.delete("/{tenant_id}", status_code=204)
+@router.delete("/{tenant_id}", status_code=204, response_class=Response)
 async def deactivate_tenant(
     tenant_id: UUID,
     session: AsyncSession = Depends(get_session),
-) -> None:
+) -> Response:
     """Deactivate a tenant (soft delete)."""
     deactivated = await TenantManager.deactivate_tenant(session, tenant_id)
     if not deactivated:
         raise HTTPException(status_code=404, detail="Tenant not found")
+    return Response(status_code=204)
 
 
 @router.post("/{tenant_id}/change-tier")

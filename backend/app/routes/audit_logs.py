@@ -17,7 +17,7 @@ from app.middleware.auth import get_current_user
 from app.interfaces.models.enterprise import AuthenticatedUser
 from app.services import AuditLogService
 
-router = APIRouter(prefix="/audit-logs", tags=["audit-logs"])
+router = APIRouter(prefix="/audit/logs", tags=["audit-logs"])
 
 
 # ── Helpers ──────────────────────────────────────────────────────────

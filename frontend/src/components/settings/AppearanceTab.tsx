@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { Palette, Sun, Moon, Monitor } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { Label } from "@/components/ui/Label";
 
 function Card({
   icon: Icon,

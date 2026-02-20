@@ -1,9 +1,8 @@
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import {
   Users,
   Plus,
   Search,
-  MoreHorizontal,
   Shield,
   ShieldCheck,
   ShieldOff,
@@ -91,7 +90,7 @@ export function UsersPage() {
   if (search) params.search = search;
   if (statusFilter !== "all") params.status = statusFilter;
 
-  const { data, isLoading, error, refetch } = useApiQuery<ManagedUser[]>(
+  const { data, isLoading, error } = useApiQuery<ManagedUser[]>(
     ["admin-users", params],
     () => apiGet<ManagedUser[]>("/admin/users", params),
   );

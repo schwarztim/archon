@@ -34,7 +34,7 @@ function MiniAreaChart({ data, height = 60 }: { data: DailyCost[]; height?: numb
   }));
 
   const linePath = points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
-  const areaPath = `${linePath} L ${points[points.length - 1].x} ${height - padding} L ${points[0].x} ${height - padding} Z`;
+  const areaPath = `${linePath} L ${points[points.length - 1]?.x} ${height - padding} L ${points[0]?.x} ${height - padding} Z`;
 
   return (
     <svg viewBox={`0 0 ${width} ${height}`} className="w-full" preserveAspectRatio="none">
@@ -99,8 +99,8 @@ export function CostWidget({ dailyCosts, totalThisWeek, totalLastWeek, currency 
               <div className="mt-1 flex justify-between text-[10px] text-gray-500">
                 {dailyCosts.length > 0 && (
                   <>
-                    <span>{new Date(dailyCosts[0].date).toLocaleDateString("en-US", { weekday: "short" })}</span>
-                    <span>{new Date(dailyCosts[dailyCosts.length - 1].date).toLocaleDateString("en-US", { weekday: "short" })}</span>
+                    <span>{new Date(dailyCosts[0]?.date ?? '').toLocaleDateString("en-US", { weekday: "short" })}</span>
+                    <span>{new Date(dailyCosts[dailyCosts.length - 1]?.date ?? '').toLocaleDateString("en-US", { weekday: "short" })}</span>
                   </>
                 )}
               </div>

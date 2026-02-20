@@ -33,6 +33,7 @@ from app.models.marketplace import (
 from app.secrets.manager import get_secrets_manager, VaultSecretsManager
 from app.services.marketplace import MarketplaceService
 from app.services.marketplace_service import MarketplaceService as EnterpriseMarketplaceService
+from starlette.responses import Response
 
 router = APIRouter(prefix="/marketplace", tags=["marketplace"])
 
@@ -178,15 +179,16 @@ async def update_listing(
     return {"data": listing.model_dump(mode="json"), "meta": _meta()}
 
 
-@router.delete("/listings/{listing_id}", status_code=204)
+@router.delete("/listings/{listing_id}", status_code=204, response_class=Response)
 async def delete_listing(
     listing_id: UUID,
     session: AsyncSession = Depends(get_session),
-) -> None:
+) -> Response:
     """Delete a marketplace listing."""
     deleted = await MarketplaceService.delete_listing(session, listing_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Listing not found")
+    return Response(status_code=204)
 
 
 @router.post("/listings/{listing_id}/approve")

@@ -1,4 +1,4 @@
-import { useMemo, useCallback } from "react";
+import { useMemo } from "react";
 import {
   ReactFlow,
   type Node,
@@ -49,24 +49,24 @@ function StepNode({ data }: NodeProps) {
     <div
       className="rounded-lg px-4 py-3 shadow-lg"
       style={{
-        backgroundColor: colors.bg,
-        border: `2px solid ${colors.border}`,
+        backgroundColor: colors?.bg,
+        border: `2px solid ${colors?.border}`,
         minWidth: 180,
       }}
     >
       <Handle type="target" position={Position.Top} className="!bg-gray-500" />
       <div className="flex items-center gap-2">
         <span className="text-base">{icon}</span>
-        <span className="text-sm font-medium capitalize" style={{ color: colors.text }}>
+        <span className="text-sm font-medium capitalize" style={{ color: colors?.text }}>
           {nodeData.label as string}
         </span>
       </div>
       {stepType && (
-        <div className="mt-1 text-[10px] uppercase tracking-wide" style={{ color: colors.text, opacity: 0.7 }}>
+        <div className="mt-1 text-[10px] uppercase tracking-wide" style={{ color: colors?.text, opacity: 0.7 }}>
           {stepType.replace("_", " ")}
         </div>
       )}
-      <div className="mt-1 flex gap-2 text-[10px]" style={{ color: colors.text, opacity: 0.6 }}>
+      <div className="mt-1 flex gap-2 text-[10px]" style={{ color: colors?.text, opacity: 0.6 }}>
         {tokens != null && tokens > 0 && <span>{tokens} tok</span>}
         {durationMs != null && <span>{durationMs}ms</span>}
         {cost != null && cost > 0 && <span>${cost.toFixed(4)}</span>}
@@ -102,9 +102,9 @@ export function ExecutionGraph({ steps, className = "" }: ExecutionGraphProps) {
         id: `edge-${i}-${i + 1}`,
         source: `step-${i}`,
         target: `step-${i + 1}`,
-        animated: steps[i].status === "running",
+        animated: steps[i]?.status === "running",
         style: {
-          stroke: steps[i].status === "completed" ? "#10b981" : steps[i].status === "failed" ? "#ef4444" : "#4b5563",
+          stroke: steps[i]?.status === "completed" ? "#10b981" : steps[i]?.status === "failed" ? "#ef4444" : "#4b5563",
           strokeWidth: 2,
         },
       });

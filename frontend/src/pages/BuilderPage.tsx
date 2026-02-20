@@ -7,7 +7,7 @@ import { PropertyPanel } from "@/components/properties";
 import { TestRunPanel } from "@/components/builder/TestRunPanel";
 import { ValidationOverlay } from "@/components/builder/ValidationOverlay";
 import { useCanvasStore } from "@/stores/canvasStore";
-import { useAgent, useUpdateAgent, useCreateAgent } from "@/hooks/useAgents";
+import { useAgent, useUpdateAgent } from "@/hooks/useAgents";
 
 /** Auto-save interval in milliseconds (30 seconds) */
 const AUTO_SAVE_INTERVAL_MS = 30_000;
@@ -27,10 +27,9 @@ export function BuilderPage() {
   });
   const [testPanelOpen, setTestPanelOpen] = useState(false);
 
-  const { clearCanvas, setNodes, setEdges, markClean, isDirty, nodes, edges, showValidation, setLastAutoSave } = useCanvasStore();
+  const { clearCanvas, setNodes, setEdges, markClean, showValidation } = useCanvasStore();
   const { data: agentResponse } = useAgent(agentId);
   const updateAgent = useUpdateAgent();
-  const createAgent = useCreateAgent();
   const autoSaveRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Load agent from API when agentId is present

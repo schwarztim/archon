@@ -8,8 +8,6 @@ import {
   Plus,
   X,
   Loader2,
-  Check,
-  ArrowUpDown,
   Headphones,
   BarChart3,
   FileText,
@@ -74,8 +72,6 @@ const SEED_LISTINGS: SeedListing[] = [
   { name: "DocuGen", description: "Automated documentation generator from codebases with API spec, README, and changelog support.", category: "Code Assistant", tags: ["docs", "api-spec", "readme"], version: "1.1.0", publisher: "DocuFlow", downloads: 4780, rating: 4.5, icon: Code2 },
   { name: "SentimentScope", description: "Real-time sentiment analysis across social media, reviews, and support tickets with trend dashboards.", category: "Data Analysis", tags: ["sentiment", "social", "nlp"], version: "1.4.2", publisher: "InsightAI", downloads: 6120, rating: 4.4, icon: Sparkles },
 ];
-
-const ALL_SEED_CATEGORIES = [...new Set(SEED_LISTINGS.map((s) => s.category))];
 
 type SortOption = "popular" | "rating" | "newest" | "name";
 

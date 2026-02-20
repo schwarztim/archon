@@ -420,8 +420,16 @@ class MarketplaceService:
             )
             # In production, call Stripe API with the key; for now return 0
             _ = stripe_meta  # key available but not called in stub
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning(
+                "Stripe secret unavailable — revenue will be reported as zero",
+                extra={
+                    "tenant_id": tenant_id,
+                    "error": str(exc),
+                    "impact": "revenue field in publisher analytics is unavailable",
+                },
+            )
+            revenue = 0.0
 
         return PublisherAnalytics(
             total_installs=total_installs,

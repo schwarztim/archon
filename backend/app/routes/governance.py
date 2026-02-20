@@ -24,6 +24,7 @@ from app.models.governance import (
 from app.secrets.manager import VaultSecretsManager, get_secrets_manager
 from app.services.governance import GovernanceEngine
 from app.services.governance_service import GovernanceService
+from starlette.responses import Response
 
 router = APIRouter(prefix="/governance", tags=["governance"])
 
@@ -191,15 +192,16 @@ async def update_policy(
     return {"data": policy.model_dump(mode="json"), "meta": _meta()}
 
 
-@router.delete("/policies/{policy_id}", status_code=204)
+@router.delete("/policies/{policy_id}", status_code=204, response_class=Response)
 async def delete_policy(
     policy_id: UUID,
     session: AsyncSession = Depends(get_session),
-) -> None:
+) -> Response:
     """Delete a governance policy."""
     deleted = await GovernanceEngine.delete_policy(session, policy_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Policy not found")
+    return Response(status_code=204)
 
 
 # ── Compliance ──────────────────────────────────────────────────────

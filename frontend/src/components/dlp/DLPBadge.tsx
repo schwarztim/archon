@@ -49,13 +49,13 @@ export function DLPBadge({
 
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-full border ${config.bg} ${
+      className={`inline-flex items-center gap-1 rounded-full border ${config?.bg} ${
         isLarge ? "px-2.5 py-1 text-xs" : "px-1.5 py-0.5 text-[10px]"
       } font-medium`}
-      title={title ?? `DLP: ${config.label}${count != null ? ` (${count} findings)` : ""}`}
+      title={title ?? `DLP: ${config?.label}${count != null ? ` (${count} findings)` : ""}`}
     >
-      {config.icon}
-      {isLarge && <span>{config.label}</span>}
+      {config?.icon}
+      {isLarge && <span>{config?.label}</span>}
       {count != null && count > 0 && (
         <span className="ml-0.5 rounded-full bg-white/10 px-1 text-[9px]">{count}</span>
       )}

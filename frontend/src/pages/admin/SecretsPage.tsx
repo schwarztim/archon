@@ -49,9 +49,9 @@ function typeBadge(type: string) {
   const badge = TYPE_BADGES[type] ?? TYPE_BADGES.generic;
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${badge.color}`}
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${badge?.color}`}
     >
-      <span>{badge.icon}</span>
+      <span>{badge?.icon}</span>
       {type.replace("_", " ")}
     </span>
   );

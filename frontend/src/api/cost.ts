@@ -97,7 +97,7 @@ export async function recordUsageV1(payload: {
   cost_usd?: number;
   metadata?: Record<string, unknown>;
 }): Promise<ApiResponse<unknown>> {
-  return apiPost<unknown>("/cost/api/v1/cost/record", payload);
+  return apiPost<unknown>("/cost/record", payload);
 }
 
 /** Get cost summary (v1) */
@@ -106,7 +106,7 @@ export async function getCostSummary(params: {
   until?: string;
   group_by?: string;
 } = {}): Promise<ApiResponse<unknown>> {
-  return apiGet<unknown>("/cost/api/v1/cost/summary", params);
+  return apiGet<unknown>("/cost/summary", params);
 }
 
 /** Get cost breakdown by group (v1) */
@@ -116,7 +116,7 @@ export async function getCostBreakdown(params: {
   until?: string;
   limit?: number;
 } = {}): Promise<ApiResponse<unknown>> {
-  return apiGet<unknown>("/cost/api/v1/cost/breakdown", params);
+  return apiGet<unknown>("/cost/breakdown", params);
 }
 
 /** Get time-series chart data (v1) */
@@ -136,7 +136,7 @@ export async function getCostChart(params: {
   since?: string;
   until?: string;
 } = {}): Promise<ApiResponse<ChartData>> {
-  return apiGet<ChartData>("/cost/api/v1/cost/chart", params);
+  return apiGet<ChartData>("/cost/chart", params);
 }
 
 /** Create budget via wizard (v1) */
@@ -149,7 +149,7 @@ export async function createBudgetV1(payload: {
   enforcement: string;
   alert_thresholds?: number[];
 }): Promise<ApiResponse<unknown>> {
-  return apiPost<unknown>("/cost/api/v1/cost/budgets", payload);
+  return apiPost<unknown>("/cost/budgets", payload);
 }
 
 /** List budgets with utilization (v1) */
@@ -170,14 +170,14 @@ export interface BudgetWithUtilization {
 export async function listBudgetsV1(
   params: PaginationParams = {},
 ): Promise<ApiResponse<BudgetWithUtilization[]>> {
-  return apiGet<BudgetWithUtilization[]>("/cost/api/v1/cost/budgets", params);
+  return apiGet<BudgetWithUtilization[]>("/cost/budgets", params);
 }
 
 /** Get budget utilization (v1) */
 export async function getBudgetUtilization(
   budgetId: string,
 ): Promise<ApiResponse<unknown>> {
-  return apiGet<unknown>(`/cost/api/v1/cost/budgets/${budgetId}/utilization`);
+  return apiGet<unknown>(`/cost/budgets/${budgetId}/utilization`);
 }
 
 /** Update budget (v1) */
@@ -185,7 +185,7 @@ export async function updateBudgetV1(
   budgetId: string,
   payload: Record<string, unknown>,
 ): Promise<ApiResponse<unknown>> {
-  return apiPut<unknown>(`/cost/api/v1/cost/budgets/${budgetId}`, payload);
+  return apiPut<unknown>(`/cost/budgets/${budgetId}`, payload);
 }
 
 /** Export cost report (v1) */
@@ -200,11 +200,11 @@ export async function exportCostReport(params: {
     for (const [k, v] of Object.entries(params)) {
       if (v != null) sp.set(k, String(v));
     }
-    const res = await fetch(`/api/v1/cost/api/v1/cost/export?${sp.toString()}`, {
+    const res = await fetch(`/api/v1/cost/export?${sp.toString()}`, {
       credentials: "include",
     });
     if (!res.ok) throw new Error("Export failed");
     return res.blob();
   }
-  return apiGet<unknown>("/cost/api/v1/cost/export", params);
+  return apiGet<unknown>("/cost/export", params);
 }

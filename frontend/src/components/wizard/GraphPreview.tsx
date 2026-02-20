@@ -24,20 +24,12 @@ interface GraphPreviewProps {
 
 /** Read-only graph preview for the wizard Step 4. */
 export function GraphPreview({ steps, edges }: GraphPreviewProps) {
-  const nodePositions = useMemo(() => {
-    const cols = Math.min(steps.length, 4);
-    return steps.map((_, i) => ({
-      col: i % cols,
-      row: Math.floor(i / cols),
-    }));
-  }, [steps]);
-
   const resolvedEdges = useMemo(() => {
     if (edges && edges.length > 0) return edges;
     // Default: linear chain
     return steps.slice(0, -1).map((s, i) => ({
       source: s.id,
-      target: steps[i + 1].id,
+      target: steps[i + 1]?.id,
       condition: "",
     }));
   }, [edges, steps]);
@@ -64,22 +56,22 @@ export function GraphPreview({ steps, edges }: GraphPreviewProps) {
               .map((step, colIdx) => {
                 const globalIdx = row * cols + colIdx;
                 const badge = TYPE_BADGE[step.type] ?? TYPE_BADGE.default;
-                const BadgeIcon = badge.icon;
+                const BadgeIcon = badge?.icon;
                 const isLast = globalIdx === steps.length - 1;
                 const isRowLast = colIdx === cols - 1;
 
                 return (
                   <div key={step.id} className="flex items-center gap-2">
                     <div className="flex flex-col items-center gap-1 rounded-lg border border-[#2a2d37] bg-[#1a1d27] px-3 py-2 min-w-[110px] max-w-[140px]">
-                      <BadgeIcon
+                      {BadgeIcon && <BadgeIcon
                         size={16}
-                        className={badge.color.split(" ")[1]}
-                      />
+                        className={badge?.color.split(" ")[1]}
+                      />}
                       <span className="text-xs font-medium text-white text-center leading-tight">
                         {step.name}
                       </span>
                       <span
-                        className={`rounded-full px-1.5 py-0.5 text-[9px] font-medium ${badge.color}`}
+                        className={`rounded-full px-1.5 py-0.5 text-[9px] font-medium ${badge?.color}`}
                       >
                         {step.type.toUpperCase()}
                       </span>

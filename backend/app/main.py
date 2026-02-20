@@ -22,6 +22,7 @@ from app.routes.agents import router as agents_router
 from app.routes.agent_versions import router as agent_versions_router
 from app.routes.audit_logs import router as audit_logs_router
 from app.routes.connectors import router as connectors_router
+from app.routes.connectors import enterprise as connectors_enterprise
 from app.routes.executions import router as executions_router
 from app.routes.models import router as models_router
 from app.routes.models import router_api as router_api_router
@@ -41,7 +42,7 @@ from app.routes.tenancy import router as tenancy_router
 # Phase 3 routers
 from app.routes.dlp import router as dlp_router
 from app.routes.governance import router as governance_router
-from app.routes.sentinelscan import router as sentinelscan_router
+from app.routes.sentinelscan import router as sentinelscan_router, scan_router as sentinelscan_scan_router
 from app.routes.mcp_security import router as mcp_security_router
 
 # Workflow routers
@@ -49,6 +50,7 @@ from app.routes.workflows import router as workflows_router
 
 # Phase 4 routers
 from app.routes.a2a import router as a2a_router
+from app.routes.a2a import federation_router as a2a_federation_router
 
 # Phase 5 routers
 from app.routes.mcp import router as mcp_router
@@ -67,6 +69,7 @@ from app.routes.saml import router as saml_router
 from app.routes.scim import router as scim_router
 from app.routes.auth_routes import router as auth_router
 from app.routes.sso import router as sso_router
+from app.routes.sso_config import router as sso_config_router
 
 # Additional routers (self-prefixed with /api/v1)
 from app.routes.secrets import router as secrets_router
@@ -103,7 +106,7 @@ def create_app() -> FastAPI:
         description="Enterprise AI Orchestration Platform",
         version="0.1.0",
         debug=False,
-        redirect_slashes=False,
+        redirect_slashes=True,
     )
 
     # -- CORS (never wildcard in production) --------------------------
@@ -136,6 +139,16 @@ def create_app() -> FastAPI:
 
     application.add_middleware(AuditMiddleware)
 
+    # -- Tenant middleware (extracts tenant_id from JWT for downstream use) --
+    from app.middleware.tenant_middleware import TenantMiddleware
+
+    application.add_middleware(TenantMiddleware)
+
+    # -- DLP middleware (reads tenant_id set by TenantMiddleware) -----------
+    from app.middleware.dlp_middleware import DLPMiddleware
+
+    application.add_middleware(DLPMiddleware)
+
     # -- Health probes (unauthenticated) ------------------------------
     application.include_router(health_router)
 
@@ -144,12 +157,13 @@ def create_app() -> FastAPI:
     application.include_router(agent_versions_router, prefix=settings.API_PREFIX)
     application.include_router(audit_logs_router, prefix=settings.API_PREFIX)
     application.include_router(connectors_router, prefix=settings.API_PREFIX)
+    application.include_router(connectors_enterprise, prefix=settings.API_PREFIX)
     application.include_router(executions_router, prefix=settings.API_PREFIX)
     application.include_router(models_router, prefix=settings.API_PREFIX)
     application.include_router(router_api_router, prefix=settings.API_PREFIX)
     application.include_router(sandbox_router, prefix=settings.API_PREFIX)
     application.include_router(templates_router, prefix=settings.API_PREFIX)
-    application.include_router(versioning_router, prefix=settings.API_PREFIX)
+    application.include_router(versioning_router, prefix=settings.API_PREFIX + "/versioning")
     application.include_router(wizard_router, prefix=settings.API_PREFIX)
     application.include_router(ws_router)
 
@@ -164,6 +178,7 @@ def create_app() -> FastAPI:
     application.include_router(dlp_router, prefix=settings.API_PREFIX)
     application.include_router(governance_router, prefix=settings.API_PREFIX)
     application.include_router(sentinelscan_router, prefix=settings.API_PREFIX)
+    application.include_router(sentinelscan_scan_router, prefix=settings.API_PREFIX)
     application.include_router(mcp_security_router, prefix=settings.API_PREFIX)
 
     # -- Workflow routers ---------------------------------------------
@@ -171,6 +186,7 @@ def create_app() -> FastAPI:
 
     # -- Phase 4 routers ----------------------------------------------
     application.include_router(a2a_router, prefix=settings.API_PREFIX)
+    application.include_router(a2a_federation_router, prefix=settings.API_PREFIX)
 
     # -- Phase 5 routers ----------------------------------------------
     application.include_router(mcp_router, prefix=settings.API_PREFIX)
@@ -181,7 +197,7 @@ def create_app() -> FastAPI:
     application.include_router(edge_router, prefix=settings.API_PREFIX)
 
     # -- DocForge routers ---------------------------------------------
-    application.include_router(docforge_router, prefix=settings.API_PREFIX)
+    application.include_router(docforge_router, prefix=settings.API_PREFIX + "/docforge")
     application.include_router(docforge_collections_router, prefix=settings.API_PREFIX)
 
     # -- Enterprise SSO & SCIM ----------------------------------------
@@ -191,8 +207,9 @@ def create_app() -> FastAPI:
     # -- Auth (dev login, /me, /logout) --------------------------------
     application.include_router(auth_router)
 
-    # -- SSO configuration ---------------------------------------------
+    # -- SSO configuration (CRUD, test-connection, RBAC matrix) --------------
     application.include_router(sso_router)
+    application.include_router(sso_config_router)
 
     # -- Additional routers (self-prefixed) ----------------------------
     application.include_router(secrets_router)

@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { apiPost } from "@/api/client";
-import type { ManualScanResult, ScanDetection } from "@/api/dlp";
+import type { ManualScanResult } from "@/api/dlp";
 
 interface PolicyTestPanelProps {
   policies: Array<{ id: string; name: string }>;

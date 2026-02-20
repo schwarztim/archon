@@ -30,7 +30,7 @@ function roleLabel(r: string): string {
   return r.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-export function RBACMatrix({ onCreateRole }: RBACMatrixProps) {
+export function RBACMatrix({}: RBACMatrixProps) {
   const [data, setData] = useState<RBACMatrixData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -128,7 +128,7 @@ export function RBACMatrix({ onCreateRole }: RBACMatrixProps) {
                 >
                   <div className="flex flex-col items-center gap-0.5">
                     <span>{roleLabel(role)}</span>
-                    {data.roles[role].is_builtin ? (
+                    {data.roles[role]?.is_builtin ? (
                       <span className="text-[10px] text-gray-600">built-in</span>
                     ) : (
                       <span className="text-[10px] text-purple-400">custom</span>
@@ -159,8 +159,8 @@ export function RBACMatrix({ onCreateRole }: RBACMatrixProps) {
                 </td>
                 {roleNames.map((role) =>
                   data.actions.map((action) => {
-                    const allowed = (data.roles[role].permissions[resource] ?? []).includes(action);
-                    const isEditable = !data.roles[role].is_builtin;
+                    const allowed = (data.roles[role]?.permissions[resource] ?? []).includes(action);
+                    const isEditable = !data.roles[role]?.is_builtin;
                     return (
                       <td
                         key={`${role}-${resource}-${action}`}

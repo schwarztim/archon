@@ -15,7 +15,7 @@ interface TestConnectionButtonProps {
 export default function TestConnectionButton({
   providerId,
   disabled = false,
-}: TestConnectionButtonProps): JSX.Element {
+}: TestConnectionButtonProps) {
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [result, setResult] = useState<TestConnectionResult | null>(null);
 

@@ -25,6 +25,7 @@ from app.models.edge import (
 from app.secrets.manager import VaultSecretsManager, get_secrets_manager
 from app.services.edge import EdgeRuntime
 from app.services.edge_service import EdgeService
+from starlette.responses import Response
 
 router = APIRouter(prefix="/edge", tags=["edge"])
 
@@ -465,7 +466,7 @@ class OTAPushRequest(BaseModel):
     rollout_strategy: str = "canary"
 
 
-@router.post("/api/v1/edge/devices", status_code=201)
+@router.post("/devices", status_code=201)
 async def enterprise_register_device(
     body: DeviceRegistration,
     user: AuthenticatedUser = Depends(get_current_user),
@@ -482,7 +483,7 @@ async def enterprise_register_device(
     return {"data": device.model_dump(mode="json"), "meta": _meta()}
 
 
-@router.post("/api/v1/edge/devices/{device_id}/token", status_code=201)
+@router.post("/devices/{device_id}/token", status_code=201)
 async def enterprise_provision_token(
     device_id: UUID,
     body: OfflineTokenConfig,
@@ -503,7 +504,7 @@ async def enterprise_provision_token(
     return {"data": token.model_dump(mode="json"), "meta": _meta()}
 
 
-@router.post("/api/v1/edge/devices/{device_id}/secrets", status_code=201)
+@router.post("/devices/{device_id}/secrets", status_code=201)
 async def enterprise_provision_secrets(
     device_id: UUID,
     body: SecretsManifest,
@@ -525,7 +526,7 @@ async def enterprise_provision_secrets(
     return {"data": bundle.model_dump(mode="json"), "meta": _meta()}
 
 
-@router.post("/api/v1/edge/devices/{device_id}/sync")
+@router.post("/devices/{device_id}/sync")
 async def enterprise_sync_device(
     device_id: UUID,
     body: SyncPayload,
@@ -545,7 +546,7 @@ async def enterprise_sync_device(
     return {"data": result.model_dump(mode="json"), "meta": _meta()}
 
 
-@router.get("/api/v1/edge/devices/{device_id}/status")
+@router.get("/devices/{device_id}/status")
 async def enterprise_device_status(
     device_id: UUID,
     user: AuthenticatedUser = Depends(get_current_user),
@@ -564,7 +565,7 @@ async def enterprise_device_status(
     return {"data": status.model_dump(mode="json"), "meta": _meta()}
 
 
-@router.get("/api/v1/edge/fleet")
+@router.get("/fleet")
 async def enterprise_list_fleet(
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
@@ -584,7 +585,7 @@ async def enterprise_list_fleet(
     }
 
 
-@router.post("/api/v1/edge/devices/{device_id}/command", status_code=201)
+@router.post("/devices/{device_id}/command", status_code=201)
 async def enterprise_remote_command(
     device_id: UUID,
     body: RemoteCommand,
@@ -605,7 +606,7 @@ async def enterprise_remote_command(
     return {"data": result.model_dump(mode="json"), "meta": _meta()}
 
 
-@router.post("/api/v1/edge/ota", status_code=201)
+@router.post("/ota", status_code=201)
 async def enterprise_push_ota(
     body: OTAPushRequest,
     user: AuthenticatedUser = Depends(get_current_user),
@@ -631,12 +632,12 @@ async def enterprise_push_ota(
     return {"data": rollout.model_dump(mode="json"), "meta": _meta()}
 
 
-@router.delete("/api/v1/edge/devices/{device_id}", status_code=204)
+@router.delete("/devices/{device_id}", status_code=204, response_class=Response)
 async def enterprise_revoke_device(
     device_id: UUID,
     user: AuthenticatedUser = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> None:
+) -> Response:
     """Revoke all tokens and secrets for a device (enterprise, authenticated)."""
     if not check_permission(user, "edge", "delete"):
         raise HTTPException(status_code=403, detail="Permission denied")
@@ -647,9 +648,10 @@ async def enterprise_revoke_device(
         )
     except (ValueError, PermissionError) as exc:
         raise HTTPException(status_code=404, detail=str(exc))
+    return Response(status_code=204)
 
 
-@router.get("/api/v1/edge/analytics")
+@router.get("/analytics")
 async def enterprise_fleet_analytics(
     user: AuthenticatedUser = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),

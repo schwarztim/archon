@@ -37,7 +37,7 @@ export function ValidationOverlay({ showErrors }: ValidationOverlayProps) {
   const grouped = nodeErrors.reduce<Record<string, NodeValidationError[]>>(
     (acc, err) => {
       if (!acc[err.nodeId]) acc[err.nodeId] = [];
-      acc[err.nodeId].push(err);
+      acc[err.nodeId]?.push(err);
       return acc;
     },
     {},

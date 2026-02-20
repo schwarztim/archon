@@ -26,7 +26,7 @@ export default function ProviderForm({
   providerType,
   hasCredentialsSaved,
   onCredentialsSaved,
-}: ProviderFormProps): JSX.Element {
+}: ProviderFormProps) {
   const [schemas, setSchemas] = useState<Record<string, ProviderCredentialSchema>>({});
   const [values, setValues] = useState<Record<string, string>>({});
   const [revealedFields, setRevealedFields] = useState<Set<string>>(new Set());

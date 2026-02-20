@@ -91,7 +91,7 @@ export function DashboardPage() {
 
   useEffect(() => {
     const today = new Date();
-    const todayStr = today.toISOString().split("T")[0];
+    const todayStr = today.toISOString().split("T")[0] ?? "";
     const weekAgo = new Date(today);
     weekAgo.setDate(weekAgo.getDate() - 7);
     const twoWeeksAgo = new Date(today);
@@ -189,7 +189,7 @@ export function DashboardPage() {
           if (chartData && Array.isArray(chartData.series)) {
             const costs: DailyCost[] = chartData.series.map((pt) => ({
               date: pt.date,
-              cost: pt.total ?? Object.values(pt).reduce((sum, v) => sum + (typeof v === "number" ? v : 0), 0),
+              cost: Number(pt.total ?? Object.values(pt).reduce((sum, v) => (sum as number) + (typeof v === "number" ? v : 0), 0)),
             }));
             setDailyCosts(costs);
           }

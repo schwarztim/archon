@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { X, ChevronLeft, ChevronRight, ZoomIn } from "lucide-react";
-import { cn } from "@/utils/cn";
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -90,13 +89,13 @@ export function ImageGallery({ images, columns = 3 }: ImageGalleryProps) {
 
           <div className="max-h-[80vh] max-w-[80vw]" onClick={(e) => e.stopPropagation()}>
             <img
-              src={images[lightboxIdx].src}
-              alt={images[lightboxIdx].alt ?? ""}
+              src={images[lightboxIdx]?.src}
+              alt={images[lightboxIdx]?.alt ?? ""}
               className="max-h-[80vh] max-w-[80vw] rounded-lg object-contain"
             />
-            {images[lightboxIdx].caption && (
+            {images[lightboxIdx]?.caption && (
               <p className="mt-2 text-center text-sm text-gray-400">
-                {images[lightboxIdx].caption}
+                {images[lightboxIdx]?.caption}
               </p>
             )}
           </div>

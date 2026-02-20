@@ -1,11 +1,11 @@
 /**
  * MCP Interactive Components API client.
  *
- * Maps to backend routes at /api/v1/components/…
+ * Maps to backend routes at /api/v1/components/… (mcp_interactive.py, self-prefixed)
  */
 
 import type { ApiResponse } from "@/types";
-import { apiGet, apiPost, apiDelete, type PaginationParams } from "./client";
+import { apiGet, apiPost, apiDelete } from "./client";
 
 // ── Types ────────────────────────────────────────────────────────────
 

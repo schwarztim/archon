@@ -1,16 +1,9 @@
 import { useState, useEffect } from "react";
 import {
   ShieldCheck,
-  Loader2,
-  CheckCircle2,
-  XCircle,
-  X,
   Plus,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import { Label } from "@/components/ui/Label";
-import { Textarea } from "@/components/ui/Textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { apiGet, apiPut, apiPost, apiDelete } from "@/api/client";
 import { OIDCForm } from "@/components/sso/OIDCForm";

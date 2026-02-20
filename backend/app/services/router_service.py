@@ -529,7 +529,7 @@ class ModelRouterService:
         await secrets.put_secret(vault_path, credentials, tenant_id)
 
         entry.vault_secret_path = vault_path
-        entry.updated_at = datetime.now(timezone.utc)
+        entry.updated_at = datetime.utcnow()
         session.add(entry)
 
         await AuditLogService.create(
@@ -964,7 +964,7 @@ class ModelRouterService:
 
         if existing:
             existing.fallback_chain = fallback.model_ids
-            existing.updated_at = datetime.now(timezone.utc)
+            existing.updated_at = datetime.utcnow()
             session.add(existing)
         else:
             rule = RoutingRule(

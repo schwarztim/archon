@@ -39,7 +39,7 @@ const ACTION_ICONS: Record<string, LucideIcon> = {
 };
 
 function getIcon(action: string): LucideIcon {
-  const prefix = action.split(".")[0];
+  const prefix = action.split(".")[0] ?? "";
   return ACTION_ICONS[prefix] ?? AlertTriangle;
 }
 

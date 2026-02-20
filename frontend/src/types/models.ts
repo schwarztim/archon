@@ -346,6 +346,8 @@ export interface ComplianceRecord {
   compliant: boolean;
   violations: string[];
   checked_at: ISODateString;
+  status?: string;
+  details?: Record<string, unknown> | string;
 }
 
 export interface AuditEntry {

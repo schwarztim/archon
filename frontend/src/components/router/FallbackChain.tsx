@@ -22,7 +22,7 @@ export default function FallbackChain({
   modelIds,
   availableModels,
   onChange,
-}: FallbackChainProps): JSX.Element {
+}: FallbackChainProps) {
   const [dragIndex, setDragIndex] = useState<number | null>(null);
 
   const getModelInfo = useCallback(
@@ -41,7 +41,7 @@ export default function FallbackChain({
       if (dragIndex === null || dragIndex === index) return;
       const next = [...modelIds];
       const [moved] = next.splice(dragIndex, 1);
-      next.splice(index, 0, moved);
+      next.splice(index, 0, moved!);
       onChange(next);
       setDragIndex(index);
     },

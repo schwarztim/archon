@@ -462,7 +462,14 @@ async def get_secrets_manager(
             return _instance
 
         if hvac is None:
-            logger.warning("hvac not installed — using in-memory secrets stub")
+            logger.warning(
+                "Vault client unavailable — using in-memory secrets stub",
+                extra={
+                    "reason": "hvac package is not installed",
+                    "impact": "secrets will not persist across restarts",
+                    "action_required": "install hvac and configure Vault to enable persistent secrets",
+                },
+            )
             _stub = _StubSecretsManager()
             _instance = _stub  # type: ignore[assignment]
             return _stub
@@ -477,8 +484,15 @@ async def get_secrets_manager(
             )
             _instance = mgr
             return _instance
-        except Exception:
-            logger.warning("Vault unreachable — using in-memory secrets stub")
+        except Exception as exc:
+            logger.warning(
+                "Vault unreachable — using in-memory secrets stub",
+                extra={
+                    "reason": str(exc),
+                    "impact": "secrets will not persist across restarts",
+                    "action_required": "verify Vault address, token, and network connectivity",
+                },
+            )
             _stub = _StubSecretsManager()
             _instance = _stub  # type: ignore[assignment]
             return _stub

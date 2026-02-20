@@ -299,7 +299,7 @@ async def list_events(
 # ═══════════════════════════════════════════════════════════════════════
 
 enterprise_router = APIRouter(
-    prefix="/api/v1/agents",
+    prefix="/agents",
     tags=["lifecycle-enterprise"],
 )
 
@@ -412,7 +412,7 @@ async def enterprise_deploy(
 
 
 rollback_router = APIRouter(
-    prefix="/api/v1/deployments",
+    prefix="/deployments",
     tags=["lifecycle-enterprise"],
 )
 
@@ -508,7 +508,7 @@ async def enterprise_schedule(
 
 
 schedules_router = APIRouter(
-    prefix="/api/v1",
+    prefix="",
     tags=["lifecycle-enterprise"],
 )
 

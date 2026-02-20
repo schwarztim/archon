@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   X,
   Bot,
@@ -143,7 +143,7 @@ export function CreateAgentWizard({
   const [isQuick, setIsQuick] = useState(quickCreate);
   const activeSteps = isQuick ? QUICK_STEPS : STEPS.map((_, i) => i);
   const [stepIndex, setStepIndex] = useState(0);
-  const currentStep = activeSteps[stepIndex];
+  const currentStep = activeSteps[stepIndex] ?? 0;
 
   // ── Step State ──────────────────────────────────────────────────────
   const hydrated = editData ? hydrateFromEdit(editData) : null;
@@ -304,7 +304,7 @@ export function CreateAgentWizard({
           <div className="flex items-center gap-1">
             {activeSteps.map((stepNum, idx) => {
               const stepDef = STEPS[stepNum];
-              const Icon = stepDef.icon;
+              const Icon = stepDef?.icon;
               const isActive = idx === stepIndex;
               const isCompleted = idx < stepIndex;
               return (
@@ -323,8 +323,8 @@ export function CreateAgentWizard({
                         : "text-gray-600 hover:text-gray-400"
                     }`}
                   >
-                    <Icon size={14} />
-                    <span className="hidden sm:inline">{stepDef.label}</span>
+                    {Icon && <Icon size={14} />}
+                    <span className="hidden sm:inline">{stepDef?.label}</span>
                   </button>
                 </div>
               );
@@ -335,7 +335,7 @@ export function CreateAgentWizard({
         {/* Content */}
         <div className="flex-1 overflow-y-auto px-6 py-5">
           <div className="mb-4">
-            <h3 className="text-base font-semibold text-white">{STEPS[currentStep].label}</h3>
+            <h3 className="text-base font-semibold text-white">{STEPS[currentStep]?.label}</h3>
             <p className="text-xs text-gray-500">
               Step {stepIndex + 1} of {activeSteps.length}
             </p>

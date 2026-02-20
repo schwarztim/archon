@@ -64,7 +64,7 @@ export function AgentDetail({ agentId, onBack }: Props) {
     );
   }
 
-  const { registry, compliance_history, compliance_score, compliance_status, risk_score, total_scans, passed_scans } = detail;
+  const { registry, compliance_history, compliance_score, risk_score, total_scans, passed_scans } = detail;
 
   return (
     <div className="space-y-4">
@@ -116,7 +116,7 @@ export function AgentDetail({ agentId, onBack }: Props) {
             <div className="divide-y divide-[#2a2d37]">
               {compliance_history.map((record) => (
                 <div key={record.id} className="flex items-center gap-3 px-4 py-3">
-                  {statusIcon(record.status)}
+                  {statusIcon(record.status ?? "pending")}
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium text-white">

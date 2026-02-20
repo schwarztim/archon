@@ -22,13 +22,13 @@ const statusConfig: Record<string, { icon: typeof Wifi; label: string; color: st
 
 export function HealthBadge({ status, lastCheck, className = "" }: HealthBadgeProps) {
   const cfg = statusConfig[status] ?? statusConfig.unknown;
-  const Icon = cfg.icon;
+  const Icon = cfg?.icon;
 
   return (
     <div className={`inline-flex items-center gap-1.5 ${className}`}>
-      <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${cfg.color}`}>
-        <Icon size={12} />
-        {cfg.label}
+      <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${cfg?.color}`}>
+        {Icon && <Icon size={12} />}
+        {cfg?.label}
       </span>
       {lastCheck && (
         <span className="text-[10px] text-gray-500 dark:text-gray-500">

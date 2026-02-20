@@ -14,6 +14,7 @@ from app.database import get_session
 from app.models.router import ModelRegistryEntry, RoutingRule
 from app.secrets.manager import get_secrets_manager
 from app.services.router import ModelRegistry, RoutingEngine, RoutingRuleService
+from starlette.responses import Response
 
 router = APIRouter(prefix="/router", tags=["router"])
 
@@ -111,6 +112,53 @@ class ApiKeyStore(BaseModel):
     api_key: str
 
 
+class ProviderCreate(BaseModel):
+    """Payload for registering a provider."""
+
+    name: str
+    provider_type: str  # openai | anthropic | azure | google | bedrock | custom
+    base_url: str | None = None
+    is_active: bool = True
+    config: dict[str, Any] = PField(default_factory=dict)
+
+
+class ProviderCredentials(BaseModel):
+    """Payload for storing provider credentials."""
+
+    api_key: str | None = None
+    credentials: dict[str, Any] = PField(default_factory=dict)
+
+
+class VisualRule(BaseModel):
+    """A visual routing rule."""
+
+    id: str | None = None
+    name: str
+    conditions: list[dict[str, Any]] = PField(default_factory=list)
+    action: dict[str, Any] = PField(default_factory=dict)
+    is_active: bool = True
+
+
+class VisualRulesPayload(BaseModel):
+    """Payload for saving visual rules."""
+
+    rules: list[VisualRule] = PField(default_factory=list)
+
+
+class VisualRouteRequest(BaseModel):
+    """Payload for visual route evaluation."""
+
+    context: dict[str, Any] = PField(default_factory=dict)
+
+
+class FallbackChain(BaseModel):
+    """Fallback chain configuration."""
+
+    chain: list[str] = PField(default_factory=list)
+    retry_count: int = 1
+    timeout_seconds: int = 30
+
+
 # ── Helpers ──────────────────────────────────────────────────────────
 
 
@@ -175,6 +223,42 @@ async def create_rule(
     return {"data": created.model_dump(mode="json"), "meta": _meta()}
 
 
+# In-memory store for visual rules (replace with DB persistence later)
+_visual_rules_store: list[dict[str, Any]] = []
+
+
+@router.get("/rules/visual")
+async def get_visual_rules() -> dict[str, Any]:
+    """Get visual rule builder data."""
+    return {"data": {"rules": _visual_rules_store}, "meta": _meta()}
+
+
+@router.put("/rules/visual")
+async def save_visual_rules(body: VisualRulesPayload) -> dict[str, Any]:
+    """Save visual rule builder data."""
+    global _visual_rules_store
+    _visual_rules_store = [r.model_dump() for r in body.rules]
+    return {"data": {"rules": _visual_rules_store}, "meta": _meta()}
+
+
+@router.post("/route/visual")
+async def evaluate_visual_route(body: VisualRouteRequest) -> dict[str, Any]:
+    """Evaluate a visual routing rule against the given context."""
+    matched_rules = []
+    for rule in _visual_rules_store:
+        if rule.get("is_active", True):
+            matched_rules.append(rule)
+    action = matched_rules[0]["action"] if matched_rules else {}
+    return {
+        "data": {
+            "matched_rules": matched_rules,
+            "action": action,
+            "context": body.context,
+        },
+        "meta": _meta(),
+    }
+
+
 @router.get("/rules/{rule_id}")
 async def get_rule(
     rule_id: UUID,
@@ -201,15 +285,16 @@ async def update_rule(
     return {"data": rule.model_dump(mode="json"), "meta": _meta()}
 
 
-@router.delete("/rules/{rule_id}", status_code=204)
+@router.delete("/rules/{rule_id}", status_code=204, response_class=Response)
 async def delete_rule(
     rule_id: UUID,
     session: AsyncSession = Depends(get_session),
-) -> None:
+) -> Response:
     """Delete a routing rule."""
     deleted = await RoutingRuleService.delete(session, rule_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Routing rule not found")
+    return Response(status_code=204)
 
 
 # ── Model Registry CRUD ────────────────────────────────────────────
@@ -272,18 +357,189 @@ async def update_model(
     return {"data": entry.model_dump(mode="json"), "meta": _meta()}
 
 
-@router.delete("/models/{model_id}", status_code=204)
+@router.delete("/models/{model_id}", status_code=204, response_class=Response)
 async def delete_model(
     model_id: UUID,
     session: AsyncSession = Depends(get_session),
-) -> None:
+) -> Response:
     """Delete a model from the registry."""
     deleted = await ModelRegistry.delete(session, model_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Model not found")
+    return Response(status_code=204)
 
 
-# ── Provider API Key & Connection ───────────────────────────────────
+# ── Provider Endpoints (static routes first) ───────────────────────
+
+
+@router.get("/providers")
+async def list_providers(
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """List all registered providers (models grouped by provider)."""
+    entries, total = await ModelRegistry.list(session, limit=1000, offset=0)
+    providers: dict[str, dict[str, Any]] = {}
+    for e in entries:
+        pid = e.provider
+        if pid not in providers:
+            providers[pid] = {
+                "id": pid,
+                "name": pid,
+                "provider_type": pid,
+                "is_active": True,
+                "model_count": 0,
+                "models": [],
+            }
+        providers[pid]["model_count"] += 1
+        providers[pid]["models"].append(e.model_dump(mode="json"))
+    return {
+        "data": list(providers.values()),
+        "meta": _meta(total=len(providers)),
+    }
+
+
+@router.post("/providers", status_code=201)
+async def create_provider(
+    body: ProviderCreate,
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Register a new provider (creates a placeholder model registry entry)."""
+    entry = ModelRegistryEntry(
+        name=body.name,
+        provider=body.provider_type,
+        model_id=f"{body.provider_type}/default",
+        capabilities=[],
+        is_active=body.is_active,
+        config=body.config,
+    )
+    created = await ModelRegistry.register(session, entry)
+    return {"data": created.model_dump(mode="json"), "meta": _meta()}
+
+
+@router.get("/providers/health")
+async def providers_health_summary(
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Aggregated provider health summary."""
+    entries, _ = await ModelRegistry.list(session, limit=1000, offset=0)
+    summary: dict[str, dict[str, Any]] = {}
+    for e in entries:
+        pid = e.provider
+        if pid not in summary:
+            summary[pid] = {"provider": pid, "healthy": 0, "degraded": 0, "unhealthy": 0, "total": 0}
+        summary[pid]["total"] += 1
+        status = e.health_status or "healthy"
+        if status in summary[pid]:
+            summary[pid][status] += 1
+    return {"data": list(summary.values()), "meta": _meta()}
+
+
+@router.get("/providers/health/detail")
+async def providers_health_detail(
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """All providers health detail."""
+    entries, _ = await ModelRegistry.list(session, limit=1000, offset=0)
+    detail: dict[str, dict[str, Any]] = {}
+    for e in entries:
+        pid = e.provider
+        if pid not in detail:
+            detail[pid] = {"provider": pid, "models": []}
+        detail[pid]["models"].append({
+            "id": str(e.id),
+            "name": e.name,
+            "health_status": e.health_status or "healthy",
+            "error_rate": e.error_rate,
+            "avg_latency_ms": e.avg_latency_ms,
+        })
+    return {"data": list(detail.values()), "meta": _meta()}
+
+
+@router.get("/providers/credential-schemas")
+async def get_credential_schemas() -> dict[str, Any]:
+    """Return credential field schemas per provider type."""
+    schemas = {
+        "openai": {"fields": [{"name": "api_key", "type": "string", "required": True, "secret": True}]},
+        "anthropic": {"fields": [{"name": "api_key", "type": "string", "required": True, "secret": True}]},
+        "azure": {"fields": [
+            {"name": "api_key", "type": "string", "required": True, "secret": True},
+            {"name": "endpoint", "type": "string", "required": True, "secret": False},
+            {"name": "deployment_name", "type": "string", "required": True, "secret": False},
+            {"name": "api_version", "type": "string", "required": False, "secret": False},
+        ]},
+        "google": {"fields": [{"name": "api_key", "type": "string", "required": True, "secret": True}]},
+        "bedrock": {"fields": [
+            {"name": "aws_access_key_id", "type": "string", "required": True, "secret": True},
+            {"name": "aws_secret_access_key", "type": "string", "required": True, "secret": True},
+            {"name": "aws_region", "type": "string", "required": True, "secret": False},
+        ]},
+        "custom": {"fields": [
+            {"name": "api_key", "type": "string", "required": False, "secret": True},
+            {"name": "base_url", "type": "string", "required": True, "secret": False},
+        ]},
+    }
+    return {"data": schemas, "meta": _meta()}
+
+
+# ── Provider Dynamic Routes ({provider_id}) ────────────────────────
+
+
+@router.delete("/providers/{provider_id}", status_code=204, response_class=Response)
+async def delete_provider(
+    provider_id: UUID,
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    """Delete a provider (its model registry entry)."""
+    deleted = await ModelRegistry.delete(session, provider_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Provider not found")
+    return Response(status_code=204)
+
+
+@router.get("/providers/{provider_id}/health")
+async def provider_health_detail(
+    provider_id: UUID,
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Single provider health detail."""
+    entry = await ModelRegistry.get(session, provider_id)
+    if entry is None:
+        raise HTTPException(status_code=404, detail="Provider not found")
+    return {
+        "data": {
+            "id": str(entry.id),
+            "provider": entry.provider,
+            "health_status": entry.health_status or "healthy",
+            "error_rate": entry.error_rate,
+            "avg_latency_ms": entry.avg_latency_ms,
+        },
+        "meta": _meta(),
+    }
+
+
+@router.put("/providers/{provider_id}/credentials")
+async def store_provider_credentials(
+    provider_id: UUID,
+    body: ProviderCredentials,
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Store/update provider credentials in secrets manager."""
+    entry = await ModelRegistry.get(session, provider_id)
+    if entry is None:
+        raise HTTPException(status_code=404, detail="Provider not found")
+
+    secrets = await get_secrets_manager()
+    vault_path = f"archon/providers/{provider_id}/credentials"
+    secret_data: dict[str, Any] = {**body.credentials}
+    if body.api_key:
+        secret_data["api_key"] = body.api_key
+    await secrets.put_secret(vault_path, secret_data, tenant_id="")
+    entry.vault_secret_path = vault_path
+    entry.updated_at = datetime.now(tz=timezone.utc)
+    session.add(entry)
+    await session.commit()
+    await session.refresh(entry)
+    return {"data": {"provider_id": str(provider_id), "vault_secret_path": vault_path}, "meta": _meta()}
 
 
 @router.post("/providers/{provider_id}/api-key", status_code=201)
@@ -320,3 +576,28 @@ async def test_provider_connection(
 
     # Stub: in production this would use the API key from Vault to make a real call
     return {"data": {"status": "connected", "latency_ms": 0}, "meta": _meta()}
+
+
+# ── Fallback Chain ──────────────────────────────────────────────────
+
+
+# In-memory store for fallback chain config (replace with DB persistence later)
+_fallback_chain_store: dict[str, Any] = {
+    "chain": [],
+    "retry_count": 1,
+    "timeout_seconds": 30,
+}
+
+
+@router.get("/fallback")
+async def get_fallback_chain() -> dict[str, Any]:
+    """Get the fallback chain configuration."""
+    return {"data": _fallback_chain_store, "meta": _meta()}
+
+
+@router.put("/fallback")
+async def save_fallback_chain(body: FallbackChain) -> dict[str, Any]:
+    """Save/update the fallback chain configuration."""
+    global _fallback_chain_store
+    _fallback_chain_store = body.model_dump()
+    return {"data": _fallback_chain_store, "meta": _meta()}

@@ -20,6 +20,7 @@ from app.models.mcp_interactive import (
 )
 from app.secrets.manager import get_secrets_manager
 from app.services.mcp_interactive_service import MCPInteractiveService
+from starlette.responses import Response
 
 router = APIRouter(tags=["interactive-components"])
 
@@ -106,16 +107,17 @@ async def get_session(
     return {"data": session.model_dump(mode="json"), "meta": _meta()}
 
 
-@router.delete("/api/v1/components/sessions/{session_id}", status_code=204)
+@router.delete("/api/v1/components/sessions/{session_id}", status_code=204, response_class=Response)
 async def close_session(
     session_id: UUID,
     user: AuthenticatedUser = Depends(require_auth),
-) -> None:
+) -> Response:
     """Close and clean up a component session."""
     await MCPInteractiveService.close_session(
         tenant_id=user.tenant_id,
         session_id=session_id,
     )
+    return Response(status_code=204)
 
 
 # ── Render Endpoint ──────────────────────────────────────────────────

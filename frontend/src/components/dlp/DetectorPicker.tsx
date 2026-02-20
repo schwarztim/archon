@@ -1,24 +1,6 @@
 import { useState, useMemo } from "react";
 import {
   Search,
-  CreditCard,
-  Mail,
-  Phone,
-  MapPin,
-  Key,
-  Lock,
-  KeyRound,
-  User,
-  Calendar,
-  Globe,
-  Heart,
-  Landmark,
-  BookOpen,
-  Settings,
-  Shield,
-  Cloud,
-  FileLock,
-  IdCard,
 } from "lucide-react";
 import { DetectorCard } from "@/components/dlp/DetectorCard";
 

@@ -17,7 +17,7 @@ from app.models.audit import EnterpriseAuditEvent
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v1", tags=["Tenants"])
+router = APIRouter(prefix="/api/v1/tenancy", tags=["Tenants"])
 
 
 # ── Request / response schemas ──────────────────────────────────────

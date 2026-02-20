@@ -78,11 +78,11 @@ export function LifecyclePage() {
 
   // Pipeline state
   const [pipelineStages, setPipelineStages] = useState<PipelineStage[]>([]);
-  const [pipelineLoading, setPipelineLoading] = useState(false);
+  const [, setPipelineLoading] = useState(false);
 
   // Environment state
   const [environments, setEnvironments] = useState<EnvironmentInfo[]>([]);
-  const [envsLoading, setEnvsLoading] = useState(false);
+  const [, setEnvsLoading] = useState(false);
 
   // Diff state
   const [diffSource, setDiffSource] = useState("dev");
@@ -126,7 +126,7 @@ export function LifecyclePage() {
     setPipelineLoading(true);
     try {
       const res = await lifecycleApi.getPipeline();
-      setPipelineStages(Array.isArray(res.data) ? res.data : []);
+      setPipelineStages(Array.isArray(res.data) ? res.data as PipelineStage[] : []);
     } catch { /* Pipeline endpoint may not return data yet */ }
     finally { setPipelineLoading(false); }
   }, []);

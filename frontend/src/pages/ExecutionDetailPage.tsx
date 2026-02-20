@@ -26,7 +26,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { StepTimeline, type StepData } from "@/components/executions/StepTimeline";
 import { ExecutionGraph } from "@/components/executions/ExecutionGraph";
 import { RunAgentDialog } from "@/components/executions/RunAgentDialog";
-import type { Execution, ExecutionStep } from "@/types/models";
+import type { Execution } from "@/types/models";
 
 // ── Helpers ──────────────────────────────────────────────────────────
 

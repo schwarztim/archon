@@ -195,12 +195,12 @@ export function NLAgentWizard({ onClose, onCreated }: NLAgentWizardProps) {
   const [industry, setIndustry] = useState("Any");
   const [dataSources, setDataSources] = useState<string[]>([]);
   const [dsInput, setDsInput] = useState("");
-  const [analysis, setAnalysis] = useState<NLAnalysis | null>(null);
+  const [, setAnalysis] = useState<NLAnalysis | null>(null);
 
   // Step 2 state
   const [planSteps, setPlanSteps] = useState<PlanStep[]>([]);
   const [planEdges, setPlanEdges] = useState<PlannedEdge[]>([]);
-  const [buildPlan, setBuildPlan] = useState<NLBuildPlan | null>(null);
+  const [, setBuildPlan] = useState<NLBuildPlan | null>(null);
 
   // Step 3 state
   const [config, setConfig] = useState<WizardConfig>({
@@ -266,7 +266,7 @@ export function NLAgentWizard({ onClose, onCreated }: NLAgentWizardProps) {
       if (to < 0 || to >= planSteps.length) return;
       const copy = [...planSteps];
       const [item] = copy.splice(from, 1);
-      copy.splice(to, 0, item);
+      copy.splice(to, 0, item!);
       setPlanSteps(copy);
     },
     [planSteps],

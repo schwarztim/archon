@@ -160,6 +160,7 @@ export interface ScanHistoryEntry {
 }
 
 /** Run a multi-source discovery scan */
+// TODO: Backend scan_router (prefix="/sentinelscan") is not registered in main.py — POST /sentinelscan/scan unreachable
 export async function runDiscoveryScan(payload: {
   sources?: string[];
   scan_depth?: string;
@@ -168,6 +169,7 @@ export async function runDiscoveryScan(payload: {
 }
 
 /** Get service inventory */
+// TODO: Backend scan_router not registered — GET /sentinelscan/services unreachable
 export async function getServiceInventory(
   params: PaginationParams & {
     risk_level?: string;
@@ -184,11 +186,13 @@ export async function getPostureScore(): Promise<ApiResponse<PostureScoreResult>
 }
 
 /** Get risk breakdown by category */
+// TODO: Backend scan_router not registered — GET /sentinelscan/risks unreachable (main router has /risk not /risks)
 export async function getRiskBreakdown(): Promise<ApiResponse<RiskBreakdownResult>> {
   return apiGet<RiskBreakdownResult>("/sentinelscan/risks");
 }
 
 /** Apply remediation to a single finding */
+// TODO: Backend scan_router not registered — POST /sentinelscan/remediate/{id} unreachable
 export async function remediateFinding(
   findingId: string,
   action: string,
@@ -197,6 +201,7 @@ export async function remediateFinding(
 }
 
 /** Apply bulk remediation */
+// TODO: Backend scan_router not registered — POST /sentinelscan/remediate/bulk unreachable
 export async function bulkRemediate(
   findingIds: string[],
   action: string,
@@ -208,6 +213,7 @@ export async function bulkRemediate(
 }
 
 /** Get scan history */
+// TODO: Backend scan_router not registered — GET /sentinelscan/history unreachable
 export async function getScanHistory(
   params: PaginationParams = {},
 ): Promise<ApiResponse<ScanHistoryEntry[]>> {

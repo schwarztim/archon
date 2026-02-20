@@ -12,13 +12,6 @@ interface CodeEditorProps {
   onChange?: (code: string) => void;
 }
 
-// Basic keyword highlighting per language
-const KEYWORDS: Record<string, string[]> = {
-  python: ["def", "class", "import", "from", "return", "if", "else", "elif", "for", "while", "try", "except", "with", "as", "yield", "async", "await", "None", "True", "False"],
-  javascript: ["const", "let", "var", "function", "return", "if", "else", "for", "while", "try", "catch", "import", "export", "default", "class", "new", "this", "async", "await", "null", "undefined", "true", "false"],
-  typescript: ["const", "let", "var", "function", "return", "if", "else", "for", "while", "try", "catch", "import", "export", "default", "class", "new", "this", "async", "await", "null", "undefined", "true", "false", "interface", "type", "enum"],
-};
-
 // ── Component ────────────────────────────────────────────────────────
 
 export function CodeEditor({

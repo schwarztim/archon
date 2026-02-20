@@ -19,7 +19,7 @@ from app.models.redteam import (
 )
 from app.services.redteam_service import RedTeamService
 
-router = APIRouter(prefix="/api/v1", tags=["security"])
+router = APIRouter(prefix="/api/v1/redteam", tags=["security"])
 
 # ── Module-level service instance ───────────────────────────────────
 

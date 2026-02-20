@@ -19,6 +19,7 @@ from app.services.sandbox_service import (
     SandboxService,
     sandbox_service,
 )
+from starlette.responses import Response
 from app.models.sandbox import (
     ArenaConfig,
     ArenaTestCase,
@@ -129,13 +130,13 @@ async def get_session(session_id: UUID) -> dict[str, Any]:
     }
 
 
-@router.delete("/sandbox/sessions/{session_id}", status_code=204)
-async def destroy_session(session_id: UUID) -> None:
+@router.delete("/sandbox/sessions/{session_id}", status_code=204, response_class=Response)
+async def destroy_session(session_id: UUID) -> Response:
     """Destroy a sandbox session."""
     destroyed = sandbox_service.destroy_session(session_id)
     if not destroyed:
         raise HTTPException(status_code=404, detail="Sandbox session not found")
-    return None
+    return Response(status_code=204)
 
 
 # ── Enterprise sandbox routes ────────────────────────────────────────

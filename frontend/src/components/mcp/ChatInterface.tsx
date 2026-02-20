@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Send, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import type { ChatMessage, MCPComponentPayload } from "@/api/mcp";
+import type { ChatMessage } from "@/api/mcp";
 import { submitAction } from "@/api/mcp";
 import { MessageBubble } from "./MessageBubble";
 

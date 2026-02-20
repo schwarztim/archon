@@ -11,16 +11,13 @@ import {
   Loader2,
   ChevronUp,
   ChevronDown,
-  ArrowRight,
   Key,
-  Wifi,
-  Activity,
   Shield,
   Trash2,
   Save,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { apiGet, apiPost, apiPut } from "@/api/client";
+import { apiGet, apiPost } from "@/api/client";
 import ProviderForm from "@/components/router/ProviderForm";
 import TestConnectionButton from "@/components/router/TestConnectionButton";
 import HealthDashboard from "@/components/router/HealthDashboard";
@@ -85,13 +82,6 @@ interface ConditionRow {
   field: string;
   operator: string;
   value: string;
-}
-
-interface TestConnectionResult {
-  provider_id: string;
-  status: "loading" | "success" | "error";
-  latency_ms?: number;
-  message?: string;
 }
 
 const PROVIDER_TYPES = [
@@ -216,8 +206,7 @@ export function ModelRouterPage() {
   });
   const [apiKeySaved, setApiKeySaved] = useState<Record<string, boolean>>({});
 
-  // Test connection
-  const [testResults, setTestResults] = useState<Record<string, TestConnectionResult>>({});
+  // Test connection state removed (handled by TestConnectionButton component)
 
   // Model form
   const [modelForm, setModelForm] = useState({
@@ -363,34 +352,6 @@ export function ModelRouterPage() {
       setApiKeySaved((prev) => ({ ...prev, [providerId]: true }));
     } catch {
       setError("Failed to save API key.");
-    }
-  }
-
-  async function handleTestConnection(providerId: string) {
-    setTestResults((prev) => ({
-      ...prev,
-      [providerId]: { provider_id: providerId, status: "loading" },
-    }));
-    try {
-      const res = await apiPost<{ latency_ms?: number; message?: string }>(
-        `/router/providers/${providerId}/test-connection`,
-        {},
-      );
-      setTestResults((prev) => ({
-        ...prev,
-        [providerId]: {
-          provider_id: providerId,
-          status: "success",
-          latency_ms: res.data?.latency_ms,
-          message: res.data?.message ?? "Connection successful",
-        },
-      }));
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Connection failed";
-      setTestResults((prev) => ({
-        ...prev,
-        [providerId]: { provider_id: providerId, status: "error", message: msg },
-      }));
     }
   }
 
@@ -600,7 +561,6 @@ export function ModelRouterPage() {
               <tbody>
                 {providers.map((p) => {
                   const health = providerHealth.find((h) => h.provider_id === p.id);
-                  const testResult = testResults[p.id];
                   return (
                     <React.Fragment key={p.id}>
                     <tr className="border-b border-[#2a2d37] hover:bg-white/5">

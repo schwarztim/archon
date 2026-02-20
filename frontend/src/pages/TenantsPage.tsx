@@ -63,9 +63,9 @@ export function TenantsPage() {
   const [ownerEmail, setOwnerEmail] = useState("");
   const [tier, setTier] = useState("team");
   const [creating, setCreating] = useState(false);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [quotas, setQuotas] = useState<Record<string, QuotaInfo[]>>({});
-  const [usage, setUsage] = useState<Record<string, UsageSummary>>({});
+  const [expandedId] = useState<string | null>(null);
+  const [quotas] = useState<Record<string, QuotaInfo[]>>({});
+  const [usage] = useState<Record<string, UsageSummary>>({});
   const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
 
   async function fetchTenants() {
@@ -95,29 +95,6 @@ export function TenantsPage() {
       setError("Failed to create tenant.");
     } finally {
       setCreating(false);
-    }
-  }
-
-  async function handleExpand(id: string) {
-    if (expandedId === id) {
-      setExpandedId(null);
-      return;
-    }
-    setExpandedId(id);
-    try {
-      const [quotaRes, usageRes] = await Promise.allSettled([
-        apiGet<QuotaInfo[]>(`/tenants/${id}/quota`),
-        apiGet<UsageSummary>(`/tenants/${id}/usage/summary`),
-      ]);
-      if (quotaRes.status === "fulfilled") {
-        const d = quotaRes.value.data;
-        setQuotas((prev) => ({ ...prev, [id]: Array.isArray(d) ? d : [] }));
-      }
-      if (usageRes.status === "fulfilled") {
-        setUsage((prev) => ({ ...prev, [id]: usageRes.value.data as UsageSummary }));
-      }
-    } catch {
-      // silently fail for detail fetch
     }
   }
 

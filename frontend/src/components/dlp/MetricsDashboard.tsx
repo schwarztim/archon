@@ -34,7 +34,7 @@ interface MetricsDashboardProps {
 
 export function MetricsDashboard({ initialMetrics }: MetricsDashboardProps) {
   const [metrics, setMetrics] = useState<DLPMetricsData>(initialMetrics ?? FALLBACK_METRICS);
-  const [loaded, setLoaded] = useState(!!initialMetrics);
+  const [, setLoaded] = useState(!!initialMetrics);
 
   const fetchMetrics = useCallback(async () => {
     try {

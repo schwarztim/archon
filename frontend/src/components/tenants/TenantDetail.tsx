@@ -58,6 +58,7 @@ function statusBadge(status: string) {
 export function TenantDetail({ tenant, onBack }: TenantDetailProps) {
   const [idpConfigs, setIdpConfigs] = useState<IdPConfig[]>([]);
   const [members, setMembers] = useState<TenantMember[]>([]);
+  const [activeTab, setActiveTab] = useState("general");
   const [usageStats, setUsageStats] = useState({
     agents: { current: 0, max: 5 },
     executions: { current: 0, max: 100 },
@@ -110,7 +111,7 @@ export function TenantDetail({ tenant, onBack }: TenantDetailProps) {
         {statusBadge(tenant.status)}
       </div>
 
-      <Tabs defaultValue="general">
+      <Tabs value={activeTab} onValueChange={setActiveTab} defaultValue="general">
         <TabsList className="bg-[#1a1d27] dark:bg-[#1a1d27]">
           <TabsTrigger value="general">
             <Building2 size={14} className="mr-1.5" />General

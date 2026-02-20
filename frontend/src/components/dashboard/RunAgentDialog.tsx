@@ -31,7 +31,7 @@ export function RunAgentDialog({ onClose }: RunAgentDialogProps) {
         const data = res.data;
         setAgents(Array.isArray(data) ? data : []);
         if (Array.isArray(data) && data.length > 0) {
-          setSelectedAgentId(data[0].id);
+          setSelectedAgentId(data[0]?.id ?? '');
         }
       } catch {
         setAgents([]);

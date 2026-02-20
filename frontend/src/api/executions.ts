@@ -44,6 +44,7 @@ export async function executeAgent(
 }
 
 /** Cancel a running execution */
+// TODO: No backend route for POST /executions/{id}/cancel exists yet
 export async function cancelExecution(
   id: string,
 ): Promise<ApiResponse<Execution>> {
@@ -62,6 +63,7 @@ export async function replayExecution(
 }
 
 /** Delete an execution */
+// TODO: No backend route for DELETE /executions/{id} exists yet
 export async function deleteExecution(id: string): Promise<void> {
   return apiDelete(`/executions/${id}`);
 }

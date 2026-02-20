@@ -27,8 +27,8 @@ function cronToHuman(cron: string): string {
   if (parts.length !== 5) return `Cron: ${cron}`;
   const [minute, hour, dayMonth, , dayWeek] = parts;
 
-  const h = hour === "*" ? null : parseInt(hour);
-  const m = minute === "*" ? 0 : parseInt(minute);
+  const h = hour === "*" ? null : parseInt(hour ?? "0");
+  const m = minute === "*" ? 0 : parseInt(minute ?? "0");
   const timeStr = h !== null
     ? `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`
     : "every minute";
@@ -52,8 +52,8 @@ function computeNextRuns(cron: string, count: number = 5): string[] {
   const parts = cron.split(" ");
   if (parts.length !== 5) return [];
   const [minStr, hourStr] = parts;
-  const targetMin = minStr === "*" ? 0 : parseInt(minStr);
-  const targetHour = hourStr === "*" ? null : parseInt(hourStr);
+  const targetMin = minStr === "*" ? 0 : parseInt(minStr ?? "0");
+  const targetHour = hourStr === "*" ? null : parseInt(hourStr ?? "0");
 
   const results: string[] = [];
   const now = new Date();
@@ -100,19 +100,19 @@ export function CronBuilder({ value, onChange, timezone = "UTC", onTimezoneChang
     if (!value) return [];
     const parts = value.split(" ");
     if (parts.length === 5 && parts[4] !== "*") {
-      return parts[4].split(",").map(Number);
+      return parts[4]?.split(",").map(Number) ?? [];
     }
     return [];
   });
-  const [hour, setHour] = useState(() => {
+  const [hour, setHour] = useState<string>(() => {
     if (!value) return "09";
     const parts = value.split(" ");
-    return parts.length >= 2 && parts[1] !== "*" ? parts[1].padStart(2, "0") : "09";
+    return parts.length >= 2 && parts[1] !== "*" ? parts[1]?.padStart(2, "0") ?? "09" : "09";
   });
-  const [minute, setMinute] = useState(() => {
+  const [minute, setMinute] = useState<string>(() => {
     if (!value) return "00";
     const parts = value.split(" ");
-    return parts.length >= 1 && parts[0] !== "*" ? parts[0].padStart(2, "0") : "00";
+    return parts.length >= 1 && parts[0] !== "*" ? parts[0]?.padStart(2, "0") ?? "00" : "00";
   });
   const [customMonth, setCustomMonth] = useState("*");
   const [customDom, setCustomDom] = useState("*");
@@ -168,7 +168,7 @@ export function CronBuilder({ value, onChange, timezone = "UTC", onTimezoneChang
             <label className="mb-0.5 block text-[10px] text-gray-500">Days of week</label>
             <div className="flex gap-1">
               {DAY_LABELS.map((d, i) => {
-                const cronDay = CRON_DAY_MAP[i];
+                const cronDay = CRON_DAY_MAP[i]!;
                 const active = selectedDays.includes(cronDay);
                 return (
                   <button
@@ -177,7 +177,7 @@ export function CronBuilder({ value, onChange, timezone = "UTC", onTimezoneChang
                     onClick={() => {
                       const next = active ? selectedDays.filter((x) => x !== cronDay) : [...selectedDays, cronDay];
                       setSelectedDays(next);
-                      buildCustomCron(next, hour, minute);
+                      buildCustomCron(next, hour ?? "09", minute ?? "00");
                     }}
                     className={`rounded px-2 py-0.5 text-[10px] ${active ? "bg-purple-500/20 text-purple-300" : "bg-[#1a1d27] text-gray-500 hover:bg-white/5"}`}
                   >

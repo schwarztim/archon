@@ -17,6 +17,7 @@ from app.interfaces.models.enterprise import AuthenticatedUser
 from app.models import Execution
 from app.services import execution_service
 from app.services.execution_service import ExecutionService
+from starlette.responses import Response
 
 try:
     from opentelemetry import trace
@@ -247,3 +248,41 @@ async def replay_execution(
         "data": execution.model_dump(mode="json"),
         "meta": _meta(),
     }
+
+
+@router.post("/executions/{execution_id}/cancel")
+async def cancel_execution(
+    execution_id: UUID,
+    session: AsyncSession = Depends(get_session),
+    user: AuthenticatedUser = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Cancel a running execution."""
+    execution = await execution_service.get_execution(session, execution_id)
+    if execution is None:
+        raise HTTPException(status_code=404, detail="Execution not found")
+    if execution.status not in ("pending", "running"):
+        raise HTTPException(status_code=409, detail=f"Cannot cancel execution in '{execution.status}' state")
+    execution.status = "cancelled"
+    execution.updated_at = _utcnow()
+    session.add(execution)
+    await session.commit()
+    await session.refresh(execution)
+    return {
+        "data": execution.model_dump(mode="json"),
+        "meta": _meta(),
+    }
+
+
+@router.delete("/executions/{execution_id}", status_code=204, response_class=Response)
+async def delete_execution(
+    execution_id: UUID,
+    session: AsyncSession = Depends(get_session),
+    user: AuthenticatedUser = Depends(get_current_user),
+) -> Response:
+    """Delete an execution record."""
+    execution = await execution_service.get_execution(session, execution_id)
+    if execution is None:
+        raise HTTPException(status_code=404, detail="Execution not found")
+    await session.delete(execution)
+    await session.commit()
+    return Response(status_code=204)

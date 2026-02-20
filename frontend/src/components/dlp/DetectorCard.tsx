@@ -113,8 +113,8 @@ export function DetectorCard({
         <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium uppercase ${catStyle}`}>
           {category}
         </span>
-        <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${sens.bg}`}>
-          {sens.dot} {sens.label}
+        <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${sens?.bg}`}>
+          {sens?.dot} {sens?.label}
         </span>
       </div>
     </button>

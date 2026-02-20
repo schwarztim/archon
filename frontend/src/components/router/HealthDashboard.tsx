@@ -49,7 +49,7 @@ const POLL_INTERVAL_MS = 30_000;
 
 /* ─── Component ──────────────────────────────────────────────────── */
 
-export default function HealthDashboard(): JSX.Element {
+export default function HealthDashboard() {
   const [healthData, setHealthData] = useState<ProviderHealthDetail[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -130,22 +130,22 @@ export default function HealthDashboard(): JSX.Element {
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {healthData.map((provider) => {
           const config = STATUS_CONFIG[provider.status] ?? STATUS_CONFIG.unhealthy;
-          const StatusIcon = config.icon;
+          const StatusIcon = config?.icon;
 
           return (
             <div
               key={provider.provider_id}
-              className={`rounded-lg border p-4 ${config.bgColor} transition-colors`}
+              className={`rounded-lg border p-4 ${config?.bgColor} transition-colors`}
               role="article"
-              aria-label={`${provider.provider_name} health status: ${config.label}`}
+              aria-label={`${provider.provider_name} health status: ${config?.label}`}
             >
               <div className="flex items-center justify-between mb-3">
                 <h4 className="text-sm font-medium text-foreground">
                   {provider.provider_name}
                 </h4>
-                <div className={`flex items-center gap-1 text-xs ${config.color}`}>
-                  <StatusIcon className="h-3.5 w-3.5" aria-hidden="true" />
-                  {config.label}
+                <div className={`flex items-center gap-1 text-xs ${config?.color}`}>
+                  {StatusIcon && <StatusIcon className="h-3.5 w-3.5" aria-hidden="true" />}
+                  {config?.label}
                 </div>
               </div>
 

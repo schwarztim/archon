@@ -60,34 +60,6 @@ function timeAgo(dateStr: string | null): string {
   return `${days}d ago`;
 }
 
-// ─── Schedule Helper (kept for list view display) ───────────────────
-
-function cronToHuman(cron: string): string {
-  if (!cron) return "";
-  const parts = cron.split(" ");
-  if (parts.length !== 5) return `Cron: ${cron}`;
-  const [minute, hour, dayMonth, , dayWeek] = parts;
-  const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
-  const CRON_DAY_MAP = [1, 2, 3, 4, 5, 6, 0];
-
-  const h = hour === "*" ? null : parseInt(hour);
-  const m = minute === "*" ? 0 : parseInt(minute);
-  const timeStr = h !== null ? `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}` : "every minute";
-
-  if (dayMonth !== "*" && dayMonth !== undefined) {
-    return `Monthly on day ${dayMonth} at ${timeStr}`;
-  }
-  if (dayWeek !== "*" && dayWeek !== undefined) {
-    const dayNames = dayWeek.split(",").map((d) => {
-      const idx = CRON_DAY_MAP.indexOf(parseInt(d));
-      return idx >= 0 ? DAY_LABELS[idx] : d;
-    });
-    return `Weekly on ${dayNames.join(", ")} at ${timeStr}`;
-  }
-  if (hour === "*") return `Every hour at minute ${m}`;
-  return `Daily at ${timeStr}`;
-}
-
 // ─── Component ───────────────────────────────────────────────────────
 
 export function WorkflowsPage() {

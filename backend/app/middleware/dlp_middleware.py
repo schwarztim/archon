@@ -218,8 +218,16 @@ class DLPMiddleware(BaseHTTPMiddleware):
                     )
                     if isinstance(action_response, Response):
                         return action_response
-        except Exception:
-            logger.debug("DLP middleware: input scan error", exc_info=True)
+        except Exception as exc:
+            logger.warning(
+                "DLP middleware: input scan error — request will be passed through unscanned",
+                extra={
+                    "request_id": request_id,
+                    "path": request.url.path,
+                    "error_type": type(exc).__name__,
+                    "impact": "input DLP scan was skipped for this request",
+                },
+            )
 
         # ── Call the actual handler ─────────────────────────────────
         response = await call_next(request)
@@ -258,8 +266,16 @@ class DLPMiddleware(BaseHTTPMiddleware):
                     headers=dict(response.headers),
                     media_type=response.media_type,
                 )
-        except Exception:
-            logger.debug("DLP middleware: output scan error", exc_info=True)
+        except Exception as exc:
+            logger.warning(
+                "DLP middleware: output scan error — response will be returned unscanned",
+                extra={
+                    "request_id": request_id,
+                    "path": request.url.path,
+                    "error_type": type(exc).__name__,
+                    "impact": "output DLP scan was skipped for this response",
+                },
+            )
 
         return response
 

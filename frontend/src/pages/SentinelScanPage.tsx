@@ -6,7 +6,6 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { apiGet, apiPost } from "@/api/client";
 import {
   runDiscoveryScan,
   getPostureScore,

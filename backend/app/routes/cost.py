@@ -35,6 +35,7 @@ from app.models.cost import (
 )
 from app.services.cost import CostEngine
 from app.services.cost_service import CostService
+from starlette.responses import Response
 
 router = APIRouter(prefix="/cost", tags=["cost"])
 
@@ -614,15 +615,16 @@ async def update_budget(
     return {"data": budget.model_dump(mode="json"), "meta": _meta()}
 
 
-@router.delete("/budgets/{budget_id}", status_code=204)
+@router.delete("/budgets/{budget_id}", status_code=204, response_class=Response)
 async def delete_budget(
     budget_id: UUID,
     session: AsyncSession = Depends(get_session),
-) -> None:
+) -> Response:
     """Delete a budget."""
     deleted = await CostEngine.delete_budget(session, budget_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Budget not found")
+    return Response(status_code=204)
 
 
 # ── Provider Pricing ────────────────────────────────────────────────

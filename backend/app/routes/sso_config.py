@@ -17,6 +17,7 @@ from app.middleware.auth import get_current_user
 from app.middleware.rbac import check_permission
 from app.secrets.manager import get_secrets_manager
 from app.services.audit_log_service import AuditLogService
+from starlette.responses import Response
 
 logger = logging.getLogger(__name__)
 
@@ -350,13 +351,13 @@ async def update_sso_config(
     return {"data": _mask_config(config), "meta": _meta()}
 
 
-@router.delete("/tenants/{tenant_id}/sso/{sso_id}", status_code=204)
+@router.delete("/tenants/{tenant_id}/sso/{sso_id}", status_code=204, response_class=Response)
 async def delete_sso_config(
     tenant_id: str,
     sso_id: str,
     user: AuthenticatedUser = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> None:
+) -> Response:
     """Delete an SSO configuration and its Vault secrets."""
     check_permission(user, "settings", "delete")
 
@@ -392,6 +393,7 @@ async def delete_sso_config(
         resource_id=UUID(sso_id),
         details={"protocol": protocol},
     )
+    return Response(status_code=204)
 
 
 @router.post("/tenants/{tenant_id}/sso/{sso_id}/test")
@@ -582,12 +584,12 @@ async def update_custom_role(
     return {"data": role, "meta": _meta()}
 
 
-@router.delete("/rbac/roles/{role_id}", status_code=204)
+@router.delete("/rbac/roles/{role_id}", status_code=204, response_class=Response)
 async def delete_custom_role(
     role_id: str,
     user: AuthenticatedUser = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> None:
+) -> Response:
     """Delete a custom RBAC role."""
     check_permission(user, "settings", "delete")
 
@@ -603,6 +605,7 @@ async def delete_custom_role(
         resource_id=UUID(role_id),
         details={"name": role.get("name", "")},
     )
+    return Response(status_code=204)
 
 
 @router.post("/users/{user_id}/impersonate")

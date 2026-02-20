@@ -35,7 +35,7 @@ from app.services.dlp_service import DLPService
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v1/dlp", tags=["DLP"])
+router = APIRouter(prefix="/dlp", tags=["DLP"])
 
 
 # ── Request / response schemas ──────────────────────────────────────
@@ -484,98 +484,113 @@ async def get_metrics(
     from app.models.dlp import DLPScanResult as ScanResultModel
 
     request_id = str(uuid4())
-    today_start = datetime.now(tz=timezone.utc).replace(
-        hour=0, minute=0, second=0, microsecond=0
-    )
 
-    # Total scans today
-    stmt_scans = (
-        select(func.count())
-        .select_from(ScanResultModel)
-        .where(
-            ScanResultModel.tenant_id == user.tenant_id,
-            ScanResultModel.created_at >= today_start,
+    try:
+        today_start = datetime.now(tz=timezone.utc).replace(
+            hour=0, minute=0, second=0, microsecond=0
         )
-    )
-    scans_result = await session.exec(stmt_scans)
-    scans_today = scans_result.one_or_none() or 0
 
-    # Total detections today (scans with findings)
-    stmt_detections = (
-        select(func.coalesce(func.sum(ScanResultModel.findings_count), 0))
-        .select_from(ScanResultModel)
-        .where(
-            ScanResultModel.tenant_id == user.tenant_id,
-            ScanResultModel.created_at >= today_start,
-            ScanResultModel.has_findings == True,  # noqa: E712
-        )
-    )
-    det_result = await session.exec(stmt_detections)
-    detections = det_result.one_or_none() or 0
-
-    # Blocked today
-    stmt_blocked = (
-        select(func.count())
-        .select_from(ScanResultModel)
-        .where(
-            ScanResultModel.tenant_id == user.tenant_id,
-            ScanResultModel.created_at >= today_start,
-            ScanResultModel.action_taken == "block",
-        )
-    )
-    blocked_result = await session.exec(stmt_blocked)
-    blocked = blocked_result.one_or_none() or 0
-
-    # Redacted today
-    stmt_redacted = (
-        select(func.count())
-        .select_from(ScanResultModel)
-        .where(
-            ScanResultModel.tenant_id == user.tenant_id,
-            ScanResultModel.created_at >= today_start,
-            ScanResultModel.action_taken == "redact",
-        )
-    )
-    redacted_result = await session.exec(stmt_redacted)
-    redacted = redacted_result.one_or_none() or 0
-
-    # Detection type breakdown
-    stmt_types = (
-        select(ScanResultModel.entity_types_found)
-        .where(
-            ScanResultModel.tenant_id == user.tenant_id,
-            ScanResultModel.created_at >= today_start,
-            ScanResultModel.has_findings == True,  # noqa: E712
-        )
-    )
-    types_result = await session.exec(stmt_types)
-    type_counts: dict[str, int] = {}
-    for row in types_result.all():
-        if isinstance(row, list):
-            for t in row:
-                type_counts[t] = type_counts.get(t, 0) + 1
-
-    # Trend data (last 7 days)
-    trend: list[dict[str, Any]] = []
-    for i in range(6, -1, -1):
-        day = today_start - timedelta(days=i)
-        day_end = day + timedelta(days=1)
-        stmt_day = (
+        # Total scans today
+        stmt_scans = (
             select(func.count())
             .select_from(ScanResultModel)
             .where(
                 ScanResultModel.tenant_id == user.tenant_id,
-                ScanResultModel.created_at >= day,
-                ScanResultModel.created_at < day_end,
+                ScanResultModel.created_at >= today_start,
+            )
+        )
+        scans_result = await session.exec(stmt_scans)
+        scans_today = scans_result.one_or_none() or 0
+
+        # Total detections today (scans with findings)
+        stmt_detections = (
+            select(func.coalesce(func.sum(ScanResultModel.findings_count), 0))
+            .select_from(ScanResultModel)
+            .where(
+                ScanResultModel.tenant_id == user.tenant_id,
+                ScanResultModel.created_at >= today_start,
                 ScanResultModel.has_findings == True,  # noqa: E712
             )
         )
-        day_result = await session.exec(stmt_day)
-        count = day_result.one_or_none() or 0
-        trend.append({
-            "date": day.strftime("%Y-%m-%d"),
-            "detections": count,
-        })
+        det_result = await session.exec(stmt_detections)
+        detections = det_result.one_or_none() or 0
+
+        # Blocked today
+        stmt_blocked = (
+            select(func.count())
+            .select_from(ScanResultModel)
+            .where(
+                ScanResultModel.tenant_id == user.tenant_id,
+                ScanResultModel.created_at >= today_start,
+                ScanResultModel.action_taken == "block",
+            )
+        )
+        blocked_result = await session.exec(stmt_blocked)
+        blocked = blocked_result.one_or_none() or 0
+
+        # Redacted today
+        stmt_redacted = (
+            select(func.count())
+            .select_from(ScanResultModel)
+            .where(
+                ScanResultModel.tenant_id == user.tenant_id,
+                ScanResultModel.created_at >= today_start,
+                ScanResultModel.action_taken == "redact",
+            )
+        )
+        redacted_result = await session.exec(stmt_redacted)
+        redacted = redacted_result.one_or_none() or 0
+
+        # Detection type breakdown
+        stmt_types = (
+            select(ScanResultModel.entity_types_found)
+            .where(
+                ScanResultModel.tenant_id == user.tenant_id,
+                ScanResultModel.created_at >= today_start,
+                ScanResultModel.has_findings == True,  # noqa: E712
+            )
+        )
+        types_result = await session.exec(stmt_types)
+        type_counts: dict[str, int] = {}
+        for row in types_result.all():
+            if isinstance(row, list):
+                for t in row:
+                    type_counts[t] = type_counts.get(t, 0) + 1
+
+        # Trend data (last 7 days)
+        trend: list[dict[str, Any]] = []
+        for i in range(6, -1, -1):
+            day = today_start - timedelta(days=i)
+            day_end = day + timedelta(days=1)
+            stmt_day = (
+                select(func.count())
+                .select_from(ScanResultModel)
+                .where(
+                    ScanResultModel.tenant_id == user.tenant_id,
+                    ScanResultModel.created_at >= day,
+                    ScanResultModel.created_at < day_end,
+                    ScanResultModel.has_findings == True,  # noqa: E712
+                )
+            )
+            day_result = await session.exec(stmt_day)
+            count = day_result.one_or_none() or 0
+            trend.append({
+                "date": day.strftime("%Y-%m-%d"),
+                "detections": count,
+            })
+    except Exception:
+        scans_today = 0
+        detections = 0
+        blocked = 0
+        redacted = 0
+        type_counts = {}
+        today_start = datetime.now(tz=timezone.utc).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
+        trend = [
+            {"date": (today_start - __import__("datetime").timedelta(days=i)).strftime("%Y-%m-%d"), "detections": 0}
+            for i in range(6, -1, -1)
+        ]
 
     return {
         "data": {

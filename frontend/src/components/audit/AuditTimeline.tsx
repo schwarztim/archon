@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import { AuditEventCard, type AuditEntry } from "./AuditEventCard";
 
 interface Props {
@@ -25,7 +25,7 @@ export function AuditTimeline({
 
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting) onLoadMore();
+        if (entry?.isIntersecting) onLoadMore();
       },
       { threshold: 0.1 },
     );

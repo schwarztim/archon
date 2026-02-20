@@ -27,6 +27,7 @@ from app.models.router import (
 from app.secrets.manager import get_secrets_manager
 from app.services import ModelService
 from app.services.router_service import ModelRouterService
+from starlette.responses import Response
 
 try:
     from opentelemetry import trace
@@ -156,15 +157,16 @@ async def update_model(
     }
 
 
-@router.delete("/{model_id}", status_code=204)
+@router.delete("/{model_id}", status_code=204, response_class=Response)
 async def delete_model(
     model_id: UUID,
     session: AsyncSession = Depends(get_session),
-) -> None:
+) -> Response:
     """Delete a model configuration."""
     deleted = await ModelService.delete(session, model_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Model not found")
+    return Response(status_code=204)
 
 
 # ── Enterprise Model Router Routes ──────────────────────────────────
@@ -357,12 +359,12 @@ async def get_all_provider_health_detail(
     }
 
 
-@router_api.delete("/providers/{provider_id}", status_code=204)
+@router_api.delete("/providers/{provider_id}", status_code=204, response_class=Response)
 async def delete_provider(
     provider_id: UUID,
     user: AuthenticatedUser = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> None:
+) -> Response:
     """Delete provider and clean up Vault credentials."""
     secrets = await get_secrets_manager()
     deleted = await ModelRouterService.delete_provider(
@@ -370,6 +372,7 @@ async def delete_provider(
     )
     if not deleted:
         raise HTTPException(status_code=404, detail="Provider not found")
+    return Response(status_code=204)
 
 
 # ── Visual Routing Rule Endpoints ───────────────────────────────────

@@ -295,7 +295,7 @@ async def get_posture_report(
 # ── Enterprise SentinelScan Routes (v1) ─────────────────────────────
 
 enterprise_router = APIRouter(
-    prefix="/api/v1/sentinel",
+    prefix="/sentinel",
     tags=["sentinel-enterprise"],
 )
 
@@ -527,7 +527,7 @@ async def list_known_services(
 # ── Agent-14 Enhanced Endpoints (/api/v1/sentinelscan/*) ────────────
 
 scan_router = APIRouter(
-    prefix="/api/v1/sentinelscan",
+    prefix="/sentinelscan",
     tags=["sentinelscan-v1"],
 )
 

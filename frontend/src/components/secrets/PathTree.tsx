@@ -26,7 +26,7 @@ function buildTree(secrets: SecretMetadata[]): PathNode {
       let child = current.children.find((c) => c.name === segment);
       if (!child) {
         child = {
-          name: segment,
+          name: segment!,
           path: parts.slice(0, i + 1).join("/"),
           children: [],
           secrets: [],

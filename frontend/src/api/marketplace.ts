@@ -47,7 +47,7 @@ export async function installListing(
   tenantId: string,
 ): Promise<ApiResponse<{ installation_id: string }>> {
   return apiPost<{ installation_id: string }>(
-    `/marketplace/listings/${listingId}/install`,
+    `/marketplace/${listingId}/install`,
     { tenant_id: tenantId },
   );
 }
@@ -74,6 +74,7 @@ export async function listReviews(
 }
 
 /** Create a review */
+// TODO: Backend POST /reviews expects { listing_id, user_id, rating, comment } — field names differ from frontend payload
 export async function createReview(
   listingId: string,
   payload: {
@@ -83,7 +84,7 @@ export async function createReview(
   },
 ): Promise<ApiResponse<MarketplaceReview>> {
   return apiPost<MarketplaceReview>(
-    `/marketplace/listings/${listingId}/reviews`,
-    payload,
+    `/marketplace/reviews`,
+    { listing_id: listingId, ...payload },
   );
 }

@@ -43,9 +43,9 @@ export function PipelineView({ stages, onPromote, onDemote }: PipelineViewProps)
                 stage={stage.stage}
                 label={stage.label}
                 deployments={stage.deployments}
-                color={style.color}
-                dot={style.dot}
-                text={style.text}
+                color={style?.color ?? ''}
+                dot={style?.dot ?? ''}
+                text={style?.text ?? ''}
                 isFirst={idx === 0}
                 isLast={idx === stages.length - 1}
                 onPromote={onPromote}
