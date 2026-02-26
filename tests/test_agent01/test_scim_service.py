@@ -22,8 +22,8 @@ from app.services.scim_service import SCIMService
 # Fixtures
 # ---------------------------------------------------------------------------
 
-_TENANT_A = "tenant-aaa"
-_TENANT_B = "tenant-bbb"
+_TENANT_A = "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa"
+_TENANT_B = "bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb"
 
 
 def _make_scim_user(
@@ -89,7 +89,8 @@ class TestListUsers:
     async def test_pagination_start_index(self, svc: SCIMService) -> None:
         for i in range(5):
             await svc.create_user(
-                _TENANT_A, _make_scim_user(f"user{i}@example.com"),
+                _TENANT_A,
+                _make_scim_user(f"user{i}@example.com"),
             )
         result = await svc.list_users(_TENANT_A, start_index=3, count=2)
         assert result.startIndex == 3
@@ -101,7 +102,8 @@ class TestListUsers:
         await svc.create_user(_TENANT_A, _make_scim_user("alice@example.com"))
         await svc.create_user(_TENANT_A, _make_scim_user("bob@example.com"))
         result = await svc.list_users(
-            _TENANT_A, scim_filter='userName eq "alice@example.com"',
+            _TENANT_A,
+            scim_filter='userName eq "alice@example.com"',
         )
         assert result.totalResults == 1
 
@@ -239,7 +241,8 @@ class TestGroups:
         await svc.create_group(_TENANT_A, _make_scim_group("Eng"))
         await svc.create_group(_TENANT_A, _make_scim_group("Sales"))
         result = await svc.list_groups(
-            _TENANT_A, scim_filter='displayName eq "Eng"',
+            _TENANT_A,
+            scim_filter='displayName eq "Eng"',
         )
         assert result.totalResults == 1
 
@@ -263,7 +266,8 @@ class TestTenantIsolation:
 
     @pytest.mark.asyncio
     async def test_tenant_a_cannot_get_tenant_b_user(
-        self, svc: SCIMService,
+        self,
+        svc: SCIMService,
     ) -> None:
         user_b = await svc.create_user(_TENANT_B, _make_scim_user())
         with pytest.raises(KeyError):
@@ -305,21 +309,27 @@ class TestSCIMErrorHandling:
 
     @pytest.mark.asyncio
     async def test_validate_bearer_token_valid(
-        self, svc: SCIMService, mock_secrets: AsyncMock,
+        self,
+        svc: SCIMService,
+        mock_secrets: AsyncMock,
     ) -> None:
         result = await svc.validate_bearer_token(_TENANT_A, "valid-token")
         assert result is True
 
     @pytest.mark.asyncio
     async def test_validate_bearer_token_invalid(
-        self, svc: SCIMService, mock_secrets: AsyncMock,
+        self,
+        svc: SCIMService,
+        mock_secrets: AsyncMock,
     ) -> None:
         result = await svc.validate_bearer_token(_TENANT_A, "wrong-token")
         assert result is False
 
     @pytest.mark.asyncio
     async def test_validate_bearer_token_vault_error(
-        self, svc: SCIMService, mock_secrets: AsyncMock,
+        self,
+        svc: SCIMService,
+        mock_secrets: AsyncMock,
     ) -> None:
         mock_secrets.get_secret.side_effect = Exception("vault unavailable")
         result = await svc.validate_bearer_token(_TENANT_A, "any")
