@@ -128,8 +128,15 @@ class OAuthProviderRegistry:
         }
 
     @staticmethod
-    def pop_pending_state(state: str) -> dict[str, Any] | None:
-        """Pop and return the pending state, or None if not found."""
+    async def pop_pending_state(
+        state: str, *, session: Any = None
+    ) -> dict[str, Any] | None:
+        """Pop and return the pending state, or None if not found.
+
+        The ``session`` parameter is accepted for API compatibility but is not
+        used (state is stored in-memory; a DB-backed implementation would use
+        it).
+        """
         return _pending_states.pop(state, None)
 
     @staticmethod

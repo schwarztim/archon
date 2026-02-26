@@ -7,12 +7,12 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.websocket import manager
-from app.websocket.manager import ConnectionManager
+from app.websocket.manager import ConnectionManager, ExecutionStreamManager
 
 
 def test_manager_is_singleton() -> None:
-    """The package-level manager is a ConnectionManager instance."""
-    assert isinstance(manager, ConnectionManager)
+    """The package-level manager is an ExecutionStreamManager instance."""
+    assert isinstance(manager, ExecutionStreamManager)
 
 
 def test_websocket_connect_and_receive() -> None:

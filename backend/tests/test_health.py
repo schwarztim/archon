@@ -15,24 +15,24 @@ def test_health_returns_200() -> None:
 
 
 def test_health_envelope_format() -> None:
-    """Response body has 'data' and 'meta' top-level keys."""
+    """Response body has 'status' and 'timestamp' top-level keys."""
     client = TestClient(app)
     body = client.get("/health").json()
-    assert "data" in body
-    assert "meta" in body
+    assert "status" in body
+    assert "timestamp" in body
 
 
 def test_health_data_contains_status() -> None:
-    """data.status is 'ok'."""
+    """status is 'healthy'."""
     client = TestClient(app)
     body = client.get("/health").json()
-    assert body["data"]["status"] == "ok"
+    assert body["status"] == "healthy"
 
 
 def test_health_meta_has_timestamp() -> None:
-    """meta.timestamp is an ISO-8601 string."""
+    """timestamp is an ISO-8601 string."""
     client = TestClient(app)
     body = client.get("/health").json()
-    assert "timestamp" in body["meta"]
+    assert "timestamp" in body
     # Basic sanity: contains a 'T' separator
-    assert "T" in body["meta"]["timestamp"]
+    assert "T" in body["timestamp"]

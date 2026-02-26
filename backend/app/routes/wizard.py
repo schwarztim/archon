@@ -30,7 +30,11 @@ from app.models.wizard import (
     RefineRequest,
     ValidationResult,
 )
-from app.services.wizard_service import NLWizardService
+from app.services.wizard_service import (
+    NLWizardService,
+    WizardRequest,
+    generate_agent_graph,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -67,10 +71,16 @@ async def describe(
         logger.exception("Wizard describe failed", extra={"tenant_id": user.tenant_id})
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"errors": [{"code": "WIZARD_DESCRIBE_FAILED", "message": str(exc)}], "meta": _meta(request_id=request_id)},
+            detail={
+                "errors": [{"code": "WIZARD_DESCRIBE_FAILED", "message": str(exc)}],
+                "meta": _meta(request_id=request_id),
+            },
         ) from exc
 
-    return {"data": analysis.model_dump(mode="json"), "meta": _meta(request_id=request_id)}
+    return {
+        "data": analysis.model_dump(mode="json"),
+        "meta": _meta(request_id=request_id),
+    }
 
 
 @router.post("/plan", status_code=status.HTTP_200_OK)
@@ -86,10 +96,16 @@ async def plan(
         logger.exception("Wizard plan failed", extra={"tenant_id": user.tenant_id})
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"errors": [{"code": "WIZARD_PLAN_FAILED", "message": str(exc)}], "meta": _meta(request_id=request_id)},
+            detail={
+                "errors": [{"code": "WIZARD_PLAN_FAILED", "message": str(exc)}],
+                "meta": _meta(request_id=request_id),
+            },
         ) from exc
 
-    return {"data": build_plan.model_dump(mode="json"), "meta": _meta(request_id=request_id)}
+    return {
+        "data": build_plan.model_dump(mode="json"),
+        "meta": _meta(request_id=request_id),
+    }
 
 
 @router.post("/build", status_code=status.HTTP_201_CREATED)
@@ -105,7 +121,10 @@ async def build(
         logger.exception("Wizard build failed", extra={"tenant_id": user.tenant_id})
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"errors": [{"code": "WIZARD_BUILD_FAILED", "message": str(exc)}], "meta": _meta(request_id=request_id)},
+            detail={
+                "errors": [{"code": "WIZARD_BUILD_FAILED", "message": str(exc)}],
+                "meta": _meta(request_id=request_id),
+            },
         ) from exc
 
     return {"data": agent.model_dump(mode="json"), "meta": _meta(request_id=request_id)}
@@ -124,10 +143,16 @@ async def validate(
         logger.exception("Wizard validate failed", extra={"tenant_id": user.tenant_id})
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"errors": [{"code": "WIZARD_VALIDATE_FAILED", "message": str(exc)}], "meta": _meta(request_id=request_id)},
+            detail={
+                "errors": [{"code": "WIZARD_VALIDATE_FAILED", "message": str(exc)}],
+                "meta": _meta(request_id=request_id),
+            },
         ) from exc
 
-    return {"data": result.model_dump(mode="json"), "meta": _meta(request_id=request_id)}
+    return {
+        "data": result.model_dump(mode="json"),
+        "meta": _meta(request_id=request_id),
+    }
 
 
 @router.post("/refine", status_code=status.HTTP_200_OK)
@@ -139,21 +164,34 @@ async def refine(
     request_id = str(uuid4())
     try:
         refined = await _wizard.refine(
-            user.tenant_id, user, body.agent, body.feedback, body.iteration,
+            user.tenant_id,
+            user,
+            body.agent,
+            body.feedback,
+            body.iteration,
         )
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"errors": [{"code": "WIZARD_REFINE_LIMIT", "message": str(exc)}], "meta": _meta(request_id=request_id)},
+            detail={
+                "errors": [{"code": "WIZARD_REFINE_LIMIT", "message": str(exc)}],
+                "meta": _meta(request_id=request_id),
+            },
         ) from exc
     except Exception as exc:
         logger.exception("Wizard refine failed", extra={"tenant_id": user.tenant_id})
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"errors": [{"code": "WIZARD_REFINE_FAILED", "message": str(exc)}], "meta": _meta(request_id=request_id)},
+            detail={
+                "errors": [{"code": "WIZARD_REFINE_FAILED", "message": str(exc)}],
+                "meta": _meta(request_id=request_id),
+            },
         ) from exc
 
-    return {"data": refined.model_dump(mode="json"), "meta": _meta(request_id=request_id)}
+    return {
+        "data": refined.model_dump(mode="json"),
+        "meta": _meta(request_id=request_id),
+    }
 
 
 @router.post("/full", status_code=status.HTTP_201_CREATED)
@@ -165,13 +203,20 @@ async def full_pipeline(
     request_id = str(uuid4())
     try:
         agent, validation = await _wizard.full_pipeline(
-            user.tenant_id, user, body.description,
+            user.tenant_id,
+            user,
+            body.description,
         )
     except Exception as exc:
-        logger.exception("Wizard full pipeline failed", extra={"tenant_id": user.tenant_id})
+        logger.exception(
+            "Wizard full pipeline failed", extra={"tenant_id": user.tenant_id}
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"errors": [{"code": "WIZARD_PIPELINE_FAILED", "message": str(exc)}], "meta": _meta(request_id=request_id)},
+            detail={
+                "errors": [{"code": "WIZARD_PIPELINE_FAILED", "message": str(exc)}],
+                "meta": _meta(request_id=request_id),
+            },
         ) from exc
 
     return {
@@ -179,5 +224,29 @@ async def full_pipeline(
             "agent": agent.model_dump(mode="json"),
             "validation": validation.model_dump(mode="json"),
         },
+        "meta": _meta(request_id=request_id),
+    }
+
+
+@router.post("/generate", status_code=status.HTTP_201_CREATED)
+async def generate(
+    body: WizardRequest,
+) -> dict[str, Any]:
+    """Convert a natural-language description into an agent graph definition."""
+    request_id = str(uuid4())
+    try:
+        result = await generate_agent_graph(body.description)
+    except Exception as exc:
+        logger.exception("Wizard generate failed")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "errors": [{"code": "WIZARD_GENERATE_FAILED", "message": str(exc)}],
+                "meta": _meta(request_id=request_id),
+            },
+        ) from exc
+
+    return {
+        "data": result.model_dump(mode="json"),
         "meta": _meta(request_id=request_id),
     }

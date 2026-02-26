@@ -70,6 +70,16 @@ export async function deleteExecution(id: string): Promise<void> {
 
 /** WebSocket event types for execution streaming */
 export type ExecutionEventType =
+  | "llm_stream_token"
+  | "tool_call"
+  | "tool_result"
+  | "agent_start"
+  | "agent_complete"
+  | "error"
+  | "cost_update"
+  | "ping"
+  | "pong"
+  // Legacy HTTP-style event types (used by connectExecutionWebSocket callers)
   | "execution.started"
   | "step.started"
   | "step.completed"
@@ -79,10 +89,18 @@ export type ExecutionEventType =
   | "execution.completed"
   | "execution.failed";
 
+/** Canonical execution event shape sent by the backend WebSocket */
 export interface ExecutionEvent {
+  /** Unique event identifier (UUID) for replay deduplication */
+  id: string;
   type: ExecutionEventType;
-  data: Record<string, unknown>;
   timestamp: string;
+  /** Type-specific event payload */
+  payload: Record<string, unknown>;
+  /** Running total cost in USD (present on cost_update events) */
+  cost?: number;
+  /** LLM stream token text (present on llm_stream_token events) */
+  token?: string;
 }
 
 /**
@@ -106,8 +124,25 @@ export function connectExecutionWebSocket(
 
   ws.onmessage = (event) => {
     try {
-      const parsed = JSON.parse(event.data) as ExecutionEvent;
-      onEvent(parsed);
+      // Backend sends: { event_id, type, timestamp, data, ... }
+      // Normalize to ExecutionEvent shape: { id, type, timestamp, payload, cost?, token? }
+      const raw = JSON.parse(event.data) as {
+        event_id?: string;
+        type: ExecutionEventType;
+        timestamp: string;
+        data?: Record<string, unknown>;
+        cost?: number;
+        token?: string;
+      };
+      const mapped: ExecutionEvent = {
+        id: raw.event_id ?? "",
+        type: raw.type,
+        timestamp: raw.timestamp,
+        payload: raw.data ?? {},
+        cost: raw.cost ?? (typeof raw.data?.total_cost_usd === "number" ? raw.data.total_cost_usd : undefined),
+        token: raw.token ?? (typeof raw.data?.token === "string" ? raw.data.token : undefined),
+      };
+      onEvent(mapped);
     } catch {
       // Ignore malformed messages
     }

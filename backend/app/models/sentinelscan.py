@@ -24,8 +24,12 @@ class DiscoveryScan(SQLModel, table=True):
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     name: str = Field(index=True)
-    scan_type: str = Field(index=True)  # sso | network | api_gateway | saas | browser | custom
-    status: str = Field(default="pending")  # pending | running | completed | failed | cancelled
+    scan_type: str = Field(
+        index=True
+    )  # sso | network | api_gateway | saas | browser | custom
+    status: str = Field(
+        default="pending"
+    )  # pending | running | completed | failed | cancelled
     config: dict[str, Any] = Field(
         default_factory=dict, sa_column=Column(JSON, nullable=False)
     )
@@ -35,7 +39,9 @@ class DiscoveryScan(SQLModel, table=True):
     services_found: int = Field(default=0)
     started_at: datetime | None = Field(default=None)
     completed_at: datetime | None = Field(default=None)
-    error_message: str | None = Field(default=None, sa_column=Column(SAText, nullable=True))
+    error_message: str | None = Field(
+        default=None, sa_column=Column(SAText, nullable=True)
+    )
     initiated_by: UUID | None = Field(default=None, foreign_key="users.id")
     created_at: datetime = Field(default_factory=_utcnow)
     updated_at: datetime = Field(default_factory=_utcnow)
@@ -49,13 +55,19 @@ class DiscoveredService(SQLModel, table=True):
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     scan_id: UUID = Field(index=True, foreign_key="sentinelscan_discovery_scans.id")
     service_name: str = Field(index=True)
-    service_type: str = Field(index=True)  # llm | copilot | chatbot | image_gen | custom_model | saas_ai
-    provider: str = Field(index=True)  # openai | anthropic | google | microsoft | cohere | custom
+    service_type: str = Field(
+        index=True
+    )  # llm | copilot | chatbot | image_gen | custom_model | saas_ai
+    provider: str = Field(
+        index=True
+    )  # openai | anthropic | google | microsoft | cohere | custom
     detection_source: str  # sso_log | network_traffic | api_gateway | saas_integration | browser_telemetry
     department: str | None = Field(default=None, index=True)
     owner: str | None = Field(default=None)
     user_count: int = Field(default=0)
-    data_sensitivity: str = Field(default="unknown")  # public | internal | confidential | restricted | unknown
+    data_sensitivity: str = Field(
+        default="unknown"
+    )  # public | internal | confidential | restricted | unknown
     is_sanctioned: bool = Field(default=False)
     first_seen: datetime = Field(default_factory=_utcnow)
     last_seen: datetime = Field(default_factory=_utcnow)
@@ -92,6 +104,57 @@ class RiskClassification(SQLModel, table=True):
     )
     classified_at: datetime = Field(default_factory=_utcnow)
     updated_at: datetime = Field(default_factory=_utcnow)
+
+
+class SentinelFinding(SQLModel, table=True):
+    """A security finding produced by a SentinelScan scan."""
+
+    __tablename__ = "sentinelscan_findings"
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    scan_id: UUID = Field(index=True, foreign_key="sentinelscan_discovery_scans.id")
+    service_id: UUID | None = Field(
+        default=None,
+        index=True,
+        foreign_key="sentinelscan_discovered_services.id",
+    )
+    finding_type: str = Field(
+        index=True
+    )  # shadow_ai | policy_violation | credential_exposure | data_risk
+    severity: str = Field(
+        default="medium"
+    )  # critical | high | medium | low | informational
+    title: str
+    description: str | None = Field(
+        default=None, sa_column=Column(SAText, nullable=True)
+    )
+    remediation: str | None = Field(
+        default=None, sa_column=Column(SAText, nullable=True)
+    )
+    details: dict[str, Any] = Field(
+        default_factory=dict, sa_column=Column(JSON, nullable=False)
+    )
+    status: str = Field(default="open")  # open | in_progress | resolved | suppressed
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
+
+
+class SentinelScanHistory(SQLModel, table=True):
+    """Historical record of a completed SentinelScan run."""
+
+    __tablename__ = "sentinelscan_history"
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    scan_id: UUID = Field(index=True, foreign_key="sentinelscan_discovery_scans.id")
+    tenant_id: UUID = Field(index=True)
+    scan_type: str = Field(index=True)
+    services_found: int = Field(default=0)
+    findings_count: int = Field(default=0)
+    shadow_count: int = Field(default=0)
+    risk_score: int = Field(default=0, ge=0, le=100)
+    duration_seconds: float = Field(default=0.0)
+    completed_at: datetime = Field(default_factory=_utcnow)
+    created_at: datetime = Field(default_factory=_utcnow)
 
 
 # ── Pydantic API schema models (non-table) ──────────────────────────
@@ -144,7 +207,9 @@ class CredentialExposure(BaseModel):
 
     id: UUID
     tenant_id: UUID
-    credential_type: str  # api_key | oauth_token | service_account | personal_access_token
+    credential_type: (
+        str  # api_key | oauth_token | service_account | personal_access_token
+    )
     location: str  # repo path, log file, etc.
     service_name: str | None = None
     severity: str  # critical | high | medium | low
@@ -236,5 +301,7 @@ __all__ = [
     "PostureScore",
     "RemediationWorkflow",
     "RiskClassification",
+    "SentinelFinding",
+    "SentinelScanHistory",
     "SSOLogSource",
 ]

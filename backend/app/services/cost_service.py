@@ -102,15 +102,31 @@ class CostService:
     context for RBAC enforcement.
     """
 
-    # Provider pricing per 1K tokens in USD (matches spec 5B)
+    # Provider pricing per 1K tokens in USD (matches spec 5B).
+    # Values are per-1M prices divided by 1000.
     PRICING: dict[str, dict[str, float]] = {
+        # OpenAI
         "gpt-4o": {"input": 0.0025, "output": 0.01},
         "gpt-4o-mini": {"input": 0.00015, "output": 0.0006},
-        "claude-3.5-sonnet": {"input": 0.003, "output": 0.015},
+        "gpt-4-turbo": {"input": 0.01, "output": 0.03},
+        "gpt-3.5-turbo": {"input": 0.0005, "output": 0.0015},
+        "o1": {"input": 0.015, "output": 0.06},
+        "o1-mini": {"input": 0.003, "output": 0.012},
+        # Anthropic
         "claude-3-5-sonnet": {"input": 0.003, "output": 0.015},
-        "claude-3.5-haiku": {"input": 0.0008, "output": 0.004},
+        "claude-3.5-sonnet": {"input": 0.003, "output": 0.015},
         "claude-3-5-haiku": {"input": 0.0008, "output": 0.004},
+        "claude-3.5-haiku": {"input": 0.0008, "output": 0.004},
+        "claude-3-opus": {"input": 0.015, "output": 0.075},
+        "claude-3-sonnet": {"input": 0.003, "output": 0.015},
+        "claude-3-haiku": {"input": 0.00025, "output": 0.00125},
+        # Google
+        "gemini-1.5-pro": {"input": 0.0035, "output": 0.0105},
+        "gemini-1.5-flash": {"input": 0.000075, "output": 0.0003},
         "gemini-2.0-flash": {"input": 0.0001, "output": 0.0004},
+        "gemini-1.0-pro": {"input": 0.0005, "output": 0.0015},
+        # Azure (same as OpenAI per-1K rates)
+        "gpt-35-turbo": {"input": 0.0005, "output": 0.0015},
     }
 
     # ── Token Ledger ────────────────────────────────────────────────
@@ -555,73 +571,6 @@ class CostService:
             trend=trend,
             daily_avg=round(daily_avg, 6),
             projected_total=round(sum(p.projected_cost for p in projections), 6),
-        )
-
-        # Non-finance users only see their own projection
-        if not _can_read_all_costs(user):
-            base = base.where(TokenLedger.user_id == UUID(user.id))
-
-        result = await session.exec(base)
-        entries = list(result.all())
-
-        if not entries:
-            return CostForecast(trend="stable", daily_avg=0.0, projected_total=0.0)
-
-        # Group by day
-        daily: dict[str, float] = {}
-        for e in entries:
-            day = e.created_at.strftime("%Y-%m-%d")
-            daily[day] = daily.get(day, 0.0) + e.total_cost
-
-        days_sorted = sorted(daily.keys())
-        values = [daily[d] for d in days_sorted]
-        num_days = max(len(values), 1)
-        daily_avg = sum(values) / num_days
-
-        # Trend detection
-        if len(values) >= 7:
-            first_half = sum(values[: len(values) // 2]) / max(len(values) // 2, 1)
-            second_half = sum(values[len(values) // 2 :]) / max(
-                len(values) - len(values) // 2, 1
-            )
-            if second_half > first_half * 1.1:
-                trend = "increasing"
-            elif second_half < first_half * 0.9:
-                trend = "decreasing"
-            else:
-                trend = "stable"
-        else:
-            trend = "stable"
-
-        # Daily projections
-        projections: list[DailyProjection] = []
-        cumulative = 0.0
-        for i in range(horizon_days):
-            day_date = now + timedelta(days=i + 1)
-            cumulative += daily_avg
-            projections.append(
-                DailyProjection(
-                    date=day_date.strftime("%Y-%m-%d"),
-                    projected_cost=round(daily_avg, 6),
-                    cumulative_cost=round(cumulative, 6),
-                )
-            )
-
-        std_dev = (
-            (sum((v - daily_avg) ** 2 for v in values) / num_days) ** 0.5
-            if num_days > 1
-            else 0.0
-        )
-
-        return CostForecast(
-            daily_projections=projections,
-            confidence_interval={
-                "lower": round(max(daily_avg - std_dev, 0.0) * horizon_days, 6),
-                "upper": round((daily_avg + std_dev) * horizon_days, 6),
-            },
-            trend=trend,
-            daily_avg=round(daily_avg, 6),
-            projected_total=round(daily_avg * horizon_days, 6),
         )
 
     # ── Dashboard ───────────────────────────────────────────────────

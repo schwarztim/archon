@@ -296,6 +296,43 @@ class FallbackChainConfig(SQLModel):
     model_ids: list[str] = Field(default_factory=list)
 
 
+# ── DB (table=True) variants of visual routing models ───────────────
+
+
+class VisualRoutingRuleDB(SQLModel, table=True):
+    """Persisted visual routing rule stored in the database."""
+
+    __tablename__ = "visual_routing_rules"
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    name: str = Field(index=True)
+    description: str | None = Field(
+        default=None, sa_column=Column(SAText, nullable=True)
+    )
+    conditions: list[dict] = Field(
+        default_factory=list, sa_column=Column(JSON, nullable=False)
+    )
+    target_model_id: str
+    priority: int = Field(default=0)
+    enabled: bool = Field(default=True)
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
+
+
+class FallbackChainConfigDB(SQLModel, table=True):
+    """Persisted fallback chain configuration stored in the database."""
+
+    __tablename__ = "fallback_chain_configs"
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    name: str = Field(index=True)
+    model_ids: list[str] = Field(
+        default_factory=list, sa_column=Column(JSON, nullable=False)
+    )
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
+
+
 # ── Provider Credential schemas ─────────────────────────────────────
 
 
@@ -450,6 +487,7 @@ __all__ = [
     "CredentialField",
     "DecisionFactor",
     "FallbackChainConfig",
+    "FallbackChainConfigDB",
     "ModelProvider",
     "ModelRegistryEntry",
     "PROVIDER_CREDENTIAL_SCHEMAS",
@@ -467,4 +505,5 @@ __all__ = [
     "VisualRouteDecision",
     "VisualRouteRequest",
     "VisualRoutingRule",
+    "VisualRoutingRuleDB",
 ]

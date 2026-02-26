@@ -355,7 +355,7 @@ export function ExecutionDetailPage() {
               <div key={i} className="flex items-center gap-2 text-xs">
                 <span className="text-gray-500">{new Date(ev.timestamp).toLocaleTimeString()}</span>
                 <span className="rounded bg-purple-500/20 px-1.5 py-0.5 text-purple-400">{ev.type}</span>
-                <span className="text-gray-400 truncate">{JSON.stringify(ev.data)}</span>
+                <span className="text-gray-400 truncate">{JSON.stringify(ev.payload)}</span>
               </div>
             ))}
           </div>

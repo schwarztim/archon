@@ -205,13 +205,22 @@ class TestModelRouterServiceRoute:
     """Test ModelRouterService.route with mocked DB."""
 
     def _make_session(self, models: list[ModelRegistryEntry]) -> AsyncMock:
-        """Build a mock session that returns *models* from exec calls."""
-        mock_result = MagicMock()
-        mock_result.all.return_value = models
-        mock_result.first.return_value = None
+        """Build a mock session that returns *models* from the first exec call
+        (for _fetch_tenant_models) and an empty list for all subsequent calls
+        (for _load_routing_policy and other RoutingRule queries)."""
+        models_result = MagicMock()
+        models_result.all.return_value = models
+        models_result.first.return_value = None
+
+        empty_result = MagicMock()
+        empty_result.all.return_value = []
+        empty_result.first.return_value = None
 
         session = AsyncMock()
-        session.exec = AsyncMock(return_value=mock_result)
+        # First exec → models (tenant model lookup), remaining → empty (policy/rule queries)
+        session.exec = AsyncMock(
+            side_effect=[models_result, empty_result, empty_result, empty_result]
+        )
         session.add = MagicMock()
         session.flush = AsyncMock()
         session.commit = AsyncMock()
@@ -228,7 +237,9 @@ class TestModelRouterServiceRoute:
         request = _make_request()
 
         with patch(
-            "app.services.router_service.AuditLogService.create", new=AsyncMock()
+            "app.services.router_service.AuditLogService.create",
+            new=AsyncMock(),
+            create=True,
         ):
             decision = await ModelRouterService.route(
                 session, secrets, "t1", user, request
@@ -277,7 +288,9 @@ class TestModelRouterServiceRoute:
         request = _make_request(required_capabilities=["code"])
 
         with patch(
-            "app.services.router_service.AuditLogService.create", new=AsyncMock()
+            "app.services.router_service.AuditLogService.create",
+            new=AsyncMock(),
+            create=True,
         ):
             decision = await ModelRouterService.route(
                 session, secrets, "t1", user, request
@@ -328,7 +341,9 @@ class TestModelRouterServiceRoute:
         request = _make_request(budget_limit=0.001, input_tokens_estimate=100)
 
         with patch(
-            "app.services.router_service.AuditLogService.create", new=AsyncMock()
+            "app.services.router_service.AuditLogService.create",
+            new=AsyncMock(),
+            create=True,
         ):
             decision = await ModelRouterService.route(
                 session, secrets, "t1", user, request

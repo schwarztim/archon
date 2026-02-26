@@ -208,18 +208,40 @@ class PostgreSQLConnector(BaseConnector):
         data: Any,
         params: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Insert a row into a table.
+        """Insert one or more rows into a table inside a transaction.
 
         Args:
             resource_id: Fully-qualified table name.
-            data: Dict of column_name → value pairs to insert.
+            data: Either a single dict of column→value pairs, or a list of
+                such dicts for bulk insert.  All records in a list must have
+                the same set of columns.
             params: Optional dict with ``on_conflict`` strategy.
 
         Returns:
             Dict with ``{"success": bool, "rows_affected": int}``.
         """
-        if not isinstance(data, dict) or not data:
-            raise ValueError("data must be a non-empty dict of column→value pairs")
+        # Normalise to list for uniform handling
+        if isinstance(data, dict):
+            records: list[dict[str, Any]] = [data]
+        elif isinstance(data, list):
+            records = data
+        else:
+            raise ValueError("data must be a dict or list of dicts")
+
+        if not records:
+            raise ValueError("data must contain at least one record")
+        if not all(isinstance(r, dict) and r for r in records):
+            raise ValueError("each record must be a non-empty dict")
+
+        # Use columns from the first record; all rows must share the same keys
+        columns = list(records[0].keys())
+        if len(records) > 1:
+            for i, rec in enumerate(records[1:], start=1):
+                if set(rec.keys()) != set(columns):
+                    raise ValueError(
+                        f"record {i} has different keys than record 0 "
+                        f"(expected {set(columns)}, got {set(rec.keys())})"
+                    )
 
         parts = resource_id.strip().split(".", 1)
         if len(parts) == 2:
@@ -227,19 +249,20 @@ class PostgreSQLConnector(BaseConnector):
         else:
             quoted_table = f'"{parts[0]}"'
 
-        columns = list(data.keys())
         quoted_cols = ", ".join(f'"{c}"' for c in columns)
         placeholders = ", ".join(f"${i + 1}" for i in range(len(columns)))
-        values = [data[c] for c in columns]
-
         query = f"INSERT INTO {quoted_table} ({quoted_cols}) VALUES ({placeholders})"  # noqa: S608
 
         try:
             pool = await self._get_pool()
+            rows_affected = 0
             async with pool.acquire() as conn:
-                result = await conn.execute(query, *values)
-            # asyncpg returns "INSERT 0 <count>"
-            rows_affected = int(result.split()[-1]) if result else 0
+                async with conn.transaction():
+                    for record in records:
+                        values = [record[c] for c in columns]
+                        result = await conn.execute(query, *values)
+                        # asyncpg returns "INSERT 0 <count>"
+                        rows_affected += int(result.split()[-1]) if result else 0
             return {"success": True, "rows_affected": rows_affected}
         except Exception as exc:
             logger.error("PostgreSQL write failed for %s: %s", resource_id, exc)
