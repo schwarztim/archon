@@ -6,7 +6,7 @@ tool version tracking, and response validation records.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -177,9 +177,9 @@ class MCPResponseValidation(SQLModel, table=True):
 
 # ── Pydantic request/response schemas (non-ORM) ────────────────────
 
-from enum import Enum
+from enum import Enum  # noqa: E402
 
-from pydantic import BaseModel, Field as PField
+from pydantic import BaseModel, Field as PField  # noqa: E402
 
 
 class RiskLevel(str, Enum):

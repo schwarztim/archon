@@ -11,7 +11,6 @@ import logging
 import re
 import time
 from typing import Any
-from uuid import UUID, uuid4
 
 from app.models.dlp import (
     DLPPolicy,

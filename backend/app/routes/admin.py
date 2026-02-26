@@ -7,7 +7,7 @@ from typing import Any
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 
 from app.middleware.auth import require_auth
 from app.interfaces.models.enterprise import AuthenticatedUser

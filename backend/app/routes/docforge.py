@@ -19,7 +19,6 @@ from app.models.docforge import (
     DocumentListFilters,
     EmbeddingStatus,
     IngestRequest,
-    SearchFilters,
     SearchRequest,
 )
 from app.secrets.manager import VaultSecretsManager, get_secrets_manager

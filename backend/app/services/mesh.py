@@ -9,7 +9,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
-from app.models.mesh import FederationConfig, MeshMessage, MeshNode, TrustRelationship
+from app.models.mesh import MeshMessage, MeshNode, TrustRelationship
 
 
 def _utcnow() -> datetime:

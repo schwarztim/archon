@@ -14,7 +14,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from app.models.dlp import DLPDetectedEntity, DLPPolicy, DLPScanResult
+from app.models.dlp import DLPPolicy, DLPScanResult
 from app.services.dlp import DLPEngine, DetectionHit
 
 # ── Fixed UUIDs ─────────────────────────────────────────────────────

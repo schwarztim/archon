@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import Column
-from sqlalchemy import Text as SAText
 from sqlalchemy.types import JSON
 from sqlmodel import Field, SQLModel
 

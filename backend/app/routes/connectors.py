@@ -31,7 +31,6 @@ from app.services import ConnectorService
 from app.services.connectors.schemas import (
     CONNECTOR_TYPE_REGISTRY,
     get_connector_schema,
-    get_secret_field_names,
 )
 from app.services.connectors.oauth import OAuthProviderRegistry
 from app.services.connectors.testers import ConnectionTester

@@ -4,12 +4,11 @@ from __future__ import annotations
 
 from typing import Any
 from unittest.mock import AsyncMock, patch
-from uuid import UUID
 
 from fastapi.testclient import TestClient
 
 from app.models import Agent, Execution
-from tests.conftest import AGENT_ID, EXECUTION_ID, NOW, OWNER_ID
+from tests.conftest import AGENT_ID, EXECUTION_ID
 
 
 # ── Agent routes ────────────────────────────────────────────────────

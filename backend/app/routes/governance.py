@@ -17,9 +17,7 @@ from app.middleware.rbac import check_permission
 from app.models.governance import (
     AgentRegistryEntry,
     ApprovalRequest,
-    AuditEntry,
     CompliancePolicy,
-    ComplianceRecord,
 )
 from app.secrets.manager import VaultSecretsManager, get_secrets_manager
 from app.services.governance import GovernanceEngine

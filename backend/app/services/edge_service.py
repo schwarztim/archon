@@ -25,7 +25,6 @@ from app.models.edge import (
     OfflineTokenConfig,
     OTAUpdate,
     SecretsManifest,
-    SyncConflict,
     SyncPayload,
     SyncResult,
     UpdateRollout,

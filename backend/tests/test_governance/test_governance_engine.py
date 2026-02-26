@@ -17,7 +17,6 @@ from app.models.governance import (
     AgentRegistryEntry,
     AuditEntry,
     CompliancePolicy,
-    ComplianceRecord,
     compute_entry_hash,
 )
 from app.services.governance import GovernanceEngine

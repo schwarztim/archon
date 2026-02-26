@@ -9,7 +9,7 @@ import uuid
 import zlib
 from datetime import datetime, timezone
 from typing import Any
-from urllib.parse import quote_plus, urlencode
+from urllib.parse import urlencode
 from xml.etree import ElementTree as ET
 
 from app.interfaces.models.enterprise import AuthenticatedUser

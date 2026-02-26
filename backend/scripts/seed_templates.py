@@ -18,7 +18,7 @@ from uuid import UUID
 # Ensure backend package is importable when run as a script
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from app.database import async_session_factory, engine  # noqa: E402
+from app.database import async_session_factory  # noqa: E402
 from app.models import Template  # noqa: E402
 
 logger = logging.getLogger(__name__)

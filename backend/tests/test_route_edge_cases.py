@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-from typing import Any
 from unittest.mock import AsyncMock, patch
 from uuid import UUID
 
 from fastapi.testclient import TestClient
 
-from app.models import Agent, Connector, Model
-from tests.conftest import AGENT_ID, NOW, OWNER_ID
+from app.models import Agent
+from tests.conftest import AGENT_ID
 
 MODEL_ID = UUID("dddddddd-dddd-dddd-dddd-dddddddddddd")
 CONNECTOR_ID = UUID("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee")

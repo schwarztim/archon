@@ -6,10 +6,6 @@ and the sandbox API endpoints via FastAPI TestClient.
 
 from __future__ import annotations
 
-import asyncio
-from datetime import datetime, timezone
-from typing import Any
-from unittest.mock import AsyncMock, patch
 from uuid import UUID, uuid4
 
 import pytest
@@ -17,10 +13,8 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.services.sandbox_service import (
-    SandboxExecuteResult,
     SandboxResourceLimits,
     SandboxService,
-    SandboxSession,
     SandboxStatus,
     sandbox_service,
 )

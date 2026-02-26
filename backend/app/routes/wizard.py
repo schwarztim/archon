@@ -28,7 +28,6 @@ from app.models.wizard import (
     NLBuildPlan,
     NLBuildRequest,
     RefineRequest,
-    ValidationResult,
 )
 from app.services.wizard_service import (
     NLWizardService,

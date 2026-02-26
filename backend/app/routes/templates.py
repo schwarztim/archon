@@ -20,15 +20,10 @@ from app.middleware.auth import get_current_user
 from app.middleware.rbac import require_permission
 from app.models import Template
 from app.models.template import (
-    InstalledTemplate,
     InstallConfig,
-    TemplateCategory,
     TemplateCreate as EnterpriseTemplateCreate,
     TemplateFilter,
-    TemplatePage,
-    TemplateRating,
     TemplateRatingCreate,
-    TemplateResponse,
 )
 from app.secrets.manager import VaultSecretsManager, get_secrets_manager
 from app.services.template_service import TemplateService

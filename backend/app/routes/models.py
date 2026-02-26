@@ -13,7 +13,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_session
 from app.interfaces.models.enterprise import AuthenticatedUser
 from app.middleware.auth import get_current_user
-from app.middleware.rbac import check_permission
 from app.models import Model
 from app.models.router import (
     FallbackChainConfig,

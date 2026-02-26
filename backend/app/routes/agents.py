@@ -8,7 +8,6 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
-from pydantic import BaseModel, Field as PField
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session

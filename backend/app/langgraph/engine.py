@@ -10,7 +10,6 @@ execution with audit logging and credential injection.
 from __future__ import annotations
 
 import logging
-import traceback
 from typing import Any
 
 from langchain_core.messages import HumanMessage

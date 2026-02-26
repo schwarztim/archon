@@ -14,19 +14,15 @@ import re
 import time
 from datetime import datetime, timezone
 from typing import Any
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 from app.interfaces.models.enterprise import AuthenticatedUser
 from app.models.mcp_security import (
     AuthMatrix,
     AuthorizationResult,
     ConsentStatus,
-    MCPSandboxSession,
-    MCPSecurityEvent,
     MCPTool,
-    MCPToolAuthorization,
     MCPToolDefinition,
-    MCPToolVersion,
     SecurityScore,
     SecurityScoreFactor,
     ToolExecutionResult,
