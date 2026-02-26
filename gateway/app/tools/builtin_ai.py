@@ -1,4 +1,4 @@
-"""Built-in tool execution via Azure OpenAI."""
+"""Built-in tool execution via Azure OpenAI Responses API."""
 
 from __future__ import annotations
 
@@ -13,15 +13,32 @@ _RETRY_MAX_S = 30.0
 _RETRY_MAX_ATTEMPTS = 4
 
 
+def _extract_text(data: dict[str, Any]) -> str:
+    """Extract text content from a Responses API response object."""
+    output_text = data.get("output_text")
+    if isinstance(output_text, str):
+        return output_text
+    output = data.get("output", [])
+    if not output:
+        return ""
+    contents = output[0].get("content", [])
+    if not contents:
+        return ""
+    content = contents[0]
+    if isinstance(content, dict):
+        return content.get("text", "")
+    return ""
+
+
 async def call_builtin_ai(
     tool_id: str,
     body: dict[str, Any],
     *,
     model: str | None = None,
 ) -> dict[str, Any]:
-    """Execute a tool via Azure OpenAI chat completions.
+    """Execute a tool via the Azure OpenAI Responses API.
 
-    The tool input is forwarded as a user message.  The model response is
+    The tool input is forwarded as the user ``input``. The model response is
     returned verbatim along with usage metadata.
 
     Raises :class:`RuntimeError` if Azure OpenAI is not configured.
@@ -41,25 +58,19 @@ async def call_builtin_ai(
     if not api_key:
         raise RuntimeError("AZURE_OPENAI_API_KEY not configured. Cannot execute built-in tool.")
 
-    url = (
-        f"{endpoint}/openai/deployments/{deployment}"
-        "/chat/completions?api-version=2025-04-01-preview"
-    )
-    payload = {
-        "messages": [
+    url = f"{endpoint}/openai/responses?api-version=2025-04-01-preview"
+    payload: dict[str, Any] = {
+        "model": deployment,
+        "input": [
             {
                 "role": "system",
                 "content": (
-                    f"You are executing tool '{tool_id}'. "
-                    "Process the input and return a structured result."
+                    f"You are executing tool '{tool_id}'. Respond with valid JSON only."
                 ),
             },
-            {
-                "role": "user",
-                "content": str(body),
-            },
+            {"role": "user", "content": str(body)},
         ],
-        "max_tokens": 1024,
+        "max_output_tokens": 1024,
     }
 
     import asyncio
@@ -99,10 +110,7 @@ async def call_builtin_ai(
                 resp.raise_for_status()
                 data = resp.json()
 
-                content = ""
-                choices = data.get("choices", [])
-                if choices:
-                    content = choices[0].get("message", {}).get("content", "")
+                content = _extract_text(data)
 
                 return {
                     "tool_id": tool_id,
