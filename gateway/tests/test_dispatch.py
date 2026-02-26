@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from app.plugins.models import Plugin, ToolSchema
+from app.tools.builtin_ai import _extract_text
 
 
 def _make_tool(can_forward: bool = True) -> ToolSchema:
@@ -80,3 +81,52 @@ async def test_dispatch_fallback_to_builtin_when_no_endpoint() -> None:
 
     mock_builtin.assert_called_once()
     assert result["execution_mode"] == "builtin_ai"
+
+
+# ---------------------------------------------------------------------------
+# _extract_text — Responses API response parsing
+# ---------------------------------------------------------------------------
+
+
+def test_extract_text_single_output() -> None:
+    """Standard single-message Responses API response."""
+    data = {
+        "output": [{"content": [{"text": "Hello world"}]}]
+    }
+    assert _extract_text(data) == "Hello world"
+
+
+def test_extract_text_multiple_parts() -> None:
+    """Multiple parts return only the first content."""
+    data = {
+        "output": [
+            {
+                "content": [
+                    {"text": "Part one. "},
+                    {"text": "Part two."},
+                ]
+            }
+        ]
+    }
+    assert _extract_text(data) == "Part one. "
+
+
+def test_extract_text_ignores_non_output_text_parts() -> None:
+    """Missing text field returns empty string."""
+    data = {
+        "output": [
+            {
+                "content": [
+                    {"type": "tool_use"},
+                ]
+            }
+        ]
+    }
+    assert _extract_text(data) == ""
+
+
+def test_extract_text_empty_output() -> None:
+    """Missing or empty output returns empty string."""
+    assert _extract_text({}) == ""
+    assert _extract_text({"output": []}) == ""
+    assert _extract_text({"output_text": "hello"}) == "hello"
