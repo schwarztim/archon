@@ -106,7 +106,11 @@ async def health_check_full() -> dict[str, Any]:
 
     vault_status = "connected"
     if vault.get("status") != "ok":
-        vault_status = "stub" if "stub" in str(vault.get("details", vault.get("error", ""))) else "sealed"
+        vault_status = (
+            "stub"
+            if "stub" in str(vault.get("details", vault.get("error", "")))
+            else "sealed"
+        )
 
     services = {
         "api": "up",
@@ -149,7 +153,18 @@ async def readiness_check() -> dict[str, Any]:
 @router.get("/health")
 async def health_endpoint() -> dict[str, Any]:
     """Liveness probe."""
-    return await health_check()
+    check = await health_check()
+    return {
+        "data": {
+            "status": "ok",
+            "version": check.get("version", _VERSION),
+        },
+        "meta": {
+            "timestamp": check.get(
+                "timestamp", datetime.now(tz=timezone.utc).isoformat()
+            ),
+        },
+    }
 
 
 @router.get("/api/v1/health")

@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 
 # Paths that bypass rate limiting entirely
 _EXEMPT_PREFIXES = (
+    "/health",
     "/healthz",
     "/readyz",
     "/livez",
@@ -125,7 +126,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         # ------------------------------------------------------------------
         # Tier 1: Global per-tenant rate limit
         # ------------------------------------------------------------------
-        global_key = f"rl:tenant:{tenant_id}:{window_minute}"
+        global_key = f"rl:{tenant_id}:{window_minute}"
         global_count, global_ttl = await _incr_window(
             redis, global_key, settings.RATE_LIMIT_RPM
         )
