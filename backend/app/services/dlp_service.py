@@ -41,15 +41,31 @@ try:
     from presidio_analyzer import AnalyzerEngine  # type: ignore[import]
     from presidio_anonymizer import AnonymizerEngine  # type: ignore[import]
 
-    _presidio_analyzer = AnalyzerEngine()
-    _presidio_anonymizer = AnonymizerEngine()
-    _PRESIDIO_AVAILABLE = True
-    logger.info("Presidio NER engine loaded — using ML-backed PII detection")
+    _PRESIDIO_IMPORTS_OK = True
 except ImportError:
+    _PRESIDIO_IMPORTS_OK = False
     logger.debug(
         "presidio-analyzer/presidio-anonymizer not installed — "
         "using enhanced regex fallback for NER"
     )
+
+
+def _get_presidio_analyzer() -> Any:
+    """Lazily initialise AnalyzerEngine to avoid blocking module import with spaCy downloads."""
+    global _presidio_analyzer, _PRESIDIO_AVAILABLE
+    if _presidio_analyzer is not None:
+        return _presidio_analyzer
+    if not _PRESIDIO_IMPORTS_OK:
+        return None
+    try:
+        _presidio_analyzer = AnalyzerEngine()
+        _presidio_anonymizer = AnonymizerEngine()
+        _PRESIDIO_AVAILABLE = True
+        logger.info("Presidio NER engine loaded — using ML-backed PII detection")
+    except Exception:
+        logger.debug("Presidio init failed — using enhanced regex fallback for NER")
+    return _presidio_analyzer
+
 
 # Presidio entity types supported
 _PRESIDIO_ENTITIES: list[str] = [
@@ -1181,7 +1197,8 @@ class DLPService:
 
         entities = entity_types or _PRESIDIO_ENTITIES
 
-        if _PRESIDIO_AVAILABLE and _presidio_analyzer is not None:
+        analyzer = _get_presidio_analyzer()
+        if _PRESIDIO_AVAILABLE and analyzer is not None:
             return DLPService._scan_with_presidio(content, entities, language)
         else:
             return DLPService._scan_with_ner_fallback(content, entities)
@@ -1194,7 +1211,7 @@ class DLPService:
     ) -> list[PIIFinding]:
         """Delegate NER scanning to Microsoft Presidio AnalyzerEngine."""
         try:
-            results = _presidio_analyzer.analyze(
+            results = _get_presidio_analyzer().analyze(
                 text=content,
                 entities=entities,
                 language=language,
