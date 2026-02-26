@@ -131,13 +131,13 @@ export function TenantsPage() {
       <p className="mb-6 text-gray-400">Manage multi-tenant workspaces, quotas, and resource isolation.</p>
 
       {showForm && (
-        <div className="mb-6 rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-4">
+        <div className="mb-6 rounded-lg border border-surface-border bg-surface-raised p-4">
           <h3 className="mb-3 text-sm font-semibold text-white">New Tenant</h3>
           <div className="flex flex-wrap gap-3">
             <Input placeholder="Tenant name *" value={name} onChange={(e) => setName(e.target.value)} className="max-w-xs" />
             <Input placeholder="slug *" value={slug} onChange={(e) => setSlug(e.target.value)} className="max-w-[160px]" />
             <Input placeholder="Owner email *" value={ownerEmail} onChange={(e) => setOwnerEmail(e.target.value)} className="max-w-xs" />
-            <select value={tier} onChange={(e) => setTier(e.target.value)} className="h-9 rounded-md border border-[#2a2d37] bg-[#0f1117] px-3 text-sm text-white">
+            <select value={tier} onChange={(e) => setTier(e.target.value)} className="h-9 rounded-md border border-surface-border bg-surface-base px-3 text-sm text-white">
               <option value="free">Free</option>
               <option value="individual">Individual</option>
               <option value="team">Team</option>
@@ -151,7 +151,7 @@ export function TenantsPage() {
         </div>
       )}
 
-      <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27]">
+      <div className="rounded-lg border border-surface-border bg-surface-raised">
         {tenants.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12">
             <Users size={32} className="mb-2 text-gray-600" />
@@ -160,7 +160,7 @@ export function TenantsPage() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead><tr className="border-b border-[#2a2d37] text-left text-xs text-gray-500">
+              <thead><tr className="border-b border-surface-border text-left text-xs text-gray-500">
                 <th className="px-4 py-2 font-medium">Name</th>
                 <th className="px-4 py-2 font-medium">Slug</th>
                 <th className="px-4 py-2 font-medium">Tier</th>
@@ -169,7 +169,7 @@ export function TenantsPage() {
               </tr></thead>
               <tbody>{tenants.map((t) => (
                 <>
-                  <tr key={t.id} className="border-b border-[#2a2d37] hover:bg-white/5 cursor-pointer" onClick={() => setSelectedTenant(t)}>
+                  <tr key={t.id} className="border-b border-surface-border hover:bg-white/5 cursor-pointer" onClick={() => setSelectedTenant(t)}>
                     <td className="px-4 py-2 font-medium text-white">{t.name}</td>
                     <td className="px-4 py-2 font-mono text-xs text-gray-400">{t.slug}</td>
                     <td className="px-4 py-2">{tierBadge(t.tier ?? "free")}</td>
@@ -177,7 +177,7 @@ export function TenantsPage() {
                     <td className="px-4 py-2 text-right text-gray-400">{new Date(t.created_at).toLocaleDateString()}</td>
                   </tr>
                   {expandedId === t.id && (
-                    <tr key={`${t.id}-detail`} className="border-b border-[#2a2d37] bg-[#0f1117]">
+                    <tr key={`${t.id}-detail`} className="border-b border-surface-border bg-surface-base">
                       <td colSpan={5} className="px-6 py-3">
                         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                           {/* Tenant Details */}

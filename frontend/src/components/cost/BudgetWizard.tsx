@@ -50,7 +50,7 @@ export function BudgetWizard({ onSubmit, onCancel }: BudgetWizardProps) {
             className={`rounded-lg border p-3 text-center text-sm font-medium transition-colors ${
               form.scope === s
                 ? "border-purple-500 bg-purple-500/20 text-purple-300"
-                : "border-[#2a2d37] bg-[#0f1117] text-gray-400 hover:border-purple-500/50"
+                : "border-surface-border bg-surface-base text-gray-400 hover:border-purple-500/50"
             }`}
           >
             {s.charAt(0).toUpperCase() + s.slice(1)}
@@ -65,7 +65,7 @@ export function BudgetWizard({ onSubmit, onCancel }: BudgetWizardProps) {
         <div>
           <label className="mb-1 block text-xs text-gray-400">Budget Name *</label>
           <input
-            className="h-9 w-full rounded-md border border-[#2a2d37] bg-[#0f1117] px-3 text-sm text-white"
+            className="h-9 w-full rounded-md border border-surface-border bg-surface-base px-3 text-sm text-white"
             placeholder="Production LLM Budget"
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -77,7 +77,7 @@ export function BudgetWizard({ onSubmit, onCancel }: BudgetWizardProps) {
             type="number"
             min="1"
             step="0.01"
-            className="h-9 w-full rounded-md border border-[#2a2d37] bg-[#0f1117] px-3 text-sm text-white"
+            className="h-9 w-full rounded-md border border-surface-border bg-surface-base px-3 text-sm text-white"
             placeholder="5000"
             value={form.limit_amount || ""}
             onChange={(e) => setForm({ ...form, limit_amount: parseFloat(e.target.value) || 0 })}
@@ -88,7 +88,7 @@ export function BudgetWizard({ onSubmit, onCancel }: BudgetWizardProps) {
           <select
             value={form.period}
             onChange={(e) => setForm({ ...form, period: e.target.value })}
-            className="h-9 w-full rounded-md border border-[#2a2d37] bg-[#0f1117] px-3 text-sm text-white"
+            className="h-9 w-full rounded-md border border-surface-border bg-surface-base px-3 text-sm text-white"
           >
             <option value="daily">Daily</option>
             <option value="weekly">Weekly</option>
@@ -106,7 +106,7 @@ export function BudgetWizard({ onSubmit, onCancel }: BudgetWizardProps) {
           className={`rounded-lg border p-4 text-left transition-colors ${
             form.enforcement === "soft"
               ? "border-yellow-500 bg-yellow-500/10"
-              : "border-[#2a2d37] bg-[#0f1117] hover:border-yellow-500/50"
+              : "border-surface-border bg-surface-base hover:border-yellow-500/50"
           }`}
         >
           <div className="text-sm font-semibold text-white">Soft Limit</div>
@@ -117,7 +117,7 @@ export function BudgetWizard({ onSubmit, onCancel }: BudgetWizardProps) {
           className={`rounded-lg border p-4 text-left transition-colors ${
             form.enforcement === "hard"
               ? "border-red-500 bg-red-500/10"
-              : "border-[#2a2d37] bg-[#0f1117] hover:border-red-500/50"
+              : "border-surface-border bg-surface-base hover:border-red-500/50"
           }`}
         >
           <div className="text-sm font-semibold text-white">Hard Limit</div>
@@ -128,7 +128,7 @@ export function BudgetWizard({ onSubmit, onCancel }: BudgetWizardProps) {
   ];
 
   return (
-    <div className="border-b border-[#2a2d37] bg-[#0f1117] px-4 py-4">
+    <div className="border-b border-surface-border bg-surface-base px-4 py-4">
       {steps[step]}
       <div className="mt-4 flex items-center justify-between">
         <div className="flex gap-1">

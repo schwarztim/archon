@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-import logging
+import asyncio
+import random
 import time
 from collections import defaultdict
 from datetime import datetime, timezone
@@ -22,7 +23,6 @@ from app.models.router import (
     FallbackChainConfig,
     ModelProvider,
     ModelRegistryEntry,
-    PROVIDER_CREDENTIAL_SCHEMAS,
     ProviderHealth,
     ProviderHealthDetail,
     ProviderHealthHistory,
@@ -40,6 +40,126 @@ from app.models.router import (
 from app.services.audit_log_service import AuditLogService
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
+
+# ── Azure OpenAI configuration ───────────────────────────────────────
+_AZURE_OPENAI_ENDPOINT = (
+    "https://YOUR_AZURE_ENDPOINT.cognitiveservices.azure.com"
+)
+_AZURE_OPENAI_MODEL = "gpt-5.2-codex"
+_AZURE_OPENAI_EMBEDDINGS_MODEL = "qrg-embedding-experimental"
+_AZURE_OPENAI_CHAT_URL = (
+    f"{_AZURE_OPENAI_ENDPOINT}/openai/responses?api-version=2025-04-01-preview"
+)
+_AZURE_OPENAI_EMBEDDINGS_URL = (
+    f"{_AZURE_OPENAI_ENDPOINT}/openai/deployments/"
+    f"{_AZURE_OPENAI_EMBEDDINGS_MODEL}/embeddings?api-version=2023-05-15"
+)
+
+# ── Retry configuration ──────────────────────────────────────────────
+_RETRY_BASE_S = 1.0
+_RETRY_MAX_S = 30.0
+_RETRY_MAX_ATTEMPTS = 4  # 1s, 2s, 4s, 8s caps at 30s
+
+
+async def _wait_with_backoff(
+    attempt: int,
+    retry_after_header: str | None = None,
+) -> float:
+    """Compute and sleep for exponential backoff with jitter.
+
+    Returns the actual wait duration in seconds.
+    """
+    if retry_after_header:
+        try:
+            wait_s = float(retry_after_header)
+        except (ValueError, TypeError):
+            wait_s = _RETRY_BASE_S * (2**attempt)
+    else:
+        wait_s = _RETRY_BASE_S * (2**attempt)
+
+    # Cap and add ±10 % jitter
+    wait_s = min(wait_s, _RETRY_MAX_S)
+    jitter = wait_s * 0.1 * random.uniform(-1.0, 1.0)  # noqa: S311
+    actual_wait = max(0.0, wait_s + jitter)
+
+    logger.info(
+        "rate_limit_retry",
+        attempt=attempt,
+        wait_s=round(actual_wait, 2),
+        retry_after_header=retry_after_header,
+    )
+    await asyncio.sleep(actual_wait)
+    return actual_wait
+
+
+async def call_azure_openai_with_retry(
+    url: str,
+    payload: dict[str, Any],
+    api_key: str,
+    *,
+    retry_budget_s: float = 30.0,
+) -> dict[str, Any]:
+    """POST *payload* to Azure OpenAI *url* with 429-aware retry.
+
+    Raises ``httpx.HTTPStatusError`` if all retries are exhausted.
+    Raises ``RuntimeError`` if the retry budget is exceeded.
+    """
+    try:
+        import httpx
+    except ImportError as exc:
+        raise RuntimeError("httpx is required for Azure OpenAI calls") from exc
+
+    spent_s = 0.0
+    last_exc: Exception | None = None
+
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        for attempt in range(_RETRY_MAX_ATTEMPTS):
+            try:
+                resp = await client.post(
+                    url,
+                    json=payload,
+                    headers={
+                        "api-key": api_key,
+                        "Content-Type": "application/json",
+                    },
+                )
+                if resp.status_code == 429:
+                    retry_after = resp.headers.get("Retry-After")
+                    wait_s = _RETRY_BASE_S * (2**attempt)
+                    if retry_after:
+                        try:
+                            wait_s = float(retry_after)
+                        except (ValueError, TypeError):
+                            pass
+                    wait_s = min(wait_s, _RETRY_MAX_S)
+
+                    if spent_s + wait_s > retry_budget_s:
+                        logger.warning(
+                            "rate_limit_budget_exceeded",
+                            spent_s=spent_s,
+                            wait_s=wait_s,
+                            budget_s=retry_budget_s,
+                        )
+                        resp.raise_for_status()
+
+                    spent_s += await _wait_with_backoff(attempt, retry_after)
+                    last_exc = httpx.HTTPStatusError(
+                        "429 rate limited",
+                        request=resp.request,
+                        response=resp,
+                    )
+                    continue
+
+                resp.raise_for_status()
+                return resp.json()
+
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code != 429:
+                    raise
+                last_exc = exc
+
+    raise last_exc or RuntimeError("All Azure OpenAI retry attempts exhausted")
+
 
 # Classification hierarchy: higher rank = more restricted
 _CLASSIFICATION_RANK: dict[str, int] = {"general": 0, "internal": 1, "restricted": 2}
@@ -1495,8 +1615,98 @@ async def _test_provider_connection(
         )
 
 
+async def register_azure_openai_models(
+    session: AsyncSession,
+    tenant_id: str,
+) -> list[ModelRegistryEntry]:
+    """Register Azure OpenAI default models if not already present.
+
+    Idempotent — skips models whose model_id is already registered for the tenant.
+    Returns the list of newly created entries.
+    """
+    _default_entries: list[dict[str, Any]] = [
+        {
+            "name": "gpt-5.2-codex",
+            "provider": "azure_openai",
+            "model_id": _AZURE_OPENAI_MODEL,
+            "capabilities": ["chat", "code", "reasoning", "function_calling"],
+            "context_window": 128000,
+            "supports_streaming": True,
+            "cost_per_input_token": 0.005,
+            "cost_per_output_token": 0.015,
+            "speed_tier": "medium",
+            "avg_latency_ms": 800.0,
+            "data_classification": "internal",
+            "is_on_prem": False,
+            "is_active": True,
+            "config": {
+                "tenant_id": tenant_id,
+                "geo_residency": "us",
+                "endpoint": _AZURE_OPENAI_CHAT_URL,
+                "deployment_id": _AZURE_OPENAI_MODEL,
+                "api_version": "2025-04-01-preview",
+                "azure_openai": True,
+            },
+        },
+        {
+            "name": "qrg-embedding-experimental",
+            "provider": "azure_openai",
+            "model_id": _AZURE_OPENAI_EMBEDDINGS_MODEL,
+            "capabilities": ["embeddings"],
+            "context_window": 8191,
+            "supports_streaming": False,
+            "cost_per_input_token": 0.0001,
+            "cost_per_output_token": 0.0,
+            "speed_tier": "fast",
+            "avg_latency_ms": 200.0,
+            "data_classification": "internal",
+            "is_on_prem": False,
+            "is_active": True,
+            "config": {
+                "tenant_id": tenant_id,
+                "geo_residency": "us",
+                "endpoint": _AZURE_OPENAI_EMBEDDINGS_URL,
+                "deployment_id": _AZURE_OPENAI_EMBEDDINGS_MODEL,
+                "api_version": "2023-05-15",
+                "azure_openai": True,
+                "embeddings": True,
+            },
+        },
+    ]
+
+    created: list[ModelRegistryEntry] = []
+    for spec in _default_entries:
+        # Check if already present
+        stmt = (
+            select(ModelRegistryEntry)
+            .where(ModelRegistryEntry.model_id == spec["model_id"])
+            .where(ModelRegistryEntry.provider == "azure_openai")
+        )
+        result = await session.exec(stmt)
+        existing = [e for e in result.all() if e.config.get("tenant_id") == tenant_id]
+        if existing:
+            continue
+
+        entry = ModelRegistryEntry(**spec)
+        session.add(entry)
+        await session.flush()
+        created.append(entry)
+
+    if created:
+        await session.commit()
+        logger.info(
+            "azure_openai_models_registered",
+            tenant_id=tenant_id,
+            count=len(created),
+        )
+
+    return created
+
+
 __all__ = [
     "ModelRouterService",
     "RedisCircuitBreaker",
     "get_circuit_breaker",
+    "register_azure_openai_models",
+    "call_azure_openai_with_retry",
 ]

@@ -59,8 +59,8 @@ export function CostWidget({ dailyCosts, totalThisWeek, totalLastWeek, currency 
     : 0;
 
   return (
-    <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27]">
-      <div className="flex items-center gap-2 border-b border-[#2a2d37] px-4 py-3">
+    <div className="rounded-lg border border-surface-border bg-surface-raised">
+      <div className="flex items-center gap-2 border-b border-surface-border px-4 py-3">
         <DollarSign size={14} className="text-green-400" />
         <h2 className="text-sm font-semibold text-white">Cost Summary</h2>
       </div>
@@ -92,7 +92,7 @@ export function CostWidget({ dailyCosts, totalThisWeek, totalLastWeek, currency 
             </p>
           </div>
         </div>
-        <div className="rounded-md bg-[#141620] p-2">
+        <div className="rounded-md bg-surface-base p-2">
           {dailyCosts.length > 0 ? (
             <>
               <MiniAreaChart data={dailyCosts} />

@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field as PField
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -124,17 +124,29 @@ class ImpersonateRequest(BaseModel):
 _MASK = "********"
 
 _RESOURCES = [
-    "agents", "executions", "models", "connectors", "secrets",
-    "users", "settings", "governance", "dlp", "cost_management",
-    "sentinel_scan", "mcp_apps",
+    "agents",
+    "executions",
+    "models",
+    "connectors",
+    "secrets",
+    "users",
+    "settings",
+    "governance",
+    "dlp",
+    "cost_management",
+    "sentinel_scan",
+    "mcp_apps",
 ]
 
 _BUILTIN_ROLES: dict[str, dict[str, list[str]]] = {
     "super_admin": {r: ["create", "read", "update", "delete"] for r in _RESOURCES},
     "tenant_admin": {r: ["create", "read", "update", "delete"] for r in _RESOURCES},
     "developer": {
-        r: (["create", "read", "update", "delete"] if r in ("agents", "executions", "connectors", "mcp_apps")
-            else ["read"])
+        r: (
+            ["create", "read", "update", "delete"]
+            if r in ("agents", "executions", "connectors", "mcp_apps")
+            else ["read"]
+        )
         for r in _RESOURCES
     },
     "viewer": {r: ["read"] for r in _RESOURCES},
@@ -185,7 +197,9 @@ async def create_sso_config(
     check_permission(user, "settings", "create")
 
     if body.protocol not in ("oidc", "saml", "ldap"):
-        raise HTTPException(status_code=400, detail=f"Unsupported protocol: {body.protocol}")
+        raise HTTPException(
+            status_code=400, detail=f"Unsupported protocol: {body.protocol}"
+        )
 
     sso_id = str(uuid4())
     now = datetime.now(tz=timezone.utc).isoformat()
@@ -204,42 +218,54 @@ async def create_sso_config(
 
     # Protocol-specific fields
     if body.protocol == "oidc":
-        config_data.update({
-            "discovery_url": body.discovery_url,
-            "client_id": body.client_id,
-            "scopes": body.scopes,
-        })
+        config_data.update(
+            {
+                "discovery_url": body.discovery_url,
+                "client_id": body.client_id,
+                "scopes": body.scopes,
+            }
+        )
     elif body.protocol == "saml":
-        config_data.update({
-            "metadata_url": body.metadata_url,
-            "metadata_xml": body.metadata_xml,
-            "entity_id": body.entity_id,
-            "acs_url": body.acs_url or f"/api/v1/auth/saml/acs",
-        })
+        config_data.update(
+            {
+                "metadata_url": body.metadata_url,
+                "metadata_xml": body.metadata_xml,
+                "entity_id": body.entity_id,
+                "acs_url": body.acs_url or "/api/v1/auth/saml/acs",
+            }
+        )
     elif body.protocol == "ldap":
-        config_data.update({
-            "host": body.host,
-            "port": body.port,
-            "use_tls": body.use_tls,
-            "base_dn": body.base_dn,
-            "bind_dn": body.bind_dn,
-            "user_filter": body.user_filter,
-            "group_filter": body.group_filter,
-        })
+        config_data.update(
+            {
+                "host": body.host,
+                "port": body.port,
+                "use_tls": body.use_tls,
+                "base_dn": body.base_dn,
+                "bind_dn": body.bind_dn,
+                "user_filter": body.user_filter,
+                "group_filter": body.group_filter,
+            }
+        )
 
     # Store secrets in Vault
     secrets_mgr = await get_secrets_manager()
     if body.protocol == "oidc" and body.client_secret:
         secret_path = f"archon/tenants/{tenant_id}/sso/oidc/client_secret"
-        await secrets_mgr.put_secret(secret_path, {"value": body.client_secret}, tenant_id)
+        await secrets_mgr.put_secret(
+            secret_path, {"value": body.client_secret}, tenant_id
+        )
         config_data["client_secret_set"] = True
     elif body.protocol == "saml" and body.certificate:
         secret_path = f"archon/tenants/{tenant_id}/sso/saml/certificate"
-        await secrets_mgr.put_secret(secret_path, {"value": body.certificate}, tenant_id)
+        await secrets_mgr.put_secret(
+            secret_path, {"value": body.certificate}, tenant_id
+        )
         config_data["certificate_set"] = True
     elif body.protocol == "ldap" and body.bind_secret:
         secret_path = f"archon/tenants/{tenant_id}/sso/ldap/bind_password"
-        await secrets_mgr.put_secret(secret_path, {"value": body.bind_secret}, tenant_id)
+        await secrets_mgr.put_secret(
+            secret_path, {"value": body.bind_secret}, tenant_id
+        )
         config_data["bind_secret_set"] = True
 
     key = _tenant_key(tenant_id, sso_id)
@@ -266,7 +292,8 @@ async def list_sso_configs(
     check_permission(user, "settings", "read")
 
     configs = [
-        _mask_config(v) for k, v in _sso_configs.items()
+        _mask_config(v)
+        for k, v in _sso_configs.items()
         if k.startswith(f"{tenant_id}:")
     ]
     return {"data": configs, "meta": _meta()}
@@ -310,21 +337,27 @@ async def update_sso_config(
     secrets_mgr = await get_secrets_manager()
     if "client_secret" in updates and updates["client_secret"]:
         path = f"archon/tenants/{tenant_id}/sso/oidc/client_secret"
-        await secrets_mgr.put_secret(path, {"value": updates.pop("client_secret")}, tenant_id)
+        await secrets_mgr.put_secret(
+            path, {"value": updates.pop("client_secret")}, tenant_id
+        )
         config["client_secret_set"] = True
     elif "client_secret" in updates:
         updates.pop("client_secret")
 
     if "bind_secret" in updates and updates["bind_secret"]:
         path = f"archon/tenants/{tenant_id}/sso/ldap/bind_password"
-        await secrets_mgr.put_secret(path, {"value": updates.pop("bind_secret")}, tenant_id)
+        await secrets_mgr.put_secret(
+            path, {"value": updates.pop("bind_secret")}, tenant_id
+        )
         config["bind_secret_set"] = True
     elif "bind_secret" in updates:
         updates.pop("bind_secret")
 
     if "certificate" in updates and updates["certificate"]:
         path = f"archon/tenants/{tenant_id}/sso/saml/certificate"
-        await secrets_mgr.put_secret(path, {"value": updates.pop("certificate")}, tenant_id)
+        await secrets_mgr.put_secret(
+            path, {"value": updates.pop("certificate")}, tenant_id
+        )
         config["certificate_set"] = True
     elif "certificate" in updates:
         updates.pop("certificate")
@@ -351,7 +384,9 @@ async def update_sso_config(
     return {"data": _mask_config(config), "meta": _meta()}
 
 
-@router.delete("/tenants/{tenant_id}/sso/{sso_id}", status_code=204, response_class=Response)
+@router.delete(
+    "/tenants/{tenant_id}/sso/{sso_id}", status_code=204, response_class=Response
+)
 async def delete_sso_config(
     tenant_id: str,
     sso_id: str,
@@ -372,15 +407,18 @@ async def delete_sso_config(
     try:
         if protocol == "oidc":
             await secrets_mgr.delete_secret(
-                f"archon/tenants/{tenant_id}/sso/oidc/client_secret", tenant_id,
+                f"archon/tenants/{tenant_id}/sso/oidc/client_secret",
+                tenant_id,
             )
         elif protocol == "saml":
             await secrets_mgr.delete_secret(
-                f"archon/tenants/{tenant_id}/sso/saml/certificate", tenant_id,
+                f"archon/tenants/{tenant_id}/sso/saml/certificate",
+                tenant_id,
             )
         elif protocol == "ldap":
             await secrets_mgr.delete_secret(
-                f"archon/tenants/{tenant_id}/sso/ldap/bind_password", tenant_id,
+                f"archon/tenants/{tenant_id}/sso/ldap/bind_password",
+                tenant_id,
             )
     except Exception:
         logger.warning("Failed to delete Vault secret for SSO config %s", sso_id)
@@ -446,7 +484,9 @@ async def test_sso_connection(
         if not host:
             result.update(status="error", message="LDAP host is required")
         else:
-            result["message"] = f"LDAP bind successful to {host}:{config.get('port', 389)}"
+            result["message"] = (
+                f"LDAP bind successful to {host}:{config.get('port', 389)}"
+            )
             result["details"] = {
                 "bind_successful": True,
                 "base_dn_valid": True,
@@ -472,7 +512,7 @@ async def list_tenant_members(
 
     members = _tenant_members.get(tenant_id, [])
     total = len(members)
-    paginated = members[offset:offset + limit]
+    paginated = members[offset : offset + limit]
 
     return {
         "data": paginated,
@@ -486,9 +526,17 @@ async def list_tenant_members(
 @router.get("/rbac/matrix")
 async def get_rbac_matrix(
     user: AuthenticatedUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     """Get the full RBAC permission matrix (roles × resources × actions)."""
     check_permission(user, "settings", "read")
+
+    from app.models.rbac import CustomRole
+    from sqlalchemy import select
+
+    stmt = select(CustomRole).where(CustomRole.tenant_id == UUID(user.tenant_id))
+    result = await session.exec(stmt)
+    db_custom_roles = result.all()
 
     # Merge built-in and custom roles
     all_roles: dict[str, dict[str, Any]] = {}
@@ -498,12 +546,12 @@ async def get_rbac_matrix(
             "is_builtin": True,
             "description": f"Built-in {role_name.replace('_', ' ').title()} role",
         }
-    for role_id, role_data in _custom_roles.items():
-        all_roles[role_data["name"]] = {
-            "id": role_id,
-            "permissions": role_data.get("permissions", {}),
+    for role in db_custom_roles:
+        all_roles[role.name] = {
+            "id": str(role.id),
+            "permissions": role.permissions,
             "is_builtin": False,
-            "description": role_data.get("description", ""),
+            "description": role.description,
         }
 
     return {
@@ -525,32 +573,56 @@ async def create_custom_role(
     """Create a custom RBAC role with specific permissions."""
     check_permission(user, "settings", "create")
 
+    from app.models.rbac import CustomRole
+    from sqlalchemy import select
+
     if body.name in _BUILTIN_ROLES:
         raise HTTPException(status_code=409, detail="Cannot override a built-in role")
 
-    role_id = str(uuid4())
-    now = datetime.now(tz=timezone.utc).isoformat()
-    role_data = {
-        "id": role_id,
-        "name": body.name,
-        "description": body.description,
-        "permissions": body.permissions,
-        "is_builtin": False,
-        "created_at": now,
-        "updated_at": now,
-    }
-    _custom_roles[role_id] = role_data
+    # Check for name collision within tenant
+    stmt = (
+        select(CustomRole)
+        .where(CustomRole.tenant_id == UUID(user.tenant_id))
+        .where(CustomRole.name == body.name)
+    )
+    existing = await session.exec(stmt)
+    if existing.first() is not None:
+        raise HTTPException(
+            status_code=409, detail=f"Role '{body.name}' already exists"
+        )
+
+    role = CustomRole(
+        tenant_id=UUID(user.tenant_id),
+        name=body.name,
+        description=body.description,
+        permissions=body.permissions,
+        is_builtin=False,
+    )
+    session.add(role)
+    await session.commit()
+    await session.refresh(role)
 
     await AuditLogService.create(
         session,
         actor_id=UUID(user.id),
         action="rbac.role_created",
         resource_type="rbac_role",
-        resource_id=UUID(role_id),
+        resource_id=role.id,
         details={"name": body.name},
     )
 
-    return {"data": role_data, "meta": _meta()}
+    return {
+        "data": {
+            "id": str(role.id),
+            "name": role.name,
+            "description": role.description,
+            "permissions": role.permissions,
+            "is_builtin": role.is_builtin,
+            "created_at": role.created_at.isoformat() if role.created_at else None,
+            "updated_at": role.updated_at.isoformat() if role.updated_at else None,
+        },
+        "meta": _meta(),
+    }
 
 
 @router.put("/rbac/roles/{role_id}")
@@ -563,25 +635,42 @@ async def update_custom_role(
     """Update a custom RBAC role's permissions."""
     check_permission(user, "settings", "update")
 
-    role = _custom_roles.get(role_id)
-    if role is None:
+    from app.models.rbac import CustomRole
+    from datetime import datetime
+
+    role = await session.get(CustomRole, UUID(role_id))
+    if role is None or str(role.tenant_id) != user.tenant_id:
         raise HTTPException(status_code=404, detail="Custom role not found")
 
     updates = body.model_dump(exclude_unset=True)
-    role.update(updates)
-    role["updated_at"] = datetime.now(tz=timezone.utc).isoformat()
-    _custom_roles[role_id] = role
+    for key, value in updates.items():
+        setattr(role, key, value)
+    role.updated_at = datetime.utcnow()
+    session.add(role)
+    await session.commit()
+    await session.refresh(role)
 
     await AuditLogService.create(
         session,
         actor_id=UUID(user.id),
         action="rbac.role_updated",
         resource_type="rbac_role",
-        resource_id=UUID(role_id),
+        resource_id=role.id,
         details={"updated_fields": list(updates.keys())},
     )
 
-    return {"data": role, "meta": _meta()}
+    return {
+        "data": {
+            "id": str(role.id),
+            "name": role.name,
+            "description": role.description,
+            "permissions": role.permissions,
+            "is_builtin": role.is_builtin,
+            "created_at": role.created_at.isoformat() if role.created_at else None,
+            "updated_at": role.updated_at.isoformat() if role.updated_at else None,
+        },
+        "meta": _meta(),
+    }
 
 
 @router.delete("/rbac/roles/{role_id}", status_code=204, response_class=Response)
@@ -593,9 +682,14 @@ async def delete_custom_role(
     """Delete a custom RBAC role."""
     check_permission(user, "settings", "delete")
 
-    role = _custom_roles.pop(role_id, None)
-    if role is None:
+    from app.models.rbac import CustomRole
+
+    role = await session.get(CustomRole, UUID(role_id))
+    if role is None or str(role.tenant_id) != user.tenant_id:
         raise HTTPException(status_code=404, detail="Custom role not found")
+
+    await session.delete(role)
+    await session.commit()
 
     await AuditLogService.create(
         session,
@@ -603,7 +697,7 @@ async def delete_custom_role(
         action="rbac.role_deleted",
         resource_type="rbac_role",
         resource_id=UUID(role_id),
-        details={"name": role.get("name", "")},
+        details={"name": role.name},
     )
     return Response(status_code=204)
 

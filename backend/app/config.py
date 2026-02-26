@@ -38,8 +38,36 @@ class Settings(BaseSettings):
     # Default is False for production safety; override with ARCHON_AUTH_DEV_MODE=true locally
     AUTH_DEV_MODE: bool = False
 
+    # Azure Entra ID / OIDC
+    OIDC_DISCOVERY_URL: str = ""  # https://login.microsoftonline.com/{tenant}/v2.0/.well-known/openid-configuration
+    OIDC_CLIENT_ID: str = ""  # Entra application (client) ID
+    OIDC_CLIENT_SECRET: str = ""  # Optional for public clients
+    OIDC_TENANT_ID: str = ""  # Entra directory (tenant) ID
+
+    # Azure OpenAI
+    AZURE_OPENAI_ENDPOINT: str = (
+        "https://YOUR_AZURE_ENDPOINT.cognitiveservices.azure.com"
+    )
+    AZURE_OPENAI_API_KEY: str = ""
+    AZURE_OPENAI_MODEL: str = "gpt-5.2-codex"
+    AZURE_OPENAI_EMBEDDINGS_MODEL: str = "qrg-embedding-experimental"
+
+    # Rate limiting
+    RATE_LIMIT_RPM: int = 1000  # Requests per minute (global per-tenant)
+    RATE_LIMIT_ENABLED: bool = True
+
     # API
     API_PREFIX: str = "/api/v1"
+
+    # SMTP
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_FROM: str = ""
+    SMTP_USERNAME: str = ""
+    SMTP_PASSWORD: str = ""
+
+    # Microsoft Teams
+    TEAMS_WEBHOOK_URL: str = ""
 
     # App
     debug: bool = False

@@ -33,7 +33,7 @@ export function CatalogGrid({
 
   if (packages.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-lg border border-[#2a2d37] bg-[#1a1d27] py-16">
+      <div className="flex flex-col items-center justify-center rounded-lg border border-surface-border bg-surface-raised py-16">
         <Store size={40} className="mb-3 text-gray-600" />
         <p className="text-sm text-gray-500">{emptyMessage}</p>
       </div>

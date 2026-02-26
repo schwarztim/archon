@@ -36,7 +36,7 @@ export function QuickActions({ onCreateAgent, onRunAgent }: QuickActionsProps) {
   }
 
   return (
-    <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-4">
+    <div className="rounded-lg border border-surface-border bg-surface-raised p-4">
       <h2 className="mb-3 text-sm font-semibold text-white">Quick Actions</h2>
       <div className="flex flex-wrap gap-3">
         {actions.map((a) => (

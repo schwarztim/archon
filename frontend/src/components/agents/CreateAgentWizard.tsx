@@ -261,9 +261,9 @@ export function CreateAgentWizard({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="flex max-h-[90vh] w-full max-w-4xl flex-col rounded-xl border border-[#2a2d37] bg-[#12141e] shadow-2xl">
+      <div className="flex max-h-[90vh] w-full max-w-4xl flex-col rounded-xl border border-surface-border bg-surface-overlay shadow-2xl">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-[#2a2d37] px-6 py-4">
+        <div className="flex items-center justify-between border-b border-surface-border px-6 py-4">
           <div className="flex items-center gap-3">
             <Bot size={20} className="text-purple-400" />
             <h2 className="text-lg font-semibold text-white">
@@ -282,7 +282,7 @@ export function CreateAgentWizard({
                 className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
                   isQuick
                     ? "border-amber-500/50 bg-amber-500/20 text-amber-400"
-                    : "border-[#2a2d37] text-gray-500 hover:text-gray-300"
+                    : "border-surface-border text-gray-500 hover:text-gray-300"
                 }`}
               >
                 <Zap size={12} />
@@ -300,7 +300,7 @@ export function CreateAgentWizard({
         </div>
 
         {/* Step Indicator */}
-        <div className="border-b border-[#2a2d37] px-6 py-3">
+        <div className="border-b border-surface-border px-6 py-3">
           <div className="flex items-center gap-1">
             {activeSteps.map((stepNum, idx) => {
               const stepDef = STEPS[stepNum];
@@ -310,7 +310,7 @@ export function CreateAgentWizard({
               return (
                 <div key={stepNum} className="flex items-center">
                   {idx > 0 && (
-                    <div className={`mx-1 h-px w-6 ${isCompleted ? "bg-purple-500" : "bg-[#2a2d37]"}`} />
+                    <div className={`mx-1 h-px w-6 ${isCompleted ? "bg-purple-500" : "bg-surface-border"}`} />
                   )}
                   <button
                     type="button"
@@ -344,12 +344,12 @@ export function CreateAgentWizard({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between border-t border-[#2a2d37] px-6 py-4">
+        <div className="flex items-center justify-between border-t border-surface-border px-6 py-4">
           <button
             type="button"
             onClick={goPrev}
             disabled={!canPrev}
-            className="flex items-center gap-1 rounded-lg border border-[#2a2d37] px-4 py-2 text-sm text-gray-400 hover:bg-white/5 disabled:opacity-40"
+            className="flex items-center gap-1 rounded-lg border border-surface-border px-4 py-2 text-sm text-gray-400 hover:bg-white/5 disabled:opacity-40"
           >
             <ChevronLeft size={16} />
             Back
@@ -358,7 +358,7 @@ export function CreateAgentWizard({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border border-[#2a2d37] px-4 py-2 text-sm text-gray-400 hover:bg-white/5"
+              className="rounded-lg border border-surface-border px-4 py-2 text-sm text-gray-400 hover:bg-white/5"
             >
               Cancel
             </button>

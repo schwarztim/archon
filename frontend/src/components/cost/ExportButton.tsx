@@ -32,7 +32,7 @@ export function ExportButton({ onExport }: ExportButtonProps) {
         {exporting ? "Exporting…" : "Export"}
       </Button>
       {showDropdown && (
-        <div className="absolute right-0 top-full z-10 mt-1 w-32 rounded-md border border-[#2a2d37] bg-[#1a1d27] py-1 shadow-lg">
+        <div className="absolute right-0 top-full z-10 mt-1 w-32 rounded-md border border-surface-border bg-surface-raised py-1 shadow-lg">
           <button
             onClick={() => handleExport("csv")}
             className="block w-full px-3 py-1.5 text-left text-sm text-gray-300 hover:bg-white/5"

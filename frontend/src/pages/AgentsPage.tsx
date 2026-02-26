@@ -160,13 +160,13 @@ export function AgentsPage() {
         <div className="flex items-center gap-3">
           <Bot size={24} className="text-purple-400" />
           <h1 className="text-2xl font-bold text-white">Agents</h1>
-          <span className="rounded-full bg-[#1a1d27] px-2 py-0.5 text-xs text-gray-400">
+          <span className="rounded-full bg-surface-raised px-2 py-0.5 text-xs text-gray-400">
             {total}
           </span>
         </div>
         <div className="flex items-center gap-2">
           {/* View Toggle */}
-          <div className="flex rounded-lg border border-[#2a2d37]">
+          <div className="flex rounded-lg border border-surface-border">
             <button
               onClick={() => setViewMode("grid")}
               className={`rounded-l-lg p-2 ${
@@ -203,7 +203,7 @@ export function AgentsPage() {
             </button>
             <button
               onClick={() => { setQuickCreate(true); setShowCreate(true); }}
-              className="mt-1 flex w-full items-center gap-2 rounded-lg border border-[#2a2d37] px-4 py-1.5 text-xs text-gray-400 hover:bg-white/5 absolute top-full right-0 bg-[#12141e] opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap"
+              className="mt-1 flex w-full items-center gap-2 rounded-lg border border-surface-border px-4 py-1.5 text-xs text-gray-400 hover:bg-white/5 absolute top-full right-0 bg-surface-overlay opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap"
             >
               <Zap size={12} />
               Quick Create
@@ -221,13 +221,13 @@ export function AgentsPage() {
             placeholder="Search agents..."
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(0); }}
-            className="w-full rounded-lg border border-[#2a2d37] bg-[#1a1d27] py-2 pl-9 pr-3 text-sm text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none"
+            className="w-full rounded-lg border border-surface-border bg-surface-raised py-2 pl-9 pr-3 text-sm text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none"
           />
         </div>
         <select
           value={statusFilter}
           onChange={(e) => { setStatusFilter(e.target.value); setPage(0); }}
-          className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none"
+          className="rounded-lg border border-surface-border bg-surface-raised px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none"
         >
           <option value="all">All Statuses</option>
           <option value="active">Active</option>
@@ -239,7 +239,7 @@ export function AgentsPage() {
           <select
             value={tagFilter}
             onChange={(e) => { setTagFilter(e.target.value); setPage(0); }}
-            className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none"
+            className="rounded-lg border border-surface-border bg-surface-raised px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none"
           >
             <option value="all">All Tags</option>
             {allTags.map((t) => (
@@ -253,7 +253,7 @@ export function AgentsPage() {
 
       {/* Empty State */}
       {agents.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-lg border border-[#2a2d37] bg-[#1a1d27] py-16">
+        <div className="flex flex-col items-center justify-center rounded-lg border border-surface-border bg-surface-raised py-16">
           <Bot size={48} className="mb-3 text-gray-600" />
           <p className="mb-1 text-sm text-gray-400">No agents found</p>
           <p className="mb-4 text-xs text-gray-600">Create your first agent to get started.</p>
@@ -271,7 +271,7 @@ export function AgentsPage() {
           {agents.map((agent) => (
             <div
               key={agent.id}
-              className="group relative rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-4 hover:border-purple-500/30"
+              className="group relative rounded-lg border border-surface-border bg-surface-raised p-4 hover:border-purple-500/30"
             >
               {/* Card Header */}
               <div className="mb-3 flex items-start justify-between">
@@ -288,7 +288,7 @@ export function AgentsPage() {
                     <MoreHorizontal size={16} />
                   </button>
                   {activeMenu === agent.id && (
-                    <div className="absolute right-0 top-8 z-10 w-36 rounded-lg border border-[#2a2d37] bg-[#12141e] py-1 shadow-xl">
+                    <div className="absolute right-0 top-8 z-10 w-36 rounded-lg border border-surface-border bg-surface-overlay py-1 shadow-xl">
                       <button
                         onClick={() => { setActiveMenu(null); setEditAgent(agent as unknown as Record<string, unknown>); setQuickCreate(false); setShowCreate(true); }}
                         className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-300 hover:bg-white/5"
@@ -320,7 +320,7 @@ export function AgentsPage() {
                           <><Play size={14} /> Activate</>
                         )}
                       </button>
-                      <hr className="my-1 border-[#2a2d37]" />
+                      <hr className="my-1 border-surface-border" />
                       <button
                         onClick={() => {
                           if (confirm(`Delete agent "${agent.name}"?`)) {
@@ -348,7 +348,7 @@ export function AgentsPage() {
                 {agent.tags.slice(0, 3).map((t) => (
                   <span
                     key={t}
-                    className="flex items-center gap-1 rounded bg-[#12141e] px-1.5 py-0.5 text-xs text-gray-500"
+                    className="flex items-center gap-1 rounded bg-surface-overlay px-1.5 py-0.5 text-xs text-gray-500"
                   >
                     <Tag size={10} />
                     {t}
@@ -360,7 +360,7 @@ export function AgentsPage() {
               </div>
 
               {/* Footer Stats */}
-              <div className="flex items-center justify-between border-t border-[#2a2d37] pt-3 text-xs text-gray-500">
+              <div className="flex items-center justify-between border-t border-surface-border pt-3 text-xs text-gray-500">
                 <div className="flex items-center gap-1">
                   <Play size={12} />
                   {agent.execution_count} runs
@@ -375,11 +375,11 @@ export function AgentsPage() {
         </div>
       ) : (
         /* List View */
-        <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27]">
+        <div className="rounded-lg border border-surface-border bg-surface-raised">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-[#2a2d37] text-left text-xs text-gray-500">
+                <tr className="border-b border-surface-border text-left text-xs text-gray-500">
                   <th className="px-4 py-2 font-medium">Name</th>
                   <th className="px-4 py-2 font-medium">Status</th>
                   <th className="px-4 py-2 font-medium">Tags</th>
@@ -391,7 +391,7 @@ export function AgentsPage() {
               </thead>
               <tbody>
                 {agents.map((agent) => (
-                  <tr key={agent.id} className="border-b border-[#2a2d37] hover:bg-white/5">
+                  <tr key={agent.id} className="border-b border-surface-border hover:bg-white/5">
                     <td className="px-4 py-2">
                       <div className="flex items-center gap-2">
                         <Bot size={16} className="text-purple-400" />
@@ -407,7 +407,7 @@ export function AgentsPage() {
                         {agent.tags.slice(0, 2).map((t) => (
                           <span
                             key={t}
-                            className="rounded bg-[#12141e] px-1.5 py-0.5 text-xs text-gray-500"
+                            className="rounded bg-surface-overlay px-1.5 py-0.5 text-xs text-gray-500"
                           >
                             {t}
                           </span>
@@ -469,14 +469,14 @@ export function AgentsPage() {
             <button
               disabled={page === 0}
               onClick={() => setPage((p) => p - 1)}
-              className="rounded border border-[#2a2d37] px-3 py-1 text-xs text-gray-400 hover:bg-white/5 disabled:opacity-40"
+              className="rounded border border-surface-border px-3 py-1 text-xs text-gray-400 hover:bg-white/5 disabled:opacity-40"
             >
               Previous
             </button>
             <button
               disabled={(page + 1) * limit >= total}
               onClick={() => setPage((p) => p + 1)}
-              className="rounded border border-[#2a2d37] px-3 py-1 text-xs text-gray-400 hover:bg-white/5 disabled:opacity-40"
+              className="rounded border border-surface-border px-3 py-1 text-xs text-gray-400 hover:bg-white/5 disabled:opacity-40"
             >
               Next
             </button>

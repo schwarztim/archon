@@ -19,7 +19,7 @@ function healthDot(status: string) {
 export function EnvironmentCard({ env, onSelect }: EnvironmentCardProps) {
   return (
     <div
-      className="cursor-pointer rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-4 transition-colors hover:border-purple-500/30"
+      className="cursor-pointer rounded-lg border border-surface-border bg-surface-raised p-4 transition-colors hover:border-purple-500/30"
       onClick={() => onSelect?.(env.name)}
     >
       <div className="mb-2 flex items-center justify-between">

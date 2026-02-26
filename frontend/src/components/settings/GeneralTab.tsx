@@ -15,7 +15,7 @@ function Card({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-5">
+    <div className="rounded-lg border border-surface-border bg-surface-raised p-5">
       <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold">
         <Icon size={14} className="text-purple-400" />
         {title}
@@ -94,7 +94,7 @@ export function GeneralTab() {
           <div className="space-y-1.5">
             <Label htmlFor="logo-upload">Logo</Label>
             <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-lg border border-[#2a2d37] bg-[#0f1117] text-xs text-gray-500">
+              <div className="flex h-12 w-12 items-center justify-center rounded-lg border border-surface-border bg-surface-base text-xs text-gray-500">
                 Logo
               </div>
               <Button variant="secondary" size="sm" disabled>
@@ -164,7 +164,7 @@ export function GeneralTab() {
             <span className="font-mono">{data?.data?.version ?? "1.0.0"}</span>
           </InfoRow>
           <InfoRow label="API Prefix">
-            <code className="rounded bg-[#2a2d37] px-1.5 py-0.5 text-xs font-mono">{data?.data?.api_prefix ?? "/api/v1"}</code>
+            <code className="rounded bg-surface-border px-1.5 py-0.5 text-xs font-mono">{data?.data?.api_prefix ?? "/api/v1"}</code>
           </InfoRow>
         </div>
       </Card>

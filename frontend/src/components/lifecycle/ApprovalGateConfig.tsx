@@ -59,7 +59,7 @@ export function ApprovalGateConfig({ gates, onSave, saving }: ApprovalGateConfig
   }
 
   return (
-    <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-4">
+    <div className="rounded-lg border border-surface-border bg-surface-raised p-4">
       <div className="mb-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Shield size={14} className="text-purple-400" />
@@ -81,7 +81,7 @@ export function ApprovalGateConfig({ gates, onSave, saving }: ApprovalGateConfig
                   <select
                     value={gate.from_stage}
                     onChange={(e) => updateGate(idx, "from_stage", e.target.value)}
-                    className="h-7 w-full rounded border border-[#2a2d37] bg-[#0f1117] px-2 text-[11px] text-white"
+                    className="h-7 w-full rounded border border-surface-border bg-surface-base px-2 text-[11px] text-white"
                   >
                     {STAGE_OPTIONS.map((s) => (
                       <option key={s.value} value={s.value}>{s.label}</option>
@@ -93,7 +93,7 @@ export function ApprovalGateConfig({ gates, onSave, saving }: ApprovalGateConfig
                   <select
                     value={gate.to_stage}
                     onChange={(e) => updateGate(idx, "to_stage", e.target.value)}
-                    className="h-7 w-full rounded border border-[#2a2d37] bg-[#0f1117] px-2 text-[11px] text-white"
+                    className="h-7 w-full rounded border border-surface-border bg-surface-base px-2 text-[11px] text-white"
                   >
                     {STAGE_OPTIONS.map((s) => (
                       <option key={s.value} value={s.value}>{s.label}</option>
@@ -108,7 +108,7 @@ export function ApprovalGateConfig({ gates, onSave, saving }: ApprovalGateConfig
                     max={10}
                     value={gate.required_approvers}
                     onChange={(e) => updateGate(idx, "required_approvers", parseInt(e.target.value) || 1)}
-                    className="h-7 w-full rounded border border-[#2a2d37] bg-[#0f1117] px-2 text-[11px] text-white"
+                    className="h-7 w-full rounded border border-surface-border bg-surface-base px-2 text-[11px] text-white"
                   />
                 </div>
                 <div className="space-y-1 pt-3">

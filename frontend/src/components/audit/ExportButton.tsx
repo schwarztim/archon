@@ -29,7 +29,7 @@ export function ExportButton({ queryParams }: Props) {
       <select
         value={format}
         onChange={(e) => setFormat(e.target.value as "csv" | "json")}
-        className="h-8 rounded-md border border-[#2a2d37] bg-[#1a1d27] px-2 text-xs text-gray-300 focus:border-purple-500 focus:outline-none"
+        className="h-8 rounded-md border border-surface-border bg-surface-raised px-2 text-xs text-gray-300 focus:border-purple-500 focus:outline-none"
       >
         <option value="csv">CSV</option>
         <option value="json">JSON</option>

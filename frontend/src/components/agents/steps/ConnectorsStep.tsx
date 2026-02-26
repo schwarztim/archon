@@ -100,7 +100,7 @@ export function ConnectorsStep({ data, onChange }: ConnectorsStepProps) {
   };
 
   const inputClass =
-    "w-full rounded-lg border border-[#2a2d37] bg-[#1a1d27] px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none";
+    "w-full rounded-lg border border-surface-border bg-surface-raised px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none";
 
   return (
     <div className="space-y-4">
@@ -140,7 +140,7 @@ export function ConnectorsStep({ data, onChange }: ConnectorsStepProps) {
               className={`rounded-lg border p-4 transition-colors ${
                 isSelected
                   ? "border-purple-500 bg-purple-500/10"
-                  : "border-[#2a2d37] bg-[#1a1d27] hover:border-gray-600"
+                  : "border-surface-border bg-surface-raised hover:border-gray-600"
               }`}
             >
               <div className="flex items-start justify-between">
@@ -171,7 +171,7 @@ export function ConnectorsStep({ data, onChange }: ConnectorsStepProps) {
               </div>
 
               <div className="mt-3 flex items-center justify-between">
-                <span className="rounded bg-[#12141e] px-1.5 py-0.5 text-[10px] text-gray-500">
+                <span className="rounded bg-surface-overlay px-1.5 py-0.5 text-[10px] text-gray-500">
                   {CATEGORY_MAP[connector.type] ?? "Other"}
                 </span>
                 <div className="flex gap-2">

@@ -137,7 +137,7 @@ export function CronBuilder({ value, onChange, timezone = "UTC", onTimezoneChang
         <button
           type="button"
           onClick={() => { onChange(""); setMode("preset"); }}
-          className={`rounded px-2.5 py-1 text-xs ${!value ? "bg-purple-500/20 text-purple-300" : "bg-[#12141e] text-gray-500 hover:bg-white/5"}`}
+          className={`rounded px-2.5 py-1 text-xs ${!value ? "bg-purple-500/20 text-purple-300" : "bg-surface-overlay text-gray-500 hover:bg-white/5"}`}
         >
           Manual
         </button>
@@ -146,7 +146,7 @@ export function CronBuilder({ value, onChange, timezone = "UTC", onTimezoneChang
             key={p.label}
             type="button"
             onClick={() => { onChange(p.cron); setMode("preset"); }}
-            className={`rounded px-2.5 py-1 text-xs ${value === p.cron ? "bg-purple-500/20 text-purple-300" : "bg-[#12141e] text-gray-500 hover:bg-white/5"}`}
+            className={`rounded px-2.5 py-1 text-xs ${value === p.cron ? "bg-purple-500/20 text-purple-300" : "bg-surface-overlay text-gray-500 hover:bg-white/5"}`}
           >
             {p.label}
           </button>
@@ -154,7 +154,7 @@ export function CronBuilder({ value, onChange, timezone = "UTC", onTimezoneChang
         <button
           type="button"
           onClick={() => setMode("custom")}
-          className={`rounded px-2.5 py-1 text-xs ${mode === "custom" && value && !SCHEDULE_PRESETS.some((p) => p.cron === value) ? "bg-purple-500/20 text-purple-300" : "bg-[#12141e] text-gray-500 hover:bg-white/5"}`}
+          className={`rounded px-2.5 py-1 text-xs ${mode === "custom" && value && !SCHEDULE_PRESETS.some((p) => p.cron === value) ? "bg-purple-500/20 text-purple-300" : "bg-surface-overlay text-gray-500 hover:bg-white/5"}`}
         >
           Custom
         </button>
@@ -162,7 +162,7 @@ export function CronBuilder({ value, onChange, timezone = "UTC", onTimezoneChang
 
       {/* Custom schedule builder */}
       {mode === "custom" && (
-        <div className="rounded-lg border border-[#2a2d37] bg-[#12141e] p-3 space-y-3">
+        <div className="rounded-lg border border-surface-border bg-surface-overlay p-3 space-y-3">
           {/* Days of week */}
           <div>
             <label className="mb-0.5 block text-[10px] text-gray-500">Days of week</label>
@@ -179,7 +179,7 @@ export function CronBuilder({ value, onChange, timezone = "UTC", onTimezoneChang
                       setSelectedDays(next);
                       buildCustomCron(next, hour ?? "09", minute ?? "00");
                     }}
-                    className={`rounded px-2 py-0.5 text-[10px] ${active ? "bg-purple-500/20 text-purple-300" : "bg-[#1a1d27] text-gray-500 hover:bg-white/5"}`}
+                    className={`rounded px-2 py-0.5 text-[10px] ${active ? "bg-purple-500/20 text-purple-300" : "bg-surface-raised text-gray-500 hover:bg-white/5"}`}
                   >
                     {d}
                   </button>
@@ -195,7 +195,7 @@ export function CronBuilder({ value, onChange, timezone = "UTC", onTimezoneChang
               <select
                 value={hour}
                 onChange={(e) => { setHour(e.target.value); buildCustomCron(selectedDays, e.target.value, minute); }}
-                className="w-20 rounded border border-[#2a2d37] bg-[#1a1d27] px-2 py-1 text-xs text-white focus:border-purple-500 focus:outline-none"
+                className="w-20 rounded border border-surface-border bg-surface-raised px-2 py-1 text-xs text-white focus:border-purple-500 focus:outline-none"
               >
                 {Array.from({ length: 24 }, (_, i) => (
                   <option key={i} value={i.toString().padStart(2, "0")}>{i.toString().padStart(2, "0")}</option>
@@ -208,7 +208,7 @@ export function CronBuilder({ value, onChange, timezone = "UTC", onTimezoneChang
               <select
                 value={minute}
                 onChange={(e) => { setMinute(e.target.value); buildCustomCron(selectedDays, hour, e.target.value); }}
-                className="w-20 rounded border border-[#2a2d37] bg-[#1a1d27] px-2 py-1 text-xs text-white focus:border-purple-500 focus:outline-none"
+                className="w-20 rounded border border-surface-border bg-surface-raised px-2 py-1 text-xs text-white focus:border-purple-500 focus:outline-none"
               >
                 {[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map((m) => (
                   <option key={m} value={m.toString().padStart(2, "0")}>{m.toString().padStart(2, "0")}</option>
@@ -222,7 +222,7 @@ export function CronBuilder({ value, onChange, timezone = "UTC", onTimezoneChang
               <select
                 value={customDom}
                 onChange={(e) => { setCustomDom(e.target.value); buildCustomCron(selectedDays, hour, minute); }}
-                className="w-20 rounded border border-[#2a2d37] bg-[#1a1d27] px-2 py-1 text-xs text-white focus:border-purple-500 focus:outline-none"
+                className="w-20 rounded border border-surface-border bg-surface-raised px-2 py-1 text-xs text-white focus:border-purple-500 focus:outline-none"
               >
                 <option value="*">Any</option>
                 {Array.from({ length: 31 }, (_, i) => (
@@ -237,7 +237,7 @@ export function CronBuilder({ value, onChange, timezone = "UTC", onTimezoneChang
               <select
                 value={customMonth}
                 onChange={(e) => { setCustomMonth(e.target.value); buildCustomCron(selectedDays, hour, minute); }}
-                className="w-20 rounded border border-[#2a2d37] bg-[#1a1d27] px-2 py-1 text-xs text-white focus:border-purple-500 focus:outline-none"
+                className="w-20 rounded border border-surface-border bg-surface-raised px-2 py-1 text-xs text-white focus:border-purple-500 focus:outline-none"
               >
                 <option value="*">Any</option>
                 {["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"].map((m, i) => (
@@ -256,7 +256,7 @@ export function CronBuilder({ value, onChange, timezone = "UTC", onTimezoneChang
           <select
             value={timezone}
             onChange={(e) => onTimezoneChange(e.target.value)}
-            className="rounded border border-[#2a2d37] bg-[#12141e] px-2 py-0.5 text-[10px] text-gray-400 focus:border-purple-500 focus:outline-none"
+            className="rounded border border-surface-border bg-surface-overlay px-2 py-0.5 text-[10px] text-gray-400 focus:border-purple-500 focus:outline-none"
           >
             {TIMEZONES.map((tz) => (
               <option key={tz} value={tz}>{tz}</option>
@@ -267,7 +267,7 @@ export function CronBuilder({ value, onChange, timezone = "UTC", onTimezoneChang
 
       {/* Human-readable + next runs */}
       {value && (
-        <div className="mt-2 space-y-1 rounded-lg border border-[#2a2d37] bg-[#12141e] p-2">
+        <div className="mt-2 space-y-1 rounded-lg border border-surface-border bg-surface-overlay p-2">
           <p className="text-[10px] font-medium text-gray-400">{humanReadable}</p>
           {nextRuns.length > 0 && (
             <div>

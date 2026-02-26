@@ -68,7 +68,7 @@ export function DeployForm({ agents, onDeploy, onCancel }: DeployFormProps) {
   }
 
   return (
-    <div className="mb-6 rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-4">
+    <div className="mb-6 rounded-lg border border-surface-border bg-surface-raised p-4">
       <h3 className="mb-4 text-sm font-semibold text-white">New Deployment</h3>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -84,10 +84,10 @@ export function DeployForm({ agents, onDeploy, onCancel }: DeployFormProps) {
                 setAgentSearch(e.target.value);
                 setAgentId("");
               }}
-              className="h-9 w-full rounded-md border border-[#2a2d37] bg-[#0f1117] px-3 text-sm text-white placeholder-gray-600"
+              className="h-9 w-full rounded-md border border-surface-border bg-surface-base px-3 text-sm text-white placeholder-gray-600"
             />
             {!agentId && agentSearch && filteredAgents.length > 0 && (
-              <div className="absolute z-10 mt-1 max-h-40 w-full overflow-y-auto rounded-md border border-[#2a2d37] bg-[#0f1117]">
+              <div className="absolute z-10 mt-1 max-h-40 w-full overflow-y-auto rounded-md border border-surface-border bg-surface-base">
                 {filteredAgents.map((a) => (
                   <button
                     key={a.id}
@@ -127,7 +127,7 @@ export function DeployForm({ agents, onDeploy, onCancel }: DeployFormProps) {
             <select
               value={versionId}
               onChange={(e) => setVersionId(e.target.value)}
-              className="h-9 w-full appearance-none rounded-md border border-[#2a2d37] bg-[#0f1117] px-3 pr-8 text-sm text-white"
+              className="h-9 w-full appearance-none rounded-md border border-surface-border bg-surface-base px-3 pr-8 text-sm text-white"
             >
               {versionOptions.map((v) => (
                 <option key={v} value={String(v)}>
@@ -158,7 +158,7 @@ export function DeployForm({ agents, onDeploy, onCancel }: DeployFormProps) {
                 className={`rounded-md border px-2 py-1.5 text-xs transition-colors ${
                   environment === env.value
                     ? "border-purple-500/50 bg-purple-500/10 text-purple-400"
-                    : "border-[#2a2d37] bg-[#0f1117] text-gray-400 hover:border-gray-500"
+                    : "border-surface-border bg-surface-base text-gray-400 hover:border-gray-500"
                 }`}
               >
                 {env.label}
@@ -193,7 +193,7 @@ export function DeployForm({ agents, onDeploy, onCancel }: DeployFormProps) {
             step={0.01}
             value={rollbackThreshold}
             onChange={(e) => setRollbackThreshold(e.target.value)}
-            className="h-9 w-full rounded-md border border-[#2a2d37] bg-[#0f1117] px-3 text-sm text-white"
+            className="h-9 w-full rounded-md border border-surface-border bg-surface-base px-3 text-sm text-white"
           />
           <p className="mt-0.5 text-[10px] text-gray-600">Error rate to trigger rollback (0-1)</p>
         </div>

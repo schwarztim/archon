@@ -16,8 +16,8 @@ export function TopConsumers({ data }: TopConsumersProps) {
   const maxCost = Math.max(...data.map((d) => d.cost), 1);
 
   return (
-    <div className="mb-6 rounded-lg border border-[#2a2d37] bg-[#1a1d27]">
-      <div className="border-b border-[#2a2d37] px-4 py-3">
+    <div className="mb-6 rounded-lg border border-surface-border bg-surface-raised">
+      <div className="border-b border-surface-border px-4 py-3">
         <h2 className="text-sm font-semibold text-white">Top Consumers</h2>
       </div>
       <div className="px-4 py-4">

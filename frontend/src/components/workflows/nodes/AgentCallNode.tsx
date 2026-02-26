@@ -14,8 +14,8 @@ export interface AgentCallNodeData extends Record<string, unknown> {
 export function AgentCallNode({ data }: NodeProps) {
   const d = data as unknown as AgentCallNodeData;
   return (
-    <div className="min-w-[180px] rounded-lg border-2 border-[#2a2d37] bg-[#1a1d27] shadow-md">
-      <Handle type="target" position={Position.Left} className="!w-3 !h-3 !border-2 !border-[#12141e] !bg-white" />
+    <div className="min-w-[180px] rounded-lg border-2 border-surface-border bg-surface-raised shadow-md">
+      <Handle type="target" position={Position.Left} className="!w-3 !h-3 !border-2 !border-surface-overlay !bg-white" />
       <div className="flex items-center gap-2 rounded-t-md bg-blue-500 px-3 py-1.5 text-white text-xs font-medium">
         <Bot size={14} />
         <span>{d.label}</span>
@@ -26,7 +26,7 @@ export function AgentCallNode({ data }: NodeProps) {
         {d.retryPolicy !== "none" && <p>Retry: {d.retryPolicy}x</p>}
         {d.onFailure !== "stop" && <p>On fail: {d.onFailure}</p>}
       </div>
-      <Handle type="source" position={Position.Right} className="!w-3 !h-3 !border-2 !border-[#12141e] !bg-white" />
+      <Handle type="source" position={Position.Right} className="!w-3 !h-3 !border-2 !border-surface-overlay !bg-white" />
     </div>
   );
 }

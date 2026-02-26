@@ -63,7 +63,7 @@ export function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#0f1117] px-4">
+    <div className="flex min-h-screen items-center justify-center bg-surface-base px-4">
       <div className="w-full max-w-md">
         {/* Logo & Title */}
         <div className="mb-8 text-center">
@@ -90,7 +90,7 @@ export function LoginPage() {
         {/* Login Form */}
         <form
           onSubmit={(e) => void handleSubmit(e)}
-          className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-6"
+          className="rounded-lg border border-surface-border bg-surface-raised p-6"
           noValidate
         >
           {/* Email */}
@@ -108,10 +108,10 @@ export function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               onBlur={() => setEmailTouched(true)}
-              className={`w-full rounded-md border bg-[#0f1117] px-3 py-2 text-sm text-white placeholder-gray-500 outline-none transition focus:ring-2 focus:ring-purple-500 ${
+              className={`w-full rounded-md border bg-surface-base px-3 py-2 text-sm text-white placeholder-gray-500 outline-none transition focus:ring-2 focus:ring-purple-500 ${
                 emailTouched && !emailValid
                   ? "border-red-500"
-                  : "border-[#2a2d37]"
+                  : "border-surface-border"
               }`}
               placeholder="you@company.com"
               disabled={loading}
@@ -142,10 +142,10 @@ export function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               onBlur={() => setPasswordTouched(true)}
-              className={`w-full rounded-md border bg-[#0f1117] px-3 py-2 text-sm text-white placeholder-gray-500 outline-none transition focus:ring-2 focus:ring-purple-500 ${
+              className={`w-full rounded-md border bg-surface-base px-3 py-2 text-sm text-white placeholder-gray-500 outline-none transition focus:ring-2 focus:ring-purple-500 ${
                 passwordTouched && !passwordValid
                   ? "border-red-500"
-                  : "border-[#2a2d37]"
+                  : "border-surface-border"
               }`}
               placeholder="••••••••"
               disabled={loading}
@@ -168,7 +168,7 @@ export function LoginPage() {
                 type="checkbox"
                 checked={rememberMe}
                 onChange={(e) => setRememberMe(e.target.checked)}
-                className="h-4 w-4 rounded border-gray-600 bg-[#0f1117] text-purple-600 focus:ring-purple-500"
+                className="h-4 w-4 rounded border-gray-600 bg-surface-base text-purple-600 focus:ring-purple-500"
                 disabled={loading}
               />
               Remember me
@@ -196,9 +196,9 @@ export function LoginPage() {
 
           {/* Divider */}
           <div className="my-6 flex items-center gap-3">
-            <div className="h-px flex-1 bg-[#2a2d37]" />
+            <div className="h-px flex-1 bg-surface-border" />
             <span className="text-xs text-gray-500">or</span>
-            <div className="h-px flex-1 bg-[#2a2d37]" />
+            <div className="h-px flex-1 bg-surface-border" />
           </div>
 
           {/* SSO */}
@@ -206,7 +206,7 @@ export function LoginPage() {
             type="button"
             onClick={() => void handleSSO()}
             disabled={loading || ssoLoading}
-            className="flex w-full items-center justify-center gap-2 rounded-md border border-[#2a2d37] bg-[#0f1117] px-4 py-2.5 text-sm font-medium text-gray-300 transition hover:border-purple-500/50 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex w-full items-center justify-center gap-2 rounded-md border border-surface-border bg-surface-base px-4 py-2.5 text-sm font-medium text-gray-300 transition hover:border-purple-500/50 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
             aria-label="Sign in with SSO"
           >
             {ssoLoading ? (

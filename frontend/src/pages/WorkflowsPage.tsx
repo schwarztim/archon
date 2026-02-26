@@ -151,7 +151,7 @@ export function WorkflowsPage() {
         <div className="flex items-center gap-3">
           <GitBranch size={24} className="text-purple-400" />
           <h1 className="text-2xl font-bold text-white">Workflows</h1>
-          <span className="rounded-full bg-[#1a1d27] px-2 py-0.5 text-xs text-gray-400">
+          <span className="rounded-full bg-surface-raised px-2 py-0.5 text-xs text-gray-400">
             {total}
           </span>
         </div>
@@ -176,7 +176,7 @@ export function WorkflowsPage() {
         ].map((s) => (
           <div
             key={s.label}
-            className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] px-4 py-3"
+            className="rounded-lg border border-surface-border bg-surface-raised px-4 py-3"
           >
             <p className="text-xs text-gray-500">{s.label}</p>
             <p className="text-lg font-bold text-white">{s.value}</p>
@@ -199,7 +199,7 @@ export function WorkflowsPage() {
               setSearch(e.target.value);
               setPage(0);
             }}
-            className="w-full rounded-lg border border-[#2a2d37] bg-[#1a1d27] py-2 pl-9 pr-3 text-sm text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none"
+            className="w-full rounded-lg border border-surface-border bg-surface-raised py-2 pl-9 pr-3 text-sm text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none"
           />
         </div>
         <select
@@ -208,7 +208,7 @@ export function WorkflowsPage() {
             setGroupFilter(e.target.value);
             setPage(0);
           }}
-          className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none"
+          className="rounded-lg border border-surface-border bg-surface-raised px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none"
         >
           <option value="all">All Groups</option>
           {allGroups.map((g) => (
@@ -223,7 +223,7 @@ export function WorkflowsPage() {
             setStatusFilter(e.target.value);
             setPage(0);
           }}
-          className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none"
+          className="rounded-lg border border-surface-border bg-surface-raised px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none"
         >
           <option value="all">All Statuses</option>
           <option value="active">Active</option>
@@ -233,7 +233,7 @@ export function WorkflowsPage() {
 
       {/* Table */}
       {workflows.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-lg border border-[#2a2d37] bg-[#1a1d27] py-16">
+        <div className="flex flex-col items-center justify-center rounded-lg border border-surface-border bg-surface-raised py-16">
           <GitBranch size={48} className="mb-3 text-gray-600" />
           <p className="mb-1 text-sm text-gray-400">No workflows found</p>
           <p className="mb-4 text-xs text-gray-600">
@@ -248,11 +248,11 @@ export function WorkflowsPage() {
           </button>
         </div>
       ) : (
-        <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27]">
+        <div className="rounded-lg border border-surface-border bg-surface-raised">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-[#2a2d37] text-left text-xs text-gray-500">
+                <tr className="border-b border-surface-border text-left text-xs text-gray-500">
                   <th className="px-4 py-2 font-medium">Name</th>
                   <th className="px-4 py-2 font-medium">Group</th>
                   <th className="px-4 py-2 font-medium">Steps</th>
@@ -266,7 +266,7 @@ export function WorkflowsPage() {
                 {workflows.map((wf) => (
                   <tr
                     key={wf.id}
-                    className="border-b border-[#2a2d37] hover:bg-white/5"
+                    className="border-b border-surface-border hover:bg-white/5"
                   >
                     <td className="px-4 py-2">
                       <div className="flex items-center gap-2">
@@ -356,14 +356,14 @@ export function WorkflowsPage() {
             <button
               disabled={page === 0}
               onClick={() => setPage((p) => p - 1)}
-              className="rounded border border-[#2a2d37] px-3 py-1 text-xs text-gray-400 hover:bg-white/5 disabled:opacity-40"
+              className="rounded border border-surface-border px-3 py-1 text-xs text-gray-400 hover:bg-white/5 disabled:opacity-40"
             >
               Previous
             </button>
             <button
               disabled={(page + 1) * limit >= total}
               onClick={() => setPage((p) => p + 1)}
-              className="rounded border border-[#2a2d37] px-3 py-1 text-xs text-gray-400 hover:bg-white/5 disabled:opacity-40"
+              className="rounded border border-surface-border px-3 py-1 text-xs text-gray-400 hover:bg-white/5 disabled:opacity-40"
             >
               Next
             </button>
@@ -374,7 +374,7 @@ export function WorkflowsPage() {
       {/* Run History Modal */}
       {showRunHistory && selectedWorkflowId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-          <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg border border-[#2a2d37] bg-[#12141e] p-6">
+          <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg border border-surface-border bg-surface-overlay p-6">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-white flex items-center gap-2">
                 <History size={18} className="text-purple-400" />
@@ -498,7 +498,7 @@ function CreateWorkflowModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="max-h-[95vh] w-full max-w-5xl overflow-y-auto rounded-lg border border-[#2a2d37] bg-[#12141e] p-6">
+      <div className="max-h-[95vh] w-full max-w-5xl overflow-y-auto rounded-lg border border-surface-border bg-surface-overlay p-6">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-white">Create Workflow</h2>
           <button
@@ -517,7 +517,7 @@ function CreateWorkflowModal({
             required
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="mb-3 w-full rounded-lg border border-[#2a2d37] bg-[#1a1d27] px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none"
+            className="mb-3 w-full rounded-lg border border-surface-border bg-surface-raised px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none"
             placeholder="My Workflow"
           />
 
@@ -528,7 +528,7 @@ function CreateWorkflowModal({
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={2}
-            className="mb-3 w-full rounded-lg border border-[#2a2d37] bg-[#1a1d27] px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none"
+            className="mb-3 w-full rounded-lg border border-surface-border bg-surface-raised px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none"
             placeholder="What does this workflow do?"
           />
 
@@ -541,7 +541,7 @@ function CreateWorkflowModal({
                 type="text"
                 value={groupId}
                 onChange={(e) => setGroupId(e.target.value)}
-                className="w-full rounded-lg border border-[#2a2d37] bg-[#1a1d27] px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none"
+                className="w-full rounded-lg border border-surface-border bg-surface-raised px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none"
                 placeholder="team-alpha"
               />
             </div>
@@ -553,7 +553,7 @@ function CreateWorkflowModal({
                 type="text"
                 value={groupName}
                 onChange={(e) => setGroupName(e.target.value)}
-                className="w-full rounded-lg border border-[#2a2d37] bg-[#1a1d27] px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none"
+                className="w-full rounded-lg border border-surface-border bg-surface-raised px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none"
                 placeholder="Team Alpha"
               />
             </div>
@@ -587,7 +587,7 @@ function CreateWorkflowModal({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border border-[#2a2d37] px-4 py-2 text-sm text-gray-400 hover:bg-white/5"
+              className="rounded-lg border border-surface-border px-4 py-2 text-sm text-gray-400 hover:bg-white/5"
             >
               Cancel
             </button>

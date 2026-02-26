@@ -42,8 +42,8 @@ export function StatCard({ label, value, icon, trend, trendLabel, onClick }: Sta
       type="button"
       onClick={onClick}
       className={cn(
-        "w-full rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-4 text-left transition-colors",
-        onClick && "cursor-pointer hover:border-purple-500/40 hover:bg-[#1e2130]",
+        "w-full rounded-lg border border-surface-border bg-surface-raised p-4 text-left transition-colors",
+        onClick && "cursor-pointer hover:border-purple-500/40 hover:bg-surface-raised",
       )}
     >
       <div className="mb-2 flex items-center justify-between">

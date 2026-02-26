@@ -68,7 +68,7 @@ export function CustomRoleForm({ initialData, onSave, onCancel }: CustomRoleForm
   }
 
   return (
-    <div className="space-y-5 rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-6 dark:bg-[#1a1d27]">
+    <div className="space-y-5 rounded-lg border border-surface-border bg-surface-raised p-6 dark:bg-surface-raised">
       <h3 className="text-sm font-semibold text-white">
         {initialData?.id ? "Edit Custom Role" : "Create Custom Role"}
       </h3>
@@ -97,10 +97,10 @@ export function CustomRoleForm({ initialData, onSave, onCancel }: CustomRoleForm
 
       <div>
         <h4 className="mb-2 text-xs font-semibold uppercase text-gray-500">Permissions</h4>
-        <div className="overflow-x-auto rounded border border-[#2a2d37]">
+        <div className="overflow-x-auto rounded border border-surface-border">
           <table className="w-full text-xs">
             <thead>
-              <tr className="border-b border-[#2a2d37] bg-[#0f1117] dark:bg-[#0f1117]">
+              <tr className="border-b border-surface-border bg-surface-base dark:bg-surface-base">
                 <th className="px-3 py-2 text-left font-medium text-gray-500">Resource</th>
                 <th className="px-2 py-2 text-center font-medium text-gray-500">All</th>
                 {ACTIONS.map((a) => (
@@ -115,7 +115,7 @@ export function CustomRoleForm({ initialData, onSave, onCancel }: CustomRoleForm
                 const current = permissions[resource] ?? [];
                 const allSet = ACTIONS.every((a) => current.includes(a));
                 return (
-                  <tr key={resource} className="border-b border-[#2a2d37] hover:bg-white/5">
+                  <tr key={resource} className="border-b border-surface-border hover:bg-white/5">
                     <td className="px-3 py-1.5 font-medium text-gray-300">
                       {resourceLabel(resource)}
                     </td>

@@ -63,7 +63,7 @@ export function ConfigForm({ config, onChange }: ConfigFormProps) {
           <select
             value={config.model}
             onChange={(e) => update({ model: e.target.value })}
-            className="h-9 w-full rounded-md border border-[#2a2d37] bg-[#0f1117] px-3 text-sm text-white focus:border-purple-500 focus:outline-none"
+            className="h-9 w-full rounded-md border border-surface-border bg-surface-base px-3 text-sm text-white focus:border-purple-500 focus:outline-none"
             aria-label="Model selection"
           >
             {MODELS.map((m) => (
@@ -113,7 +113,7 @@ export function ConfigForm({ config, onChange }: ConfigFormProps) {
           {GUARDRAILS.map((g) => (
             <label
               key={g.key}
-              className="flex items-center gap-3 rounded-lg border border-[#2a2d37] bg-[#0f1117] p-3 cursor-pointer hover:border-purple-500/30 transition-colors"
+              className="flex items-center gap-3 rounded-lg border border-surface-border bg-surface-base p-3 cursor-pointer hover:border-purple-500/30 transition-colors"
             >
               <input
                 type="checkbox"
@@ -134,7 +134,7 @@ export function ConfigForm({ config, onChange }: ConfigFormProps) {
               </div>
               <div className="group relative">
                 <Info size={14} className="text-gray-600 cursor-help" />
-                <div className="absolute bottom-full right-0 mb-2 hidden w-48 rounded-lg border border-[#2a2d37] bg-[#12141e] p-2 text-xs text-gray-300 shadow-xl group-hover:block z-10">
+                <div className="absolute bottom-full right-0 mb-2 hidden w-48 rounded-lg border border-surface-border bg-surface-overlay p-2 text-xs text-gray-300 shadow-xl group-hover:block z-10">
                   {g.tip}
                 </div>
               </div>
@@ -155,7 +155,7 @@ export function ConfigForm({ config, onChange }: ConfigFormProps) {
             onChange={(e) =>
               update({ maxCostPerRun: parseFloat(e.target.value) || 0 })
             }
-            className="bg-[#0f1117] text-white border-[#2a2d37] w-32"
+            className="bg-surface-base text-white border-surface-border w-32"
             aria-label="Max cost per run"
           />
         </div>
@@ -179,7 +179,7 @@ export function ConfigForm({ config, onChange }: ConfigFormProps) {
             })
           }
           placeholder="example.com&#10;api.myservice.io"
-          className="w-full rounded-md border border-[#2a2d37] bg-[#0f1117] px-3 py-2 text-sm text-white placeholder:text-gray-600 focus:border-purple-500 focus:outline-none"
+          className="w-full rounded-md border border-surface-border bg-surface-base px-3 py-2 text-sm text-white placeholder:text-gray-600 focus:border-purple-500 focus:outline-none"
           aria-label="Allowed domains"
         />
       </div>

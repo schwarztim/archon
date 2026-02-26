@@ -61,7 +61,7 @@ export function ClaimMapper({ mappings, onChange, disabled }: ClaimMapperProps) 
             value={m.archon_field}
             onChange={(e) => updateRow(i, "archon_field", e.target.value)}
             disabled={disabled}
-            className="h-8 rounded-md border border-[#2a2d37] bg-[#0f1117] px-2 text-xs text-white dark:bg-[#0f1117]"
+            className="h-8 rounded-md border border-surface-border bg-surface-base px-2 text-xs text-white dark:bg-surface-base"
           >
             <option value="">Select field…</option>
             {ARCHON_FIELDS.map((f) => (

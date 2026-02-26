@@ -48,6 +48,33 @@ class FeatureFlag(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=_utcnow)
 
 
+class PlatformSettings(SQLModel, table=True):
+    """Platform settings by category, stored as JSON per tenant."""
+
+    __tablename__ = "platform_settings_v2"
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    tenant_id: UUID = Field(index=True)
+    category: str = Field(
+        index=True
+    )  # general, authentication, notifications, api, appearance
+    settings_json: dict[str, Any] = Field(sa_column=Column(JSON, nullable=False))
+    updated_at: datetime = Field(default_factory=_utcnow)
+
+
+class FeatureFlagRecord(SQLModel, table=True):
+    """Feature flag toggle with description."""
+
+    __tablename__ = "feature_flags_v2"
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    tenant_id: UUID = Field(index=True)
+    name: str = Field(index=True)
+    description: str = Field(default="", sa_column=Column(SAText, nullable=False))
+    enabled: bool = Field(default=False)
+    updated_at: datetime = Field(default_factory=_utcnow)
+
+
 class SettingsAPIKey(SQLModel, table=True):
     """API key for programmatic access created through settings."""
 
@@ -58,11 +85,14 @@ class SettingsAPIKey(SQLModel, table=True):
     name: str
     key_prefix: str = Field(default="")
     key_hash: str = Field(default="")
-    scopes: list[str] = Field(default_factory=list, sa_column=Column(JSON, nullable=False))
+    scopes: list[str] = Field(
+        default_factory=list, sa_column=Column(JSON, nullable=False)
+    )
     created_by: UUID | None = Field(default=None)
     expires_at: datetime | None = Field(default=None)
     revoked: bool = Field(default=False)
     last_used_at: datetime | None = Field(default=None)
+    rate_limit: int | None = Field(default=None)  # RPM per key; None = tenant default
     created_at: datetime = Field(default_factory=_utcnow)
 
     @staticmethod
@@ -76,6 +106,8 @@ class SettingsAPIKey(SQLModel, table=True):
 
 __all__ = [
     "FeatureFlag",
+    "FeatureFlagRecord",
     "PlatformSetting",
+    "PlatformSettings",
     "SettingsAPIKey",
 ]

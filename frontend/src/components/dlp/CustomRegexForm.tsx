@@ -51,7 +51,7 @@ export function CustomRegexForm({ onAdd, existingPatterns = {} }: CustomRegexFor
   const existingEntries = Object.entries(existingPatterns);
 
   return (
-    <div className="rounded-lg border border-[#2a2d37] bg-[#0f1117] p-4">
+    <div className="rounded-lg border border-surface-border bg-surface-base p-4">
       <div className="mb-3 flex items-center gap-2">
         <Settings size={14} className="text-purple-400" />
         <h4 className="text-xs font-semibold text-white">Custom Regex Detector</h4>
@@ -61,7 +61,7 @@ export function CustomRegexForm({ onAdd, existingPatterns = {} }: CustomRegexFor
         <div>
           <label className="mb-1 block text-[10px] text-gray-500 uppercase">Pattern Name</label>
           <input
-            className="w-full rounded-md border border-[#2a2d37] bg-white/5 px-3 py-1.5 text-sm text-gray-200 placeholder-gray-600 focus:border-purple-500 focus:outline-none"
+            className="w-full rounded-md border border-surface-border bg-white/5 px-3 py-1.5 text-sm text-gray-200 placeholder-gray-600 focus:border-purple-500 focus:outline-none"
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g. internal_id"
@@ -70,7 +70,7 @@ export function CustomRegexForm({ onAdd, existingPatterns = {} }: CustomRegexFor
         <div>
           <label className="mb-1 block text-[10px] text-gray-500 uppercase">Regex Pattern</label>
           <input
-            className="w-full rounded-md border border-[#2a2d37] bg-white/5 px-3 py-1.5 font-mono text-sm text-gray-200 placeholder-gray-600 focus:border-purple-500 focus:outline-none"
+            className="w-full rounded-md border border-surface-border bg-white/5 px-3 py-1.5 font-mono text-sm text-gray-200 placeholder-gray-600 focus:border-purple-500 focus:outline-none"
             value={pattern}
             onChange={(e) => { setPattern(e.target.value); setTestResult(null); }}
             placeholder="e.g. INT-\d{6}"
@@ -83,7 +83,7 @@ export function CustomRegexForm({ onAdd, existingPatterns = {} }: CustomRegexFor
         <label className="mb-1 block text-[10px] text-gray-500 uppercase">Test Text (preview)</label>
         <div className="flex gap-2">
           <input
-            className="flex-1 rounded-md border border-[#2a2d37] bg-white/5 px-3 py-1.5 text-sm text-gray-200 placeholder-gray-600 focus:border-purple-500 focus:outline-none"
+            className="flex-1 rounded-md border border-surface-border bg-white/5 px-3 py-1.5 text-sm text-gray-200 placeholder-gray-600 focus:border-purple-500 focus:outline-none"
             value={testText}
             onChange={(e) => { setTestText(e.target.value); setTestResult(null); }}
             placeholder="Paste sample text to test..."

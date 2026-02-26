@@ -278,7 +278,7 @@ export function WorkflowCanvas({
                   key={nt.type}
                   type="button"
                   onClick={() => addGraphNode(nt.type)}
-                  className="flex items-center gap-1.5 rounded border border-[#2a2d37] px-2 py-1 text-xs text-gray-400 hover:bg-white/5 hover:text-white"
+                  className="flex items-center gap-1.5 rounded border border-surface-border px-2 py-1 text-xs text-gray-400 hover:bg-white/5 hover:text-white"
                 >
                   <Icon size={12} />
                   {nt.label}
@@ -323,7 +323,7 @@ export function WorkflowCanvas({
       )}
 
       {/* Canvas */}
-      <div className="rounded-lg border border-[#2a2d37] bg-[#0d0f17] overflow-hidden" style={{ height }}>
+      <div className="rounded-lg border border-surface-border bg-surface-base overflow-hidden" style={{ height }}>
         {nodes.length === 0 && !readOnly ? (
           <div className="flex h-full flex-col items-center justify-center">
             <Workflow size={32} className="mb-2 text-gray-700" />
@@ -347,12 +347,12 @@ export function WorkflowCanvas({
             deleteKeyCode={readOnly ? [] : ["Backspace", "Delete"]}
             nodesDraggable={!readOnly}
             nodesConnectable={!readOnly}
-            className="bg-[#0d0f17]"
+            className="bg-surface-base"
           >
             <Background gap={16} size={1} />
-            <Controls className="!bg-[#1a1d27] !border-[#2a2d37] !shadow-md [&>button]:!bg-[#1a1d27] [&>button]:!border-[#2a2d37] [&>button]:!text-gray-400 [&>button:hover]:!bg-white/5" />
+            <Controls className="!bg-surface-raised !border-surface-border !shadow-md [&>button]:!bg-surface-raised [&>button]:!border-surface-border [&>button]:!text-gray-400 [&>button:hover]:!bg-white/5" />
             <MiniMap
-              className="!bg-[#1a1d27] !border-[#2a2d37]"
+              className="!bg-surface-raised !border-surface-border"
               nodeColor="#6b7280"
               maskColor="rgba(0, 0, 0, 0.6)"
             />
@@ -362,7 +362,7 @@ export function WorkflowCanvas({
 
       {/* Selected Node Config Panel */}
       {selectedNodeData && !readOnly && (
-        <div className="mt-2 rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-3">
+        <div className="mt-2 rounded-lg border border-surface-border bg-surface-raised p-3">
           <div className="mb-2 flex items-center justify-between">
             <span className="text-xs font-medium text-purple-400">
               Configure: {selectedNodeData.label}
@@ -395,7 +395,7 @@ export function WorkflowCanvas({
               type="text"
               value={selectedNodeData.label}
               onChange={(e) => updateSelectedNodeData({ label: e.target.value })}
-              className="w-full rounded border border-[#2a2d37] bg-[#12141e] px-2 py-1.5 text-xs text-white focus:border-purple-500 focus:outline-none"
+              className="w-full rounded border border-surface-border bg-surface-overlay px-2 py-1.5 text-xs text-white focus:border-purple-500 focus:outline-none"
             />
           </div>
 
@@ -432,7 +432,7 @@ function NodeConfigForm({
             <select
               value={data.agent_id}
               onChange={(e) => onChange({ agent_id: e.target.value })}
-              className="w-full rounded border border-[#2a2d37] bg-[#12141e] px-2 py-1.5 text-xs text-white focus:border-purple-500 focus:outline-none"
+              className="w-full rounded border border-surface-border bg-surface-overlay px-2 py-1.5 text-xs text-white focus:border-purple-500 focus:outline-none"
             >
               <option value="">Select agent...</option>
               {agents.map((a) => (
@@ -452,7 +452,7 @@ function NodeConfigForm({
                 min={0}
                 value={data.timeout}
                 onChange={(e) => onChange({ timeout: parseInt(e.target.value) || 0 })}
-                className="w-full rounded border border-[#2a2d37] bg-[#12141e] px-2 py-1 text-xs text-white focus:border-purple-500 focus:outline-none"
+                className="w-full rounded border border-surface-border bg-surface-overlay px-2 py-1 text-xs text-white focus:border-purple-500 focus:outline-none"
               />
             </div>
             <div>
@@ -460,7 +460,7 @@ function NodeConfigForm({
               <select
                 value={data.retryPolicy}
                 onChange={(e) => onChange({ retryPolicy: e.target.value as WfNodeData["retryPolicy"] })}
-                className="w-full rounded border border-[#2a2d37] bg-[#12141e] px-2 py-1 text-xs text-white focus:border-purple-500 focus:outline-none"
+                className="w-full rounded border border-surface-border bg-surface-overlay px-2 py-1 text-xs text-white focus:border-purple-500 focus:outline-none"
               >
                 <option value="none">None</option>
                 <option value="1">1 retry</option>
@@ -472,7 +472,7 @@ function NodeConfigForm({
               <select
                 value={data.onFailure}
                 onChange={(e) => onChange({ onFailure: e.target.value as WfNodeData["onFailure"] })}
-                className="w-full rounded border border-[#2a2d37] bg-[#12141e] px-2 py-1 text-xs text-white focus:border-purple-500 focus:outline-none"
+                className="w-full rounded border border-surface-border bg-surface-overlay px-2 py-1 text-xs text-white focus:border-purple-500 focus:outline-none"
               >
                 <option value="stop">Stop</option>
                 <option value="skip">Skip</option>
@@ -494,7 +494,7 @@ function NodeConfigForm({
                 value={data.condField}
                 onChange={(e) => onChange({ condField: e.target.value })}
                 placeholder="status"
-                className="w-full rounded border border-[#2a2d37] bg-[#12141e] px-2 py-1 text-xs text-white focus:border-purple-500 focus:outline-none"
+                className="w-full rounded border border-surface-border bg-surface-overlay px-2 py-1 text-xs text-white focus:border-purple-500 focus:outline-none"
               />
             </div>
             <div>
@@ -502,7 +502,7 @@ function NodeConfigForm({
               <select
                 value={data.condOperator}
                 onChange={(e) => onChange({ condOperator: e.target.value })}
-                className="w-full rounded border border-[#2a2d37] bg-[#12141e] px-2 py-1 text-xs text-white focus:border-purple-500 focus:outline-none"
+                className="w-full rounded border border-surface-border bg-surface-overlay px-2 py-1 text-xs text-white focus:border-purple-500 focus:outline-none"
               >
                 <option value="equals">equals</option>
                 <option value="not_equals">not equals</option>
@@ -518,7 +518,7 @@ function NodeConfigForm({
                 value={data.condValue}
                 onChange={(e) => onChange({ condValue: e.target.value })}
                 placeholder="success"
-                className="w-full rounded border border-[#2a2d37] bg-[#12141e] px-2 py-1 text-xs text-white focus:border-purple-500 focus:outline-none"
+                className="w-full rounded border border-surface-border bg-surface-overlay px-2 py-1 text-xs text-white focus:border-purple-500 focus:outline-none"
               />
             </div>
           </div>
@@ -527,7 +527,7 @@ function NodeConfigForm({
             <select
               value={data.condLogic}
               onChange={(e) => onChange({ condLogic: e.target.value as "AND" | "OR" })}
-              className="w-32 rounded border border-[#2a2d37] bg-[#12141e] px-2 py-1 text-xs text-white focus:border-purple-500 focus:outline-none"
+              className="w-32 rounded border border-surface-border bg-surface-overlay px-2 py-1 text-xs text-white focus:border-purple-500 focus:outline-none"
             >
               <option value="AND">AND</option>
               <option value="OR">OR</option>
@@ -547,7 +547,7 @@ function NodeConfigForm({
               max={10}
               value={data.branches}
               onChange={(e) => onChange({ branches: parseInt(e.target.value) || 2 })}
-              className="w-full rounded border border-[#2a2d37] bg-[#12141e] px-2 py-1 text-xs text-white focus:border-purple-500 focus:outline-none"
+              className="w-full rounded border border-surface-border bg-surface-overlay px-2 py-1 text-xs text-white focus:border-purple-500 focus:outline-none"
             />
           </div>
           <div>
@@ -555,7 +555,7 @@ function NodeConfigForm({
             <select
               value={data.executionMode}
               onChange={(e) => onChange({ executionMode: e.target.value as "all" | "any" | "n_of_m" })}
-              className="w-full rounded border border-[#2a2d37] bg-[#12141e] px-2 py-1 text-xs text-white focus:border-purple-500 focus:outline-none"
+              className="w-full rounded border border-surface-border bg-surface-overlay px-2 py-1 text-xs text-white focus:border-purple-500 focus:outline-none"
             >
               <option value="all">Wait All</option>
               <option value="any">Wait Any</option>
@@ -571,7 +571,7 @@ function NodeConfigForm({
                 max={data.branches}
                 value={data.requiredCount}
                 onChange={(e) => onChange({ requiredCount: parseInt(e.target.value) || 1 })}
-                className="w-full rounded border border-[#2a2d37] bg-[#12141e] px-2 py-1 text-xs text-white focus:border-purple-500 focus:outline-none"
+                className="w-full rounded border border-surface-border bg-surface-overlay px-2 py-1 text-xs text-white focus:border-purple-500 focus:outline-none"
               />
             </div>
           )}
@@ -587,7 +587,7 @@ function NodeConfigForm({
               <select
                 value={data.loopType}
                 onChange={(e) => onChange({ loopType: e.target.value as "forEach" | "while" | "fixedCount" })}
-                className="w-full rounded border border-[#2a2d37] bg-[#12141e] px-2 py-1 text-xs text-white focus:border-purple-500 focus:outline-none"
+                className="w-full rounded border border-surface-border bg-surface-overlay px-2 py-1 text-xs text-white focus:border-purple-500 focus:outline-none"
               >
                 <option value="forEach">For Each</option>
                 <option value="while">While</option>
@@ -601,7 +601,7 @@ function NodeConfigForm({
                 min={1}
                 value={data.maxIterations}
                 onChange={(e) => onChange({ maxIterations: parseInt(e.target.value) || 1 })}
-                className="w-full rounded border border-[#2a2d37] bg-[#12141e] px-2 py-1 text-xs text-white focus:border-purple-500 focus:outline-none"
+                className="w-full rounded border border-surface-border bg-surface-overlay px-2 py-1 text-xs text-white focus:border-purple-500 focus:outline-none"
               />
             </div>
           </div>
@@ -613,7 +613,7 @@ function NodeConfigForm({
                 value={data.loopCondition}
                 onChange={(e) => onChange({ loopCondition: e.target.value })}
                 placeholder="result.hasMore"
-                className="w-full rounded border border-[#2a2d37] bg-[#12141e] px-2 py-1 text-xs text-white focus:border-purple-500 focus:outline-none"
+                className="w-full rounded border border-surface-border bg-surface-overlay px-2 py-1 text-xs text-white focus:border-purple-500 focus:outline-none"
               />
             </div>
           )}
@@ -630,7 +630,7 @@ function NodeConfigForm({
               value={data.workflowId}
               onChange={(e) => onChange({ workflowId: e.target.value })}
               placeholder="Enter workflow ID"
-              className="w-full rounded border border-[#2a2d37] bg-[#12141e] px-2 py-1 text-xs text-white focus:border-purple-500 focus:outline-none"
+              className="w-full rounded border border-surface-border bg-surface-overlay px-2 py-1 text-xs text-white focus:border-purple-500 focus:outline-none"
             />
           </div>
           <InputMappingEditor
@@ -657,7 +657,7 @@ function NodeConfigForm({
             <select
               value={data.strategy}
               onChange={(e) => onChange({ strategy: e.target.value as "all" | "any" | "n" })}
-              className="w-full rounded border border-[#2a2d37] bg-[#12141e] px-2 py-1 text-xs text-white focus:border-purple-500 focus:outline-none"
+              className="w-full rounded border border-surface-border bg-surface-overlay px-2 py-1 text-xs text-white focus:border-purple-500 focus:outline-none"
             >
               <option value="all">Wait All</option>
               <option value="any">Wait Any</option>
@@ -671,7 +671,7 @@ function NodeConfigForm({
               min={0}
               value={data.timeout}
               onChange={(e) => onChange({ timeout: parseInt(e.target.value) || 0 })}
-              className="w-full rounded border border-[#2a2d37] bg-[#12141e] px-2 py-1 text-xs text-white focus:border-purple-500 focus:outline-none"
+              className="w-full rounded border border-surface-border bg-surface-overlay px-2 py-1 text-xs text-white focus:border-purple-500 focus:outline-none"
             />
           </div>
         </div>
@@ -685,7 +685,7 @@ function NodeConfigForm({
             <select
               value={data.delayType}
               onChange={(e) => onChange({ delayType: e.target.value as "duration" | "datetime" })}
-              className="w-full rounded border border-[#2a2d37] bg-[#12141e] px-2 py-1 text-xs text-white focus:border-purple-500 focus:outline-none"
+              className="w-full rounded border border-surface-border bg-surface-overlay px-2 py-1 text-xs text-white focus:border-purple-500 focus:outline-none"
             >
               <option value="duration">Duration</option>
               <option value="datetime">Specific datetime</option>
@@ -699,7 +699,7 @@ function NodeConfigForm({
                 min={1}
                 value={Math.round(data.durationMs / 1000)}
                 onChange={(e) => onChange({ durationMs: (parseInt(e.target.value) || 1) * 1000 })}
-                className="w-full rounded border border-[#2a2d37] bg-[#12141e] px-2 py-1 text-xs text-white focus:border-purple-500 focus:outline-none"
+                className="w-full rounded border border-surface-border bg-surface-overlay px-2 py-1 text-xs text-white focus:border-purple-500 focus:outline-none"
               />
             </div>
           ) : (
@@ -709,7 +709,7 @@ function NodeConfigForm({
                 type="datetime-local"
                 value={data.targetDatetime}
                 onChange={(e) => onChange({ targetDatetime: e.target.value })}
-                className="w-full rounded border border-[#2a2d37] bg-[#12141e] px-2 py-1 text-xs text-white focus:border-purple-500 focus:outline-none"
+                className="w-full rounded border border-surface-border bg-surface-overlay px-2 py-1 text-xs text-white focus:border-purple-500 focus:outline-none"
               />
             </div>
           )}
@@ -742,7 +742,7 @@ function InputMappingEditor({
               onChange(next);
             }}
             placeholder="source"
-            className="w-full rounded border border-[#2a2d37] bg-[#12141e] px-2 py-1 text-[10px] text-white focus:border-purple-500 focus:outline-none"
+            className="w-full rounded border border-surface-border bg-surface-overlay px-2 py-1 text-[10px] text-white focus:border-purple-500 focus:outline-none"
           />
           <ArrowRight size={10} className="text-gray-600 shrink-0" />
           <input
@@ -754,7 +754,7 @@ function InputMappingEditor({
               onChange(next);
             }}
             placeholder="target"
-            className="w-full rounded border border-[#2a2d37] bg-[#12141e] px-2 py-1 text-[10px] text-white focus:border-purple-500 focus:outline-none"
+            className="w-full rounded border border-surface-border bg-surface-overlay px-2 py-1 text-[10px] text-white focus:border-purple-500 focus:outline-none"
           />
           <button
             type="button"

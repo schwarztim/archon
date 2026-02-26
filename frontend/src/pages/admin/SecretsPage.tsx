@@ -218,13 +218,13 @@ export function SecretsPage() {
             placeholder="Search secrets..."
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(0); }}
-            className="w-full rounded-lg border border-[#2a2d37] bg-[#1a1d27] py-2 pl-9 pr-3 text-sm text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none"
+            className="w-full rounded-lg border border-surface-border bg-surface-raised py-2 pl-9 pr-3 text-sm text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none"
           />
         </div>
         <select
           value={typeFilter}
           onChange={(e) => { setTypeFilter(e.target.value); setPage(0); }}
-          className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none"
+          className="rounded-lg border border-surface-border bg-surface-raised px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none"
         >
           <option value="all">All Types</option>
           <option value="api_key">API Key</option>
@@ -236,7 +236,7 @@ export function SecretsPage() {
       </div>
 
       {/* Table */}
-      <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27]">
+      <div className="rounded-lg border border-surface-border bg-surface-raised">
         <div className="overflow-x-auto">
           {secrets.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12">
@@ -246,7 +246,7 @@ export function SecretsPage() {
           ) : (
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-[#2a2d37] text-left text-xs text-gray-500">
+                <tr className="border-b border-surface-border text-left text-xs text-gray-500">
                   <th className="px-4 py-2 font-medium">Name</th>
                   <th className="px-4 py-2 font-medium">Path</th>
                   <th className="px-4 py-2 font-medium">Type</th>
@@ -258,7 +258,7 @@ export function SecretsPage() {
               </thead>
               <tbody>
                 {secrets.map((s) => (
-                  <tr key={s.id} className="border-b border-[#2a2d37] hover:bg-white/5">
+                  <tr key={s.id} className="border-b border-surface-border hover:bg-white/5">
                     <td className="px-4 py-2 font-medium text-white">{s.name}</td>
                     <td className="px-4 py-2 font-mono text-xs text-gray-400">{s.path}</td>
                     <td className="px-4 py-2">{typeBadge(s.type)}</td>
@@ -306,7 +306,7 @@ export function SecretsPage() {
 
         {/* Pagination */}
         {total > limit && (
-          <div className="flex items-center justify-between border-t border-[#2a2d37] px-4 py-3">
+          <div className="flex items-center justify-between border-t border-surface-border px-4 py-3">
             <span className="text-xs text-gray-500">
               {page * limit + 1}–{Math.min((page + 1) * limit, total)} of {total}
             </span>
@@ -314,14 +314,14 @@ export function SecretsPage() {
               <button
                 disabled={page === 0}
                 onClick={() => setPage((p) => p - 1)}
-                className="rounded border border-[#2a2d37] px-3 py-1 text-xs text-gray-400 hover:bg-white/5 disabled:opacity-40"
+                className="rounded border border-surface-border px-3 py-1 text-xs text-gray-400 hover:bg-white/5 disabled:opacity-40"
               >
                 Previous
               </button>
               <button
                 disabled={(page + 1) * limit >= total}
                 onClick={() => setPage((p) => p + 1)}
-                className="rounded border border-[#2a2d37] px-3 py-1 text-xs text-gray-400 hover:bg-white/5 disabled:opacity-40"
+                className="rounded border border-surface-border px-3 py-1 text-xs text-gray-400 hover:bg-white/5 disabled:opacity-40"
               >
                 Next
               </button>
@@ -344,7 +344,7 @@ export function SecretsPage() {
       {/* Confirm Action Modal */}
       {confirmAction && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-          <div className="w-full max-w-sm rounded-lg border border-[#2a2d37] bg-[#12141e] p-6">
+          <div className="w-full max-w-sm rounded-lg border border-surface-border bg-surface-overlay p-6">
             <div className="mb-4 flex items-center gap-3">
               <AlertTriangle
                 size={24}
@@ -362,7 +362,7 @@ export function SecretsPage() {
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => setConfirmAction(null)}
-                className="rounded-lg border border-[#2a2d37] px-4 py-2 text-sm text-gray-400 hover:bg-white/5"
+                className="rounded-lg border border-surface-border px-4 py-2 text-sm text-gray-400 hover:bg-white/5"
               >
                 Cancel
               </button>
@@ -404,7 +404,7 @@ function CreateSecretModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="w-full max-w-md rounded-lg border border-[#2a2d37] bg-[#12141e] p-6">
+      <div className="w-full max-w-md rounded-lg border border-surface-border bg-surface-overlay p-6">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-white">Create Secret</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-white" aria-label="Close">
@@ -425,7 +425,7 @@ function CreateSecretModal({
             required
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="mb-3 w-full rounded-lg border border-[#2a2d37] bg-[#1a1d27] px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none"
+            className="mb-3 w-full rounded-lg border border-surface-border bg-surface-raised px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none"
             placeholder="my-api-key"
           />
           <label className="mb-1 block text-xs text-gray-400">Path</label>
@@ -434,14 +434,14 @@ function CreateSecretModal({
             required
             value={path}
             onChange={(e) => setPath(e.target.value)}
-            className="mb-3 w-full rounded-lg border border-[#2a2d37] bg-[#1a1d27] px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none"
+            className="mb-3 w-full rounded-lg border border-surface-border bg-surface-raised px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none"
             placeholder="secret/data/my-service/api-key"
           />
           <label className="mb-1 block text-xs text-gray-400">Type</label>
           <select
             value={type}
             onChange={(e) => setType(e.target.value as Secret["type"])}
-            className="mb-3 w-full rounded-lg border border-[#2a2d37] bg-[#1a1d27] px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none"
+            className="mb-3 w-full rounded-lg border border-surface-border bg-surface-raised px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none"
           >
             <option value="api_key">API Key</option>
             <option value="oauth_token">OAuth Token</option>
@@ -456,7 +456,7 @@ function CreateSecretModal({
               required
               value={value}
               onChange={(e) => setValue(e.target.value)}
-              className="w-full rounded-lg border border-[#2a2d37] bg-[#1a1d27] px-3 py-2 pr-10 text-sm text-white focus:border-purple-500 focus:outline-none"
+              className="w-full rounded-lg border border-surface-border bg-surface-raised px-3 py-2 pr-10 text-sm text-white focus:border-purple-500 focus:outline-none"
               placeholder="Enter secret value"
             />
             <button
@@ -472,7 +472,7 @@ function CreateSecretModal({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border border-[#2a2d37] px-4 py-2 text-sm text-gray-400 hover:bg-white/5"
+              className="rounded-lg border border-surface-border px-4 py-2 text-sm text-gray-400 hover:bg-white/5"
             >
               Cancel
             </button>

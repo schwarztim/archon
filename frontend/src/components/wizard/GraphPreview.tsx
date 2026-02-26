@@ -36,7 +36,7 @@ export function GraphPreview({ steps, edges }: GraphPreviewProps) {
 
   if (steps.length === 0) {
     return (
-      <div className="flex items-center justify-center rounded-lg border border-[#2a2d37] bg-[#0f1117] p-8">
+      <div className="flex items-center justify-center rounded-lg border border-surface-border bg-surface-base p-8">
         <p className="text-sm text-gray-500">No steps defined</p>
       </div>
     );
@@ -47,7 +47,7 @@ export function GraphPreview({ steps, edges }: GraphPreviewProps) {
   const rows = Math.ceil(steps.length / cols);
 
   return (
-    <div className="rounded-lg border border-[#2a2d37] bg-[#0f1117] p-4">
+    <div className="rounded-lg border border-surface-border bg-surface-base p-4">
       <div className="space-y-3">
         {Array.from({ length: rows }, (_, row) => (
           <div key={row} className="flex items-center gap-2 justify-center flex-wrap">
@@ -62,7 +62,7 @@ export function GraphPreview({ steps, edges }: GraphPreviewProps) {
 
                 return (
                   <div key={step.id} className="flex items-center gap-2">
-                    <div className="flex flex-col items-center gap-1 rounded-lg border border-[#2a2d37] bg-[#1a1d27] px-3 py-2 min-w-[110px] max-w-[140px]">
+                    <div className="flex flex-col items-center gap-1 rounded-lg border border-surface-border bg-surface-raised px-3 py-2 min-w-[110px] max-w-[140px]">
                       {BadgeIcon && <BadgeIcon
                         size={16}
                         className={badge?.color.split(" ")[1]}
@@ -91,7 +91,7 @@ export function GraphPreview({ steps, edges }: GraphPreviewProps) {
 
       {/* Edge legend when conditions exist */}
       {resolvedEdges.some((e) => e.condition) && (
-        <div className="mt-3 border-t border-[#2a2d37] pt-3">
+        <div className="mt-3 border-t border-surface-border pt-3">
           <p className="text-[10px] font-medium text-gray-500 mb-1">
             Conditions
           </p>

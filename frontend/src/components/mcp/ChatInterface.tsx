@@ -72,7 +72,7 @@ export function ChatInterface({
   }
 
   return (
-    <div className="flex h-full flex-col rounded-lg border border-[#2a2d37] bg-[#1a1d27]">
+    <div className="flex h-full flex-col rounded-lg border border-surface-border bg-surface-raised">
       {/* Messages */}
       <div
         ref={scrollRef}
@@ -99,10 +99,10 @@ export function ChatInterface({
       </div>
 
       {/* Input */}
-      <div className="border-t border-[#2a2d37] p-3">
+      <div className="border-t border-surface-border p-3">
         <div className="flex gap-2">
           <input
-            className="flex-1 rounded-md border border-[#2a2d37] bg-[#0f1117] px-3 py-1.5 text-sm text-gray-200 placeholder-gray-600 focus:border-purple-500 focus:outline-none"
+            className="flex-1 rounded-md border border-surface-border bg-surface-base px-3 py-1.5 text-sm text-gray-200 placeholder-gray-600 focus:border-purple-500 focus:outline-none"
             placeholder="Ask the agent something…"
             value={input}
             onChange={(e) => setInput(e.target.value)}

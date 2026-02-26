@@ -75,7 +75,7 @@ function SchemaFormFields({ fields, config, onChange }: {
             <select
               value={config[field.name] ?? field.default ?? field.options[0] ?? ""}
               onChange={(e) => set(field.name, e.target.value)}
-              className="h-9 w-full rounded-md border border-gray-200 bg-gray-50 px-3 text-sm text-gray-900 dark:border-[#2a2d37] dark:bg-[#0f1117] dark:text-white"
+              className="h-9 w-full rounded-md border border-gray-200 bg-gray-50 px-3 text-sm text-gray-900 dark:border-surface-border dark:bg-surface-base dark:text-white"
             >
               {field.options.map((o) => <option key={o} value={o}>{o}</option>)}
             </select>
@@ -85,7 +85,7 @@ function SchemaFormFields({ fields, config, onChange }: {
                 type="checkbox"
                 checked={config[field.name] === "true"}
                 onChange={(e) => set(field.name, String(e.target.checked))}
-                className="h-4 w-4 rounded border-gray-600 bg-gray-50 dark:bg-[#0f1117]"
+                className="h-4 w-4 rounded border-gray-600 bg-gray-50 dark:bg-surface-base"
               />
               <span className="text-xs text-gray-500">{field.description || "Enable"}</span>
             </div>
@@ -95,7 +95,7 @@ function SchemaFormFields({ fields, config, onChange }: {
               placeholder={field.placeholder || field.label}
               value={config[field.name] ?? field.default ?? ""}
               onChange={(e) => set(field.name, e.target.value)}
-              className="bg-gray-50 dark:bg-[#0f1117]"
+              className="bg-gray-50 dark:bg-surface-base"
             />
           )}
         </div>
@@ -209,7 +209,7 @@ export function ConnectorsPage() {
         <button onClick={() => { setSelectedType(null); }} className="mb-4 flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">
           <ArrowLeft size={14} /> Back to Catalog
         </button>
-        <div className="rounded-lg border border-gray-200 bg-white p-6 dark:border-[#2a2d37] dark:bg-[#1a1d27]">
+        <div className="rounded-lg border border-gray-200 bg-white p-6 dark:border-surface-border dark:bg-surface-raised">
           <div className="mb-6 flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-500/20">
               <Plug size={20} className="text-purple-400" />
@@ -222,7 +222,7 @@ export function ConnectorsPage() {
 
           <div className="mb-4">
             <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">Connection Name *</label>
-            <Input placeholder={`My ${selectedType.label} Connection`} value={name} onChange={(e) => setName(e.target.value)} className="max-w-sm bg-gray-50 dark:bg-[#0f1117]" />
+            <Input placeholder={`My ${selectedType.label} Connection`} value={name} onChange={(e) => setName(e.target.value)} className="max-w-sm bg-gray-50 dark:bg-surface-base" />
           </div>
 
           {renderForm()}
@@ -260,8 +260,8 @@ export function ConnectorsPage() {
       </div>
 
       {/* Active Connections Table */}
-      <div className="rounded-lg border border-gray-200 bg-white dark:border-[#2a2d37] dark:bg-[#1a1d27]">
-        <div className="border-b border-gray-200 px-4 py-3 dark:border-[#2a2d37]">
+      <div className="rounded-lg border border-gray-200 bg-white dark:border-surface-border dark:bg-surface-raised">
+        <div className="border-b border-gray-200 px-4 py-3 dark:border-surface-border">
           <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Active Connections ({connectors.length})</h2>
         </div>
         {connectors.length === 0 ? (
@@ -273,7 +273,7 @@ export function ConnectorsPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-gray-200 text-left text-xs text-gray-500 dark:border-[#2a2d37]">
+                <tr className="border-b border-gray-200 text-left text-xs text-gray-500 dark:border-surface-border">
                   <th className="px-4 py-2 font-medium">Name</th>
                   <th className="px-4 py-2 font-medium">Type</th>
                   <th className="px-4 py-2 font-medium">Health</th>
@@ -285,7 +285,7 @@ export function ConnectorsPage() {
                   const Icon = iconMap[c.type] ?? Globe;
                   const entry = catalogTypes.find((e) => e.name === c.type);
                   return (
-                    <tr key={c.id} className="border-b border-gray-200 hover:bg-gray-50 dark:border-[#2a2d37] dark:hover:bg-white/5">
+                    <tr key={c.id} className="border-b border-gray-200 hover:bg-gray-50 dark:border-surface-border dark:hover:bg-white/5">
                       <td className="px-4 py-2">
                         <div className="flex items-center gap-2">
                           <Icon size={16} className="text-purple-400" />

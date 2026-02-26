@@ -21,7 +21,7 @@ export function S3Form({ config, onChange }: S3FormProps) {
         <select
           value={config.region ?? "us-east-1"}
           onChange={(e) => set("region", e.target.value)}
-          className="h-9 w-full rounded-md border border-gray-200 bg-gray-50 px-3 text-sm text-gray-900 dark:border-[#2a2d37] dark:bg-[#0f1117] dark:text-white"
+          className="h-9 w-full rounded-md border border-gray-200 bg-gray-50 px-3 text-sm text-gray-900 dark:border-surface-border dark:bg-surface-base dark:text-white"
         >
           {REGIONS.map((r) => (
             <option key={r} value={r}>{r}</option>
@@ -30,15 +30,15 @@ export function S3Form({ config, onChange }: S3FormProps) {
       </div>
       <div>
         <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">Bucket Name *</label>
-        <Input placeholder="my-bucket" value={config.bucket ?? ""} onChange={(e) => set("bucket", e.target.value)} className="bg-gray-50 dark:bg-[#0f1117]" />
+        <Input placeholder="my-bucket" value={config.bucket ?? ""} onChange={(e) => set("bucket", e.target.value)} className="bg-gray-50 dark:bg-surface-base" />
       </div>
       <div>
         <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">Access Key ID *</label>
-        <Input type="password" placeholder="AKIA..." value={config.access_key ?? ""} onChange={(e) => set("access_key", e.target.value)} className="bg-gray-50 dark:bg-[#0f1117]" />
+        <Input type="password" placeholder="AKIA..." value={config.access_key ?? ""} onChange={(e) => set("access_key", e.target.value)} className="bg-gray-50 dark:bg-surface-base" />
       </div>
       <div>
         <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">Secret Access Key *</label>
-        <Input type="password" placeholder="••••••" value={config.secret_key ?? ""} onChange={(e) => set("secret_key", e.target.value)} className="bg-gray-50 dark:bg-[#0f1117]" />
+        <Input type="password" placeholder="••••••" value={config.secret_key ?? ""} onChange={(e) => set("secret_key", e.target.value)} className="bg-gray-50 dark:bg-surface-base" />
       </div>
     </div>
   );

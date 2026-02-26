@@ -32,14 +32,14 @@ export function ApprovalPanel({
   }
 
   return (
-    <div className="rounded-lg border border-[#2a2d37] bg-[#0f1117] p-4">
+    <div className="rounded-lg border border-surface-border bg-surface-base p-4">
       <h4 className="mb-1 text-sm font-semibold text-white">{title}</h4>
       {description && (
         <p className="mb-3 text-xs text-gray-400">{description}</p>
       )}
 
       {metadata && Object.keys(metadata).length > 0 && (
-        <div className="mb-3 space-y-1 rounded border border-[#2a2d37] bg-[#1a1d27] p-3">
+        <div className="mb-3 space-y-1 rounded border border-surface-border bg-surface-raised p-3">
           {Object.entries(metadata).map(([k, v]) => (
             <div key={k} className="flex justify-between text-xs">
               <span className="text-gray-500">{k}</span>
@@ -76,7 +76,7 @@ export function ApprovalPanel({
               Comment {requireComment && <span className="text-red-400">*</span>}
             </label>
             <textarea
-              className="w-full rounded-md border border-[#2a2d37] bg-[#1a1d27] px-3 py-1.5 text-sm text-gray-200 placeholder-gray-600 focus:border-purple-500 focus:outline-none"
+              className="w-full rounded-md border border-surface-border bg-surface-raised px-3 py-1.5 text-sm text-gray-200 placeholder-gray-600 focus:border-purple-500 focus:outline-none"
               placeholder="Add a comment…"
               rows={2}
               value={comment}

@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useAuth } from "@/providers/auth-provider";
+import { useTheme } from "@/providers/theme-provider";
 import { cn } from "@/utils/cn";
 import {
   Search,
@@ -10,6 +11,8 @@ import {
   LogOut,
   Settings,
   Building2,
+  Sun,
+  Moon,
 } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────
@@ -22,6 +25,7 @@ interface TopBarProps {
 
 export function TopBar({ onMenuToggle }: TopBarProps) {
   const { user, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -46,7 +50,7 @@ export function TopBar({ onMenuToggle }: TopBarProps) {
     : "?";
 
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between border-b border-white/10 bg-[#0f1117] px-4 md:px-6">
+    <header className="flex h-14 shrink-0 items-center justify-between border-b border-white/10 bg-surface-base px-4 md:px-6">
       {/* Left: mobile menu + workspace */}
       <div className="flex items-center gap-3">
         {/* Hamburger — mobile only */}
@@ -91,6 +95,15 @@ export function TopBar({ onMenuToggle }: TopBarProps) {
           <Bell size={18} />
         </button>
 
+        {/* Theme toggle */}
+        <button
+          onClick={toggleTheme}
+          className="rounded p-1.5 text-gray-400 hover:bg-white/10 hover:text-white"
+          aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+        >
+          {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+        </button>
+
         {/* User avatar dropdown */}
         <div className="relative" ref={menuRef}>
           <button
@@ -103,7 +116,7 @@ export function TopBar({ onMenuToggle }: TopBarProps) {
           </button>
 
           {userMenuOpen && (
-            <div className="absolute right-0 top-10 z-50 w-56 rounded-md border border-white/10 bg-[#1a1d27] py-1 shadow-lg">
+            <div className="absolute right-0 top-10 z-50 w-56 rounded-md border border-white/10 bg-surface-raised py-1 shadow-lg">
               {user && (
                 <div className="border-b border-white/10 px-4 py-2">
                   <p className="text-sm font-medium text-white">{user.name}</p>

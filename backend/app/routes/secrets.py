@@ -7,17 +7,18 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from pydantic import BaseModel, Field as PField
+from sqlalchemy import select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.interfaces.models.enterprise import AuthenticatedUser, SecretMetadata
-from app.middleware.auth import require_auth
+from app.database import get_session
+from app.interfaces.models.enterprise import AuthenticatedUser
 from app.middleware.rbac import require_permission
 from app.models.audit import EnterpriseAuditEvent
 from app.models.secrets import SecretRegistration
 from app.secrets.manager import VaultSecretsManager, get_secrets_manager
 from app.services.secret_access_logger import (
-    SecretAccessEntry,
     SecretAccessLogger,
     get_access_logger,
 )
@@ -35,7 +36,9 @@ class SecretCreate(BaseModel):
 
     path: str
     data: dict[str, Any]
-    secret_type: str = "custom"  # api_key | oauth_token | password | certificate | custom
+    secret_type: str = (
+        "custom"  # api_key | oauth_token | password | certificate | custom
+    )
     rotation_policy_days: int | None = None
     auto_rotate: bool = False
     notify_before_days: int = 14
@@ -65,7 +68,9 @@ class PKICertificateRequest(BaseModel):
 class RotationPolicyUpdate(BaseModel):
     """Payload for setting/updating a rotation policy on a secret."""
 
-    rotation_policy_days: int = PField(ge=1, le=365, description="Days between rotations")
+    rotation_policy_days: int = PField(
+        ge=1, le=365, description="Days between rotations"
+    )
     auto_rotate: bool = True
     notify_before_days: int = PField(default=14, ge=0, le=90)
 
@@ -85,7 +90,9 @@ class RotationDashboardItem(BaseModel):
 
     path: str
     secret_type: str = "custom"
-    rotation_status: str  # approaching | overdue | recently_rotated | never_rotated | ok
+    rotation_status: (
+        str  # approaching | overdue | recently_rotated | never_rotated | ok
+    )
     last_rotated_at: str | None = None
     next_rotation_at: str | None = None
     days_until_rotation: int | None = None
@@ -122,24 +129,107 @@ def _audit_event(
     )
 
 
-# ── In-memory registration store (production would use DB) ──────────
-
-_registrations: dict[str, dict[str, Any]] = {}
+# ── DB registration helpers ───────────────────────────────────────────
 
 
-def _get_registration(tenant_id: str, path: str) -> dict[str, Any] | None:
-    """Look up a secret registration by tenant+path."""
-    return _registrations.get(f"{tenant_id}:{path}")
+async def _get_registration(
+    session: AsyncSession, tenant_id: str, path: str
+) -> SecretRegistration | None:
+    """Look up a SecretRegistration by tenant+path."""
+    stmt = (
+        select(SecretRegistration)
+        .where(SecretRegistration.tenant_id == UUID(tenant_id))
+        .where(SecretRegistration.path == path)
+    )
+    result = await session.exec(stmt)
+    return result.first()
 
 
-def _set_registration(tenant_id: str, path: str, reg: dict[str, Any]) -> None:
-    """Store/update a secret registration."""
-    _registrations[f"{tenant_id}:{path}"] = reg
+async def _set_registration(
+    session: AsyncSession,
+    tenant_id: str,
+    path: str,
+    data: dict[str, Any],
+) -> SecretRegistration:
+    """Upsert a SecretRegistration — update if exists, insert if not."""
+    reg = await _get_registration(session, tenant_id, path)
+    now = datetime.utcnow()
+
+    def _parse(val: str | datetime | None) -> datetime | None:
+        if val is None:
+            return None
+        if isinstance(val, datetime):
+            return val.replace(tzinfo=None) if val.tzinfo else val
+        return datetime.fromisoformat(val).replace(tzinfo=None)
+
+    if reg is None:
+        reg = SecretRegistration(
+            path=path,
+            tenant_id=UUID(tenant_id),
+            secret_type=data.get("secret_type", "custom"),
+            rotation_policy_days=data.get("rotation_policy_days"),
+            auto_rotate=data.get("auto_rotate", False),
+            notify_before_days=data.get("notify_before_days", 14),
+            last_rotated_at=_parse(data.get("last_rotated_at")),
+            next_rotation_at=_parse(data.get("next_rotation_at")),
+            expires_at=_parse(data.get("expires_at")),
+            created_by=UUID(data["created_by"]) if data.get("created_by") else None,
+            created_at=_parse(data.get("created_at")) or now,
+            updated_at=now,
+        )
+    else:
+        if "secret_type" in data:
+            reg.secret_type = data["secret_type"]
+        if "rotation_policy_days" in data:
+            reg.rotation_policy_days = data["rotation_policy_days"]
+        if "auto_rotate" in data:
+            reg.auto_rotate = data["auto_rotate"]
+        if "notify_before_days" in data:
+            reg.notify_before_days = data["notify_before_days"]
+        if "last_rotated_at" in data:
+            reg.last_rotated_at = _parse(data["last_rotated_at"])
+        if "next_rotation_at" in data:
+            reg.next_rotation_at = _parse(data["next_rotation_at"])
+        if "expires_at" in data:
+            reg.expires_at = _parse(data["expires_at"])
+        reg.updated_at = now
+
+    session.add(reg)
+    await session.commit()
+    await session.refresh(reg)
+    return reg
 
 
-def _delete_registration(tenant_id: str, path: str) -> None:
-    """Remove a secret registration."""
-    _registrations.pop(f"{tenant_id}:{path}", None)
+async def _delete_registration(
+    session: AsyncSession, tenant_id: str, path: str
+) -> None:
+    """Remove a SecretRegistration if it exists."""
+    reg = await _get_registration(session, tenant_id, path)
+    if reg is not None:
+        await session.delete(reg)
+        await session.commit()
+
+
+def _reg_to_dict(reg: SecretRegistration | None) -> dict[str, Any] | None:
+    """Convert a SecretRegistration ORM object to the dict format used by route logic."""
+    if reg is None:
+        return None
+    return {
+        "secret_type": reg.secret_type,
+        "rotation_policy_days": reg.rotation_policy_days,
+        "auto_rotate": reg.auto_rotate,
+        "notify_before_days": reg.notify_before_days,
+        "last_rotated_at": reg.last_rotated_at.isoformat()
+        if reg.last_rotated_at
+        else None,
+        "next_rotation_at": reg.next_rotation_at.isoformat()
+        if reg.next_rotation_at
+        else None,
+        "expires_at": reg.expires_at.isoformat() if reg.expires_at else None,
+        "created_at": reg.created_at.isoformat() if reg.created_at else None,
+        "updated_at": reg.updated_at.isoformat() if reg.updated_at else None,
+        "created_by": str(reg.created_by) if reg.created_by else None,
+    }
 
 
 # ── Routes ───────────────────────────────────────────────────────────
@@ -151,6 +241,7 @@ async def create_secret(
     user: AuthenticatedUser = Depends(require_permission("secrets", "create")),
     secrets: VaultSecretsManager = Depends(get_secrets_manager),
     access_log: SecretAccessLogger = Depends(get_access_logger),
+    session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     """Create or store a new secret in the tenant's Vault namespace.
 
@@ -167,18 +258,23 @@ async def create_secret(
     if body.rotation_policy_days:
         next_rot = (now + timedelta(days=body.rotation_policy_days)).isoformat()
 
-    _set_registration(user.tenant_id, body.path, {
-        "secret_type": body.secret_type,
-        "rotation_policy_days": body.rotation_policy_days,
-        "auto_rotate": body.auto_rotate,
-        "notify_before_days": body.notify_before_days,
-        "last_rotated_at": None,
-        "next_rotation_at": next_rot,
-        "expires_at": None,
-        "created_at": now.isoformat(),
-        "updated_at": now.isoformat(),
-        "created_by": user.id,
-    })
+    await _set_registration(
+        session,
+        user.tenant_id,
+        body.path,
+        {
+            "secret_type": body.secret_type,
+            "rotation_policy_days": body.rotation_policy_days,
+            "auto_rotate": body.auto_rotate,
+            "notify_before_days": body.notify_before_days,
+            "last_rotated_at": None,
+            "next_rotation_at": next_rot,
+            "expires_at": None,
+            "created_at": now.isoformat(),
+            "updated_at": now.isoformat(),
+            "created_by": user.id,
+        },
+    )
 
     access_log.log_access(
         tenant_id=user.tenant_id,
@@ -190,7 +286,10 @@ async def create_secret(
     )
 
     audit = _audit_event(
-        user, "secret.created", "secret", body.path,
+        user,
+        "secret.created",
+        "secret",
+        body.path,
         {"secret_type": body.secret_type, "path": body.path},
     )
     logger.info(
@@ -216,6 +315,7 @@ async def list_secrets(
     offset: int = Query(default=0, ge=0),
     user: AuthenticatedUser = Depends(require_permission("secrets", "read")),
     secrets: VaultSecretsManager = Depends(get_secrets_manager),
+    session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     """List secret metadata for the authenticated user's tenant.
 
@@ -229,7 +329,7 @@ async def list_secrets(
 
     enriched = []
     for s in page:
-        reg = _get_registration(user.tenant_id, s.path)
+        reg = _reg_to_dict(await _get_registration(session, user.tenant_id, s.path))
         if reg:
             s.secret_type = reg.get("secret_type", "custom")
             s.rotation_policy_days = reg.get("rotation_policy_days")
@@ -303,6 +403,7 @@ async def get_vault_status(
 async def get_rotation_dashboard(
     user: AuthenticatedUser = Depends(require_permission("secrets", "read")),
     secrets: VaultSecretsManager = Depends(get_secrets_manager),
+    session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     """Return secrets grouped by rotation status for the dashboard.
 
@@ -313,7 +414,7 @@ async def get_rotation_dashboard(
     items: list[dict[str, Any]] = []
 
     for s in all_secrets:
-        reg = _get_registration(user.tenant_id, s.path)
+        reg = _reg_to_dict(await _get_registration(session, user.tenant_id, s.path))
         secret_type = reg.get("secret_type", "custom") if reg else "custom"
         policy_days = reg.get("rotation_policy_days") if reg else None
         last_rotated_str = reg.get("last_rotated_at") if reg else None
@@ -346,14 +447,16 @@ async def get_rotation_dashboard(
             if (now - last_dt).days <= 7:
                 rot_status = "recently_rotated"
 
-        items.append(RotationDashboardItem(
-            path=s.path,
-            secret_type=secret_type,
-            rotation_status=rot_status,
-            last_rotated_at=last_rotated_str,
-            next_rotation_at=next_rot_str,
-            days_until_rotation=days_until,
-        ).model_dump())
+        items.append(
+            RotationDashboardItem(
+                path=s.path,
+                secret_type=secret_type,
+                rotation_status=rot_status,
+                last_rotated_at=last_rotated_str,
+                next_rotation_at=next_rot_str,
+                days_until_rotation=days_until,
+            ).model_dump()
+        )
 
     return {
         "data": items,
@@ -397,6 +500,7 @@ async def update_secret(
     user: AuthenticatedUser = Depends(require_permission("secrets", "update")),
     secrets: VaultSecretsManager = Depends(get_secrets_manager),
     access_log: SecretAccessLogger = Depends(get_access_logger),
+    session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     """Update an existing secret's value.
 
@@ -407,12 +511,12 @@ async def update_secret(
 
     meta = await secrets.put_secret(secret_id, body.data, user.tenant_id)
 
-    reg = _get_registration(user.tenant_id, secret_id)
+    reg = _reg_to_dict(await _get_registration(session, user.tenant_id, secret_id))
     if reg:
         reg["updated_at"] = datetime.now(timezone.utc).isoformat()
         if body.rotation_policy_days is not None:
             reg["rotation_policy_days"] = body.rotation_policy_days
-        _set_registration(user.tenant_id, secret_id, reg)
+        await _set_registration(session, user.tenant_id, secret_id, reg)
 
     access_log.log_access(
         tenant_id=user.tenant_id,
@@ -424,7 +528,10 @@ async def update_secret(
     )
 
     audit = _audit_event(
-        user, "secret.updated", "secret", secret_id,
+        user,
+        "secret.updated",
+        "secret",
+        secret_id,
         {"new_version": meta.version},
     )
     logger.info(
@@ -449,6 +556,7 @@ async def delete_secret(
     user: AuthenticatedUser = Depends(require_permission("secrets", "delete")),
     secrets: VaultSecretsManager = Depends(get_secrets_manager),
     access_log: SecretAccessLogger = Depends(get_access_logger),
+    session: AsyncSession = Depends(get_session),
 ) -> None:
     """Delete a secret and all its versions.
 
@@ -458,7 +566,7 @@ async def delete_secret(
     request_id = str(uuid4())
 
     await secrets.delete_secret(secret_id, user.tenant_id)
-    _delete_registration(user.tenant_id, secret_id)
+    await _delete_registration(session, user.tenant_id, secret_id)
 
     access_log.log_access(
         tenant_id=user.tenant_id,
@@ -470,7 +578,10 @@ async def delete_secret(
     )
 
     audit = _audit_event(
-        user, "secret.deleted", "secret", secret_id,
+        user,
+        "secret.deleted",
+        "secret",
+        secret_id,
     )
     logger.info(
         "Secret deleted",
@@ -490,6 +601,7 @@ async def rotate_secret(
     user: AuthenticatedUser = Depends(require_permission("secrets", "admin")),
     secrets: VaultSecretsManager = Depends(get_secrets_manager),
     access_log: SecretAccessLogger = Depends(get_access_logger),
+    session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     """Trigger rotation for a secret.
 
@@ -506,13 +618,15 @@ async def rotate_secret(
         meta = await secrets.rotate_secret(secret_id, user.tenant_id)
 
     now = datetime.now(timezone.utc)
-    reg = _get_registration(user.tenant_id, secret_id)
+    reg = _reg_to_dict(await _get_registration(session, user.tenant_id, secret_id))
     if reg:
         reg["last_rotated_at"] = now.isoformat()
         if reg.get("rotation_policy_days"):
-            reg["next_rotation_at"] = (now + timedelta(days=reg["rotation_policy_days"])).isoformat()
+            reg["next_rotation_at"] = (
+                now + timedelta(days=reg["rotation_policy_days"])
+            ).isoformat()
         reg["updated_at"] = now.isoformat()
-        _set_registration(user.tenant_id, secret_id, reg)
+        await _set_registration(session, user.tenant_id, secret_id, reg)
 
     access_log.log_access(
         tenant_id=user.tenant_id,
@@ -525,7 +639,10 @@ async def rotate_secret(
     )
 
     audit = _audit_event(
-        user, "secret.rotated", "secret", secret_id,
+        user,
+        "secret.rotated",
+        "secret",
+        secret_id,
         {"new_version": meta.version, "reason": body.reason},
     )
     logger.info(
@@ -558,7 +675,10 @@ async def get_secret_access_log(
     when, and what action was performed.
     """
     entries, total = access_log.get_access_log(
-        secret_id, user.tenant_id, limit=limit, offset=offset,
+        secret_id,
+        user.tenant_id,
+        limit=limit,
+        offset=offset,
     )
     return {
         "data": [e.model_dump() for e in entries],
@@ -574,6 +694,7 @@ async def set_rotation_policy(
     body: RotationPolicyUpdate,
     user: AuthenticatedUser = Depends(require_permission("secrets", "admin")),
     access_log: SecretAccessLogger = Depends(get_access_logger),
+    session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     """Set or update the auto-rotation policy for a secret.
 
@@ -583,7 +704,7 @@ async def set_rotation_policy(
     request_id = str(uuid4())
     now = datetime.now(timezone.utc)
 
-    reg = _get_registration(user.tenant_id, secret_id) or {
+    reg = _reg_to_dict(await _get_registration(session, user.tenant_id, secret_id)) or {
         "secret_type": "custom",
         "created_at": now.isoformat(),
         "created_by": user.id,
@@ -598,9 +719,11 @@ async def set_rotation_policy(
     base_time = datetime.fromisoformat(last_rot) if last_rot else now
     if base_time.tzinfo is None:
         base_time = base_time.replace(tzinfo=timezone.utc)
-    reg["next_rotation_at"] = (base_time + timedelta(days=body.rotation_policy_days)).isoformat()
+    reg["next_rotation_at"] = (
+        base_time + timedelta(days=body.rotation_policy_days)
+    ).isoformat()
 
-    _set_registration(user.tenant_id, secret_id, reg)
+    await _set_registration(session, user.tenant_id, secret_id, reg)
 
     access_log.log_access(
         tenant_id=user.tenant_id,
@@ -613,8 +736,14 @@ async def set_rotation_policy(
     )
 
     audit = _audit_event(
-        user, "rotation_policy.set", "secret", secret_id,
-        {"rotation_policy_days": body.rotation_policy_days, "auto_rotate": body.auto_rotate},
+        user,
+        "rotation_policy.set",
+        "secret",
+        secret_id,
+        {
+            "rotation_policy_days": body.rotation_policy_days,
+            "auto_rotate": body.auto_rotate,
+        },
     )
     logger.info(
         "Rotation policy set",
@@ -652,11 +781,16 @@ async def issue_pki_certificate(
     request_id = str(uuid4())
 
     bundle = await secrets.issue_certificate(
-        body.common_name, user.tenant_id, body.ttl,
+        body.common_name,
+        user.tenant_id,
+        body.ttl,
     )
 
     audit = _audit_event(
-        user, "certificate.issued", "pki_certificate", bundle.serial,
+        user,
+        "certificate.issued",
+        "pki_certificate",
+        bundle.serial,
         {"common_name": body.common_name, "ttl": body.ttl},
     )
     logger.info(

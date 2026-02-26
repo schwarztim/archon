@@ -50,7 +50,7 @@ export function PlanCard({
   const BadgeIcon = badge?.icon;
 
   return (
-    <div className="rounded-lg border border-[#2a2d37] bg-[#0f1117] p-4 transition-colors hover:border-purple-500/30">
+    <div className="rounded-lg border border-surface-border bg-surface-base p-4 transition-colors hover:border-purple-500/30">
       <div className="flex items-start gap-3">
         {/* Reorder handle */}
         <div className="flex flex-col gap-0.5 pt-1">
@@ -81,7 +81,7 @@ export function PlanCard({
               <Input
                 value={step.name}
                 onChange={(e) => onUpdate(index, { name: e.target.value })}
-                className="bg-[#1a1d27] text-white border-[#2a2d37]"
+                className="bg-surface-raised text-white border-surface-border"
                 aria-label="Step name"
               />
               <select
@@ -91,7 +91,7 @@ export function PlanCard({
                     type: e.target.value as PlanStep["type"],
                   })
                 }
-                className="h-8 rounded-md border border-[#2a2d37] bg-[#1a1d27] px-2 text-xs text-white"
+                className="h-8 rounded-md border border-surface-border bg-surface-raised px-2 text-xs text-white"
                 aria-label="Step type"
               >
                 <option value="llm">LLM</option>
@@ -105,7 +105,7 @@ export function PlanCard({
                 onChange={(e) =>
                   onUpdate(index, { description: e.target.value })
                 }
-                className="bg-[#1a1d27] text-white border-[#2a2d37] text-xs"
+                className="bg-surface-raised text-white border-surface-border text-xs"
                 aria-label="Step description"
               />
               <Button

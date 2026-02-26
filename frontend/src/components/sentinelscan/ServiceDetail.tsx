@@ -38,8 +38,8 @@ function statusBadge(status: string) {
 
 export function ServiceDetail({ service, onClose, onRemediate }: ServiceDetailProps) {
   return (
-    <div className="fixed inset-y-0 right-0 z-50 w-96 border-l border-[#2a2d37] bg-[#1a1d27] shadow-xl overflow-y-auto">
-      <div className="flex items-center justify-between border-b border-[#2a2d37] px-4 py-3">
+    <div className="fixed inset-y-0 right-0 z-50 w-96 border-l border-surface-border bg-surface-raised shadow-xl overflow-y-auto">
+      <div className="flex items-center justify-between border-b border-surface-border px-4 py-3">
         <h2 className="text-sm font-semibold text-white">Service Details</h2>
         <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors" type="button">
           <X size={18} />
@@ -60,14 +60,14 @@ export function ServiceDetail({ service, onClose, onRemediate }: ServiceDetailPr
 
         {/* Status & Risk */}
         <div className="grid grid-cols-2 gap-3">
-          <div className="rounded-lg border border-[#2a2d37] bg-[#0f1117] p-3">
+          <div className="rounded-lg border border-surface-border bg-surface-base p-3">
             <div className="flex items-center gap-1.5 mb-1">
               <Shield size={12} className="text-gray-500" />
               <span className="text-xs text-gray-500">Risk Level</span>
             </div>
             {riskBadge(service.risk_level)}
           </div>
-          <div className="rounded-lg border border-[#2a2d37] bg-[#0f1117] p-3">
+          <div className="rounded-lg border border-surface-border bg-surface-base p-3">
             <span className="text-xs text-gray-500 block mb-1">Status</span>
             {statusBadge(service.status)}
           </div>
@@ -112,7 +112,7 @@ export function ServiceDetail({ service, onClose, onRemediate }: ServiceDetailPr
 
         {/* Remediation Actions */}
         {onRemediate && (
-          <div className="border-t border-[#2a2d37] pt-4">
+          <div className="border-t border-surface-border pt-4">
             <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Remediation</h4>
             <div className="grid grid-cols-2 gap-2">
               {(["Block", "Approve", "Monitor", "Ignore"] as const).map((action) => {

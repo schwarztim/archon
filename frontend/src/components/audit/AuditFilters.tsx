@@ -73,7 +73,7 @@ export function AuditFilters({ filters, onChange }: Props) {
       <select
         value={filters.action}
         onChange={(e) => update({ action: e.target.value })}
-        className="h-9 rounded-md border border-[#2a2d37] bg-[#1a1d27] px-3 text-sm text-gray-300 focus:border-purple-500 focus:outline-none"
+        className="h-9 rounded-md border border-surface-border bg-surface-raised px-3 text-sm text-gray-300 focus:border-purple-500 focus:outline-none"
       >
         <option value="">All Actions</option>
         {ACTION_TYPES.map((a) => (
@@ -87,7 +87,7 @@ export function AuditFilters({ filters, onChange }: Props) {
       <select
         value={filters.resourceType}
         onChange={(e) => update({ resourceType: e.target.value })}
-        className="h-9 rounded-md border border-[#2a2d37] bg-[#1a1d27] px-3 text-sm text-gray-300 focus:border-purple-500 focus:outline-none"
+        className="h-9 rounded-md border border-surface-border bg-surface-raised px-3 text-sm text-gray-300 focus:border-purple-500 focus:outline-none"
       >
         <option value="">All Resources</option>
         {RESOURCE_TYPES.map((r) => (

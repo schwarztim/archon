@@ -74,19 +74,52 @@ _ACTION_MAP: dict[tuple[str, str], str] = {
     ("POST", "sso"): "sso.configured",
 }
 
+# ---------------------------------------------------------------------------
+# PII / secret redaction
+# ---------------------------------------------------------------------------
+
+# Matches Archon API keys: ak_live_<token> or ak_test_<token>
+_API_KEY_RE = re.compile(r"\bak_(?:live|test)_[A-Za-z0-9]+")
+
+# Matches Bearer tokens in Authorization headers or detail strings
+_BEARER_RE = re.compile(r"Bearer\s+[A-Za-z0-9\-_.~+/]+=*", re.IGNORECASE)
+
+# Matches email addresses in URL paths (e.g. /api/v1/users/alice@example.com)
+_EMAIL_IN_PATH_RE = re.compile(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}")
+
+
+def _redact(value: str) -> str:
+    """Apply all PII/secret redaction rules to *value* and return the result."""
+    value = _API_KEY_RE.sub(
+        lambda m: m.group(0).split("_", 2)[0]
+        + "_"
+        + m.group(0).split("_", 2)[1]
+        + "_***",
+        value,
+    )
+    value = _BEARER_RE.sub("Bearer ***", value)
+    value = _EMAIL_IN_PATH_RE.sub("***@***.***", value)
+    return value
+
+
+def _redact_path(path: str) -> str:
+    """Redact email addresses embedded in URL paths."""
+    return _EMAIL_IN_PATH_RE.sub("***@***.***", path)
+
 
 def _resolve_action(method: str, resource: str) -> str:
     """Return a human-readable action string for (method, resource)."""
     key = (method, resource)
     if key in _ACTION_MAP:
         return _ACTION_MAP[key]
-    verb = {
+    # Fallback: resource.method_verb
+    verb_map = {
         "POST": "created",
         "PUT": "updated",
         "PATCH": "updated",
         "DELETE": "deleted",
     }
-    return f"{resource.rstrip('s')}.{verb.get(method, method.lower())}"
+    return f"{resource.rstrip('s')}.{verb_map.get(method, method.lower())}"
 
 
 def _parse_resource(path: str) -> tuple[str | None, str | None]:
@@ -152,6 +185,10 @@ class AuditMiddleware(BaseHTTPMiddleware):
     - Never raises — all audit errors are caught and logged at DEBUG level.
     - Safe with StreamingResponse (logs after the response object is returned,
       not after the body is consumed).
+
+    Security guarantees:
+    - Request and response bodies are NEVER stored.
+    - API keys, bearer tokens, and email addresses in paths are redacted.
     """
 
     async def dispatch(
@@ -173,18 +210,30 @@ class AuditMiddleware(BaseHTTPMiddleware):
                 tenant_id: str = getattr(request.state, "tenant_id", "unknown")
                 actor_id: Any = getattr(request.state, "user_id", None)
 
-                resource_type, resource_id = _parse_resource(request.url.path)
+                # Redact PII from the path before storing
+                safe_path = _redact_path(request.url.path)
+                resource_type, resource_id = _parse_resource(safe_path)
                 action = (
                     _resolve_action(request.method, resource_type)
                     if resource_type
-                    else f"{request.method} {request.url.path}"
+                    else f"{request.method} {safe_path}"
                 )
 
                 ip_address: str | None = request.client.host if request.client else None
                 user_agent: str | None = request.headers.get("user-agent")
 
+                # Redact any sensitive values that may appear in the Authorization header
+                auth_header = request.headers.get("Authorization", "")
+                safe_auth = _redact(auth_header) if auth_header else None
+
+                # NOTE: request/response bodies are intentionally never captured here.
                 details: dict[str, Any] = {
                     "outcome": ("success" if response.status_code < 400 else "failure"),
+                    **(
+                        {"auth_scheme": safe_auth.split()[0] if safe_auth else None}
+                        if safe_auth
+                        else {}
+                    ),
                 }
 
                 asyncio.ensure_future(
@@ -204,6 +253,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
             except Exception:
                 logger.debug(
                     "audit_middleware: error preparing audit entry", exc_info=True
+                )
                 )
 
         return response

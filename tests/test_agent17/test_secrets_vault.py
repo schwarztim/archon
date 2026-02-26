@@ -27,7 +27,13 @@ def test_user() -> AuthenticatedUser:
         email="admin@test.com",
         tenant_id=str(uuid4()),
         roles=["admin"],
-        permissions=["secrets:create", "secrets:read", "secrets:update", "secrets:delete", "secrets:admin"],
+        permissions=[
+            "secrets:create",
+            "secrets:read",
+            "secrets:update",
+            "secrets:delete",
+            "secrets:admin",
+        ],
         session_id="test-session",
     )
 
@@ -70,7 +76,9 @@ class TestSecretAccessLogger:
         assert entries[0].action == "read"
         assert entries[0].user_email == "admin@test.com"
 
-    def test_log_access_tenant_isolation(self, access_logger: SecretAccessLogger) -> None:
+    def test_log_access_tenant_isolation(
+        self, access_logger: SecretAccessLogger
+    ) -> None:
         """Access logs should be isolated by tenant_id."""
         access_logger.log_access(
             tenant_id="tenant-a",
@@ -350,7 +358,9 @@ class TestRouteIntegration:
     ) -> None:
         """Creating a secret should make it appear in list."""
         await stub_secrets_manager.put_secret(
-            "test/key", {"value": "s3cret"}, test_user.tenant_id,
+            "test/key",
+            {"value": "s3cret"},
+            test_user.tenant_id,
         )
 
         results = await stub_secrets_manager.list_secrets("", test_user.tenant_id)
@@ -364,7 +374,9 @@ class TestRouteIntegration:
     ) -> None:
         """Rotating a secret should increment the version."""
         await stub_secrets_manager.put_secret(
-            "rot/key", {"value": "v1"}, test_user.tenant_id,
+            "rot/key",
+            {"value": "v1"},
+            test_user.tenant_id,
         )
 
         meta = await stub_secrets_manager.rotate_secret("rot/key", test_user.tenant_id)
@@ -376,7 +388,9 @@ class TestRouteIntegration:
     ) -> None:
         """Deleting a secret should remove it from list."""
         await stub_secrets_manager.put_secret(
-            "del/key", {"value": "v1"}, test_user.tenant_id,
+            "del/key",
+            {"value": "v1"},
+            test_user.tenant_id,
         )
         await stub_secrets_manager.delete_secret("del/key", test_user.tenant_id)
 
@@ -385,9 +399,7 @@ class TestRouteIntegration:
         assert "del/key" not in paths
 
     @pytest.mark.asyncio
-    async def test_stub_tenant_isolation(
-        self, stub_secrets_manager: Any
-    ) -> None:
+    async def test_stub_tenant_isolation(self, stub_secrets_manager: Any) -> None:
         """Secrets should be isolated between tenants."""
         await stub_secrets_manager.put_secret("shared/key", {"v": "1"}, "tenant-a")
         await stub_secrets_manager.put_secret("shared/key", {"v": "2"}, "tenant-b")
@@ -424,27 +436,126 @@ class TestRouteIntegration:
 # ---------------------------------------------------------------------------
 
 
+class _FakeRegSession:
+    """Minimal in-memory AsyncSession mock for registration helper tests."""
+
+    def __init__(self) -> None:
+        self._store: dict[tuple, Any] = {}
+
+    def add(self, obj: Any) -> None:
+        from app.models.secrets import SecretRegistration
+
+        if isinstance(obj, SecretRegistration):
+            self._store[(str(obj.tenant_id), obj.path)] = obj
+
+    async def commit(self) -> None:
+        pass
+
+    async def refresh(self, obj: Any) -> None:
+        pass
+
+    async def delete(self, obj: Any) -> None:
+        from app.models.secrets import SecretRegistration
+
+        if isinstance(obj, SecretRegistration):
+            key = (str(obj.tenant_id), obj.path)
+            self._store.pop(key, None)
+
+    async def exec(self, stmt: Any) -> Any:
+        from app.models.secrets import SecretRegistration
+        from uuid import UUID
+
+        # Extract tenant_id and path from WHERE clauses
+        try:
+            clauses = stmt.whereclause.clauses
+        except AttributeError:
+            clauses = []
+
+        tenant_filter: str | None = None
+        path_filter: str | None = None
+        for clause in clauses:
+            try:
+                col_name = clause.left.key
+                val = str(clause.right.value)
+                if col_name == "tenant_id":
+                    tenant_filter = val
+                elif col_name == "path":
+                    path_filter = val
+            except AttributeError:
+                pass
+
+        rows = [
+            obj
+            for (tid, pth), obj in self._store.items()
+            if (tenant_filter is None or tid == tenant_filter)
+            and (path_filter is None or pth == path_filter)
+        ]
+
+        class _Result:
+            def __init__(self, data: list) -> None:
+                self._data = data
+
+            def first(self) -> Any:
+                return self._data[0] if self._data else None
+
+            def all(self) -> list:
+                return self._data
+
+        return _Result(rows)
+
+
 class TestRegistrationStore:
-    """Test the in-memory registration store helpers."""
+    """Test the DB-backed registration store helpers."""
 
-    def test_set_get_delete(self) -> None:
+    @pytest.mark.asyncio
+    async def test_set_get_delete(self) -> None:
         """Registration CRUD operations should work."""
-        from app.routes.secrets import _set_registration, _get_registration, _delete_registration
+        from app.routes.secrets import (
+            _set_registration,
+            _get_registration,
+            _delete_registration,
+        )
 
-        _set_registration("t1", "path/a", {"secret_type": "api_key"})
+        session = _FakeRegSession()
 
-        reg = _get_registration("t1", "path/a")
+        await _set_registration(
+            session,
+            "00000000-0000-0000-0000-000000000001",
+            "path/a",
+            {"secret_type": "api_key"},
+        )  # type: ignore[arg-type]
+
+        reg = await _get_registration(
+            session, "00000000-0000-0000-0000-000000000001", "path/a"
+        )  # type: ignore[arg-type]
         assert reg is not None
-        assert reg["secret_type"] == "api_key"
+        assert reg.secret_type == "api_key"
 
         # Tenant isolation
-        assert _get_registration("t2", "path/a") is None
+        assert (
+            await _get_registration(
+                session, "00000000-0000-0000-0000-000000000002", "path/a"
+            )
+            is None
+        )  # type: ignore[arg-type]
 
-        _delete_registration("t1", "path/a")
-        assert _get_registration("t1", "path/a") is None
+        await _delete_registration(
+            session, "00000000-0000-0000-0000-000000000001", "path/a"
+        )  # type: ignore[arg-type]
+        assert (
+            await _get_registration(
+                session, "00000000-0000-0000-0000-000000000001", "path/a"
+            )
+            is None
+        )  # type: ignore[arg-type]
 
-    def test_delete_nonexistent_no_error(self) -> None:
+    @pytest.mark.asyncio
+    async def test_delete_nonexistent_no_error(self) -> None:
         """Deleting a non-existent registration should not raise."""
         from app.routes.secrets import _delete_registration
 
-        _delete_registration("t-missing", "no-such-path")  # should not raise
+        session = _FakeRegSession()
+        await _delete_registration(
+            session, "00000000-0000-0000-0000-000000000099", "no-such-path"
+        )  # type: ignore[arg-type]
+        # should not raise

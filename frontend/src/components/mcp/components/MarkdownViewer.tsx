@@ -13,10 +13,10 @@ export function MarkdownViewer({ content }: MarkdownViewerProps) {
 
   return (
     <div
-      className="prose prose-invert prose-sm max-w-none rounded-lg border border-[#2a2d37] bg-[#0f1117] p-4 text-gray-300
+      className="prose prose-invert prose-sm max-w-none rounded-lg border border-surface-border bg-surface-base p-4 text-gray-300
         prose-headings:text-white prose-a:text-purple-400
-        prose-code:rounded prose-code:bg-[#1a1d27] prose-code:px-1.5 prose-code:py-0.5
-        prose-pre:bg-[#0a0c10] prose-pre:border prose-pre:border-[#2a2d37]
+        prose-code:rounded prose-code:bg-surface-raised prose-code:px-1.5 prose-code:py-0.5
+        prose-pre:bg-surface-base prose-pre:border prose-pre:border-surface-border
         prose-strong:text-white prose-em:text-gray-300
         prose-ul:text-gray-300 prose-ol:text-gray-300
         prose-blockquote:border-purple-500 prose-blockquote:text-gray-400"

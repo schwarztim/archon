@@ -115,7 +115,7 @@ function InstallDialog({
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-sm rounded-xl border border-[#2a2d37] bg-[#12141e] p-6 shadow-2xl">
+      <div className="w-full max-w-sm rounded-xl border border-surface-border bg-surface-overlay p-6 shadow-2xl">
         <h3 className="mb-2 text-lg font-semibold text-white">Install Agent</h3>
         <p className="mb-5 text-sm text-gray-400">
           Install <span className="font-medium text-white">{name}</span>? This will create a new agent from the package template.
@@ -296,7 +296,7 @@ export function MarketplacePage() {
         <div className="flex items-center gap-3">
           <Store size={24} className="text-purple-400" />
           <h1 className="text-2xl font-bold text-white">Marketplace</h1>
-          <span className="rounded-full bg-[#1a1d27] px-2 py-0.5 text-xs text-gray-400">{filtered.length}</span>
+          <span className="rounded-full bg-surface-raised px-2 py-0.5 text-xs text-gray-400">{filtered.length}</span>
         </div>
         <Button size="sm" onClick={() => setShowPublish(!showPublish)}>
           <Plus size={14} className="mr-1.5" /> Publish
@@ -306,19 +306,19 @@ export function MarketplacePage() {
 
       {/* Publish form */}
       {showPublish && (
-        <div className="mb-6 rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-4">
+        <div className="mb-6 rounded-lg border border-surface-border bg-surface-raised p-4">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-sm font-semibold text-white">Publish Listing</h3>
             <button onClick={() => setShowPublish(false)} className="text-gray-500 hover:text-white"><X size={14} /></button>
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <Input placeholder="Name *" value={formName} onChange={(e) => setFormName(e.target.value)} className="bg-[#0f1117] text-white border-[#2a2d37]" />
-            <Input placeholder="Category *" value={formCategory} onChange={(e) => setFormCategory(e.target.value)} className="bg-[#0f1117] text-white border-[#2a2d37]" />
-            <Input placeholder="Creator ID *" value={formCreatorId} onChange={(e) => setFormCreatorId(e.target.value)} className="bg-[#0f1117] text-white border-[#2a2d37]" />
-            <Input placeholder="Description" value={formDesc} onChange={(e) => setFormDesc(e.target.value)} className="sm:col-span-2 lg:col-span-3 bg-[#0f1117] text-white border-[#2a2d37]" />
-            <Input placeholder="Tags (comma separated)" value={formTags} onChange={(e) => setFormTags(e.target.value)} className="bg-[#0f1117] text-white border-[#2a2d37]" />
-            <Input placeholder="Version" value={formVersion} onChange={(e) => setFormVersion(e.target.value)} className="bg-[#0f1117] text-white border-[#2a2d37]" />
-            <Input placeholder="License" value={formLicense} onChange={(e) => setFormLicense(e.target.value)} className="bg-[#0f1117] text-white border-[#2a2d37]" />
+            <Input placeholder="Name *" value={formName} onChange={(e) => setFormName(e.target.value)} className="bg-surface-base text-white border-surface-border" />
+            <Input placeholder="Category *" value={formCategory} onChange={(e) => setFormCategory(e.target.value)} className="bg-surface-base text-white border-surface-border" />
+            <Input placeholder="Creator ID *" value={formCreatorId} onChange={(e) => setFormCreatorId(e.target.value)} className="bg-surface-base text-white border-surface-border" />
+            <Input placeholder="Description" value={formDesc} onChange={(e) => setFormDesc(e.target.value)} className="sm:col-span-2 lg:col-span-3 bg-surface-base text-white border-surface-border" />
+            <Input placeholder="Tags (comma separated)" value={formTags} onChange={(e) => setFormTags(e.target.value)} className="bg-surface-base text-white border-surface-border" />
+            <Input placeholder="Version" value={formVersion} onChange={(e) => setFormVersion(e.target.value)} className="bg-surface-base text-white border-surface-border" />
+            <Input placeholder="License" value={formLicense} onChange={(e) => setFormLicense(e.target.value)} className="bg-surface-base text-white border-surface-border" />
           </div>
           <div className="mt-3">
             <Button size="sm" onClick={handlePublish} disabled={creating || !formName.trim() || !formCategory.trim() || !formCreatorId.trim()}>
@@ -333,7 +333,7 @@ export function MarketplacePage() {
       <div className="mb-5 flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px] max-w-xs">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-          <Input placeholder="Search agents…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 bg-[#0f1117] text-white border-[#2a2d37]" />
+          <Input placeholder="Search agents…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 bg-surface-base text-white border-surface-border" />
         </div>
         <div className="flex flex-wrap gap-1">
           {categories.map((c) => (
@@ -351,7 +351,7 @@ export function MarketplacePage() {
         <select
           value={sort}
           onChange={(e) => setSort(e.target.value as SortOption)}
-          className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] px-3 py-1.5 text-xs text-white focus:border-purple-500 focus:outline-none"
+          className="rounded-lg border border-surface-border bg-surface-raised px-3 py-1.5 text-xs text-white focus:border-purple-500 focus:outline-none"
         >
           {SORT_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>{o.label}</option>
@@ -361,7 +361,7 @@ export function MarketplacePage() {
 
       {/* Package Cards Grid */}
       {filtered.length === 0 ? (
-        <div className="flex items-center justify-center rounded-lg border border-[#2a2d37] bg-[#1a1d27] py-16">
+        <div className="flex items-center justify-center rounded-lg border border-surface-border bg-surface-raised py-16">
           <span className="text-sm text-gray-500">
             {combined.length === 0 ? "No marketplace listings yet." : "No listings match your search."}
           </span>
@@ -379,7 +379,7 @@ export function MarketplacePage() {
             const rating = isApi ? (data as MarketplaceListing).avg_rating : (data as SeedListing).rating;
 
             return (
-              <div key={key} className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-4 transition-colors hover:border-purple-500/30">
+              <div key={key} className="rounded-lg border border-surface-border bg-surface-raised p-4 transition-colors hover:border-purple-500/30">
                 <div className="mb-3 flex items-start gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-500/10 flex-shrink-0">
                     <Icon size={20} className="text-purple-400" />

@@ -37,10 +37,10 @@ class SCIMService:
 
     def __init__(self, secrets: VaultSecretsManager) -> None:
         self._secrets = secrets
-        # In-memory store keyed by (tenant_id, scim_id) for demonstration.
-        # Production would use the database via SQLModel.
-        self._users: dict[str, dict[str, SCIMUser]] = {}
-        self._groups: dict[str, dict[str, SCIMGroup]] = {}
+        # Database-backed via SQLModel tables
+        from app.database import async_session_factory
+
+        self._session_factory = async_session_factory
 
     # ------------------------------------------------------------------
     # Bearer-token authentication
@@ -58,7 +58,8 @@ class SCIMService:
         """
         try:
             secret = await self._secrets.get_secret(
-                _VAULT_SCIM_TOKEN_PATH, tenant_id,
+                _VAULT_SCIM_TOKEN_PATH,
+                tenant_id,
             )
             stored = secret.get("token", "")
             return stored == token
@@ -91,29 +92,39 @@ class SCIMService:
         Returns:
             SCIMListResponse containing matching users.
         """
-        tenant_users = self._users.get(tenant_id, {})
-        all_users = list(tenant_users.values())
+        from app.models.scim_db import SCIMUserRecord
+        from sqlalchemy import select
+        from uuid import UUID
 
-        # Basic filter support for userName eq "value"
-        if scim_filter:
-            all_users = self._apply_user_filter(all_users, scim_filter)
+        async with self._session_factory() as session:
+            stmt = select(SCIMUserRecord).where(
+                SCIMUserRecord.tenant_id == UUID(tenant_id)
+            )
+            result = await session.exec(stmt)
+            records = result.all()
 
-        total = len(all_users)
-        start = max(start_index - 1, 0)
-        page = all_users[start : start + count]
+            all_users = [self._record_to_scim_user(r) for r in records]
 
-        await self._audit_log(
-            tenant_id,
-            "scim.users.listed",
-            {"filter": scim_filter, "total": total},
-        )
+            # Basic filter support for userName eq "value"
+            if scim_filter:
+                all_users = self._apply_user_filter(all_users, scim_filter)
 
-        return SCIMListResponse(
-            totalResults=total,
-            startIndex=start_index,
-            itemsPerPage=len(page),
-            Resources=[u.model_dump(by_alias=True) for u in page],
-        )
+            total = len(all_users)
+            start = max(start_index - 1, 0)
+            page = all_users[start : start + count]
+
+            await self._audit_log(
+                tenant_id,
+                "scim.users.listed",
+                {"filter": scim_filter, "total": total},
+            )
+
+            return SCIMListResponse(
+                totalResults=total,
+                startIndex=start_index,
+                itemsPerPage=len(page),
+                Resources=[u.model_dump(by_alias=True) for u in page],
+            )
 
     async def get_user(self, tenant_id: str, scim_id: str) -> SCIMUser:
         """Retrieve a single SCIM user by ID.
@@ -128,10 +139,23 @@ class SCIMService:
         Raises:
             KeyError: If the user is not found.
         """
-        tenant_users = self._users.get(tenant_id, {})
-        user = tenant_users.get(scim_id)
-        if user is None:
-            raise KeyError(f"SCIM user {scim_id} not found in tenant {tenant_id}")
+        from app.models.scim_db import SCIMUserRecord
+        from sqlalchemy import select
+        from uuid import UUID
+
+        async with self._session_factory() as session:
+            stmt = (
+                select(SCIMUserRecord)
+                .where(SCIMUserRecord.tenant_id == UUID(tenant_id))
+                .where(SCIMUserRecord.scim_id == scim_id)
+            )
+            result = await session.exec(stmt)
+            record = result.first()
+
+            if not record:
+                raise KeyError(f"SCIM user {scim_id} not found in tenant {tenant_id}")
+
+            user = self._record_to_scim_user(record)
 
         await self._audit_log(
             tenant_id,
@@ -150,6 +174,9 @@ class SCIMService:
         Returns:
             The created SCIMUser with generated ID and metadata.
         """
+        from app.models.scim_db import SCIMUserRecord
+        from uuid import UUID
+
         scim_id = uuid.uuid4().hex
         now = datetime.now(timezone.utc)
 
@@ -161,9 +188,19 @@ class SCIMService:
             location=f"/scim/v2/Users/{scim_id}",
         )
 
-        if tenant_id not in self._users:
-            self._users[tenant_id] = {}
-        self._users[tenant_id][scim_id] = scim_user
+        async with self._session_factory() as session:
+            record = SCIMUserRecord(
+                tenant_id=UUID(tenant_id),
+                scim_id=scim_id,
+                external_id=scim_user.externalId or "",
+                user_name=scim_user.userName,
+                display_name=scim_user.displayName or "",
+                emails=[e.model_dump() for e in (scim_user.emails or [])],
+                active=scim_user.active,
+                groups=[g.model_dump() for g in (scim_user.groups or [])],
+            )
+            session.add(record)
+            await session.commit()
 
         await self._audit_log(
             tenant_id,
@@ -192,6 +229,10 @@ class SCIMService:
         Raises:
             KeyError: If the user is not found.
         """
+        from app.models.scim_db import SCIMUserRecord
+        from sqlalchemy import select
+        from uuid import UUID
+
         user = await self.get_user(tenant_id, scim_id)
         user_dict = user.model_dump(by_alias=True)
 
@@ -200,7 +241,24 @@ class SCIMService:
 
         updated = SCIMUser.model_validate(user_dict)
         updated.meta.lastModified = datetime.now(timezone.utc)
-        self._users[tenant_id][scim_id] = updated
+
+        async with self._session_factory() as session:
+            stmt = (
+                select(SCIMUserRecord)
+                .where(SCIMUserRecord.tenant_id == UUID(tenant_id))
+                .where(SCIMUserRecord.scim_id == scim_id)
+            )
+            result = await session.exec(stmt)
+            record = result.first()
+            if record:
+                record.user_name = updated.userName
+                record.display_name = updated.displayName or ""
+                record.active = updated.active
+                record.emails = [e.model_dump() for e in (updated.emails or [])]
+                record.groups = [g.model_dump() for g in (updated.groups or [])]
+                record.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+                session.add(record)
+                await session.commit()
 
         await self._audit_log(
             tenant_id,
@@ -223,10 +281,27 @@ class SCIMService:
         Raises:
             KeyError: If the user is not found.
         """
+        from app.models.scim_db import SCIMUserRecord
+        from sqlalchemy import select
+        from uuid import UUID
+
         user = await self.get_user(tenant_id, scim_id)
         user.active = False
         user.meta.lastModified = datetime.now(timezone.utc)
-        self._users[tenant_id][scim_id] = user
+
+        async with self._session_factory() as session:
+            stmt = (
+                select(SCIMUserRecord)
+                .where(SCIMUserRecord.tenant_id == UUID(tenant_id))
+                .where(SCIMUserRecord.scim_id == scim_id)
+            )
+            result = await session.exec(stmt)
+            record = result.first()
+            if record:
+                record.active = False
+                record.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+                session.add(record)
+                await session.commit()
 
         await self._audit_log(
             tenant_id,
@@ -256,28 +331,38 @@ class SCIMService:
         Returns:
             SCIMListResponse containing matching groups.
         """
-        tenant_groups = self._groups.get(tenant_id, {})
-        all_groups = list(tenant_groups.values())
+        from app.models.scim_db import SCIMGroupRecord
+        from sqlalchemy import select
+        from uuid import UUID
 
-        if scim_filter:
-            all_groups = self._apply_group_filter(all_groups, scim_filter)
+        async with self._session_factory() as session:
+            stmt = select(SCIMGroupRecord).where(
+                SCIMGroupRecord.tenant_id == UUID(tenant_id)
+            )
+            result = await session.exec(stmt)
+            records = result.all()
 
-        total = len(all_groups)
-        start = max(start_index - 1, 0)
-        page = all_groups[start : start + count]
+            all_groups = [self._record_to_scim_group(r) for r in records]
 
-        await self._audit_log(
-            tenant_id,
-            "scim.groups.listed",
-            {"filter": scim_filter, "total": total},
-        )
+            if scim_filter:
+                all_groups = self._apply_group_filter(all_groups, scim_filter)
 
-        return SCIMListResponse(
-            totalResults=total,
-            startIndex=start_index,
-            itemsPerPage=len(page),
-            Resources=[g.model_dump(by_alias=True) for g in page],
-        )
+            total = len(all_groups)
+            start = max(start_index - 1, 0)
+            page = all_groups[start : start + count]
+
+            await self._audit_log(
+                tenant_id,
+                "scim.groups.listed",
+                {"filter": scim_filter, "total": total},
+            )
+
+            return SCIMListResponse(
+                totalResults=total,
+                startIndex=start_index,
+                itemsPerPage=len(page),
+                Resources=[g.model_dump(by_alias=True) for g in page],
+            )
 
     async def create_group(self, tenant_id: str, scim_group: SCIMGroup) -> SCIMGroup:
         """Provision a new group from IdP.
@@ -289,6 +374,9 @@ class SCIMService:
         Returns:
             The created SCIMGroup.
         """
+        from app.models.scim_db import SCIMGroupRecord
+        from uuid import UUID
+
         scim_id = uuid.uuid4().hex
         now = datetime.now(timezone.utc)
 
@@ -300,9 +388,15 @@ class SCIMService:
             location=f"/scim/v2/Groups/{scim_id}",
         )
 
-        if tenant_id not in self._groups:
-            self._groups[tenant_id] = {}
-        self._groups[tenant_id][scim_id] = scim_group
+        async with self._session_factory() as session:
+            record = SCIMGroupRecord(
+                tenant_id=UUID(tenant_id),
+                scim_id=scim_id,
+                display_name=scim_group.displayName,
+                members=[m.model_dump() for m in (scim_group.members or [])],
+            )
+            session.add(record)
+            await session.commit()
 
         await self._audit_log(
             tenant_id,
@@ -331,19 +425,36 @@ class SCIMService:
         Raises:
             KeyError: If the group is not found.
         """
-        tenant_groups = self._groups.get(tenant_id, {})
-        group = tenant_groups.get(scim_id)
-        if group is None:
-            raise KeyError(f"SCIM group {scim_id} not found in tenant {tenant_id}")
+        from app.models.scim_db import SCIMGroupRecord
+        from sqlalchemy import select
+        from uuid import UUID
 
-        group_dict = group.model_dump(by_alias=True)
+        async with self._session_factory() as session:
+            stmt = (
+                select(SCIMGroupRecord)
+                .where(SCIMGroupRecord.tenant_id == UUID(tenant_id))
+                .where(SCIMGroupRecord.scim_id == scim_id)
+            )
+            result = await session.exec(stmt)
+            group_record = result.first()
 
-        for op in operations:
-            group_dict = self._apply_patch_op(group_dict, op)
+            if not group_record:
+                raise KeyError(f"SCIM group {scim_id} not found in tenant {tenant_id}")
 
-        updated = SCIMGroup.model_validate(group_dict)
-        updated.meta.lastModified = datetime.now(timezone.utc)
-        self._groups[tenant_id][scim_id] = updated
+            group = self._record_to_scim_group(group_record)
+            group_dict = group.model_dump(by_alias=True)
+
+            for op in operations:
+                group_dict = self._apply_patch_op(group_dict, op)
+
+            updated = SCIMGroup.model_validate(group_dict)
+            updated.meta.lastModified = datetime.now(timezone.utc)
+
+            group_record.display_name = updated.displayName
+            group_record.members = [m.model_dump() for m in (updated.members or [])]
+            group_record.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+            session.add(group_record)
+            await session.commit()
 
         await self._audit_log(
             tenant_id,
@@ -357,9 +468,46 @@ class SCIMService:
     # Private helpers
     # ------------------------------------------------------------------
 
+    def _record_to_scim_user(self, record: Any) -> SCIMUser:
+        """Convert a SCIMUserRecord to a SCIMUser Pydantic model."""
+        from app.models.scim_db import SCIMUserRecord
+
+        return SCIMUser(
+            id=record.scim_id,
+            externalId=record.external_id or None,
+            userName=record.user_name,
+            displayName=record.display_name or None,
+            emails=[SCIMEmail.model_validate(e) for e in record.emails],
+            groups=[SCIMGroupMember.model_validate(g) for g in record.groups],
+            active=record.active,
+            meta=SCIMMeta(
+                resourceType="User",
+                created=record.created_at,
+                lastModified=record.updated_at,
+                location=f"/scim/v2/Users/{record.scim_id}",
+            ),
+        )
+
+    def _record_to_scim_group(self, record: Any) -> SCIMGroup:
+        """Convert a SCIMGroupRecord to a SCIMGroup Pydantic model."""
+        from app.models.scim_db import SCIMGroupRecord
+
+        return SCIMGroup(
+            id=record.scim_id,
+            displayName=record.display_name,
+            members=[SCIMGroupMember.model_validate(m) for m in record.members],
+            meta=SCIMMeta(
+                resourceType="Group",
+                created=record.created_at,
+                lastModified=record.updated_at,
+                location=f"/scim/v2/Groups/{record.scim_id}",
+            ),
+        )
+
     @staticmethod
     def _apply_user_filter(
-        users: list[SCIMUser], scim_filter: str,
+        users: list[SCIMUser],
+        scim_filter: str,
     ) -> list[SCIMUser]:
         """Apply basic SCIM filter to user list (userName eq "value")."""
         if "userName eq" in scim_filter:
@@ -372,7 +520,8 @@ class SCIMService:
 
     @staticmethod
     def _apply_group_filter(
-        groups: list[SCIMGroup], scim_filter: str,
+        groups: list[SCIMGroup],
+        scim_filter: str,
     ) -> list[SCIMGroup]:
         """Apply basic SCIM filter to group list."""
         if "displayName eq" in scim_filter:
@@ -382,7 +531,8 @@ class SCIMService:
 
     @staticmethod
     def _apply_patch_op(
-        resource: dict[str, Any], op: SCIMPatchOperation,
+        resource: dict[str, Any],
+        op: SCIMPatchOperation,
     ) -> dict[str, Any]:
         """Apply a single SCIM PATCH operation to a resource dict."""
         operation = op.op.lower()

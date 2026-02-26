@@ -64,7 +64,7 @@ export function ConnectorCard({
   const catColor = categoryColors[category] ?? categoryColors.Custom;
 
   return (
-    <div className="group rounded-lg border border-gray-200 bg-white p-4 transition-colors hover:border-purple-500/50 dark:border-[#2a2d37] dark:bg-[#1a1d27]">
+    <div className="group rounded-lg border border-gray-200 bg-white p-4 transition-colors hover:border-purple-500/50 dark:border-surface-border dark:bg-surface-raised">
       <div className="mb-3 flex items-start justify-between">
         <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-500/20">
           <Icon size={20} className="text-purple-400" />

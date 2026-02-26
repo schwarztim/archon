@@ -112,7 +112,7 @@ function StepDescribe({
           placeholder="Describe the agent's purpose in plain language. E.g., 'Build a customer support agent that handles refund requests, checks order status from our API, and escalates complex issues to human agents.'"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          className="bg-[#0f1117] text-white border-[#2a2d37] placeholder:text-gray-500"
+          className="bg-surface-base text-white border-surface-border placeholder:text-gray-500"
         />
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -121,7 +121,7 @@ function StepDescribe({
           <select
             value={industry}
             onChange={(e) => setIndustry(e.target.value)}
-            className="h-9 w-full rounded-md border border-[#2a2d37] bg-[#0f1117] px-3 text-sm text-white focus:border-purple-500 focus:outline-none"
+            className="h-9 w-full rounded-md border border-surface-border bg-surface-base px-3 text-sm text-white focus:border-purple-500 focus:outline-none"
           >
             {INDUSTRIES.map((i) => (
               <option key={i} value={i}>{i}</option>
@@ -136,7 +136,7 @@ function StepDescribe({
               value={dsInput}
               onChange={(e) => setDsInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addTag(); } }}
-              className="bg-[#0f1117] text-white border-[#2a2d37]"
+              className="bg-surface-base text-white border-surface-border"
             />
             <Button type="button" size="sm" variant="outline" onClick={addTag}>
               <Plus size={14} />
@@ -334,9 +334,9 @@ export function NLAgentWizard({ onClose, onCreated }: NLAgentWizardProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="relative w-full max-w-3xl rounded-xl border border-[#2a2d37] bg-[#12141e] shadow-2xl max-h-[90vh] flex flex-col">
+      <div className="relative w-full max-w-3xl rounded-xl border border-surface-border bg-surface-overlay shadow-2xl max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-[#2a2d37] px-6 py-4">
+        <div className="flex items-center justify-between border-b border-surface-border px-6 py-4">
           <div className="flex items-center gap-2">
             <Sparkles size={20} className="text-purple-400" />
             <h2 className="text-lg font-semibold text-white">Create with AI ✨</h2>
@@ -347,7 +347,7 @@ export function NLAgentWizard({ onClose, onCreated }: NLAgentWizardProps) {
         </div>
 
         {/* Step Indicator */}
-        <div className="flex items-center gap-1 border-b border-[#2a2d37] px-6 py-3">
+        <div className="flex items-center gap-1 border-b border-surface-border px-6 py-3">
           {WIZARD_STEPS.map((label, idx) => (
             <div key={label} className="flex items-center gap-1">
               <button
@@ -367,7 +367,7 @@ export function NLAgentWizard({ onClose, onCreated }: NLAgentWizardProps) {
                     ? "bg-purple-500 text-white"
                     : idx < step
                     ? "bg-green-500/30 text-green-400"
-                    : "bg-[#2a2d37] text-gray-500"
+                    : "bg-surface-border text-gray-500"
                 }`}>
                   {idx < step ? <Check size={10} /> : idx + 1}
                 </span>
@@ -468,7 +468,7 @@ export function NLAgentWizard({ onClose, onCreated }: NLAgentWizardProps) {
               </div>
 
               {/* Config Summary */}
-              <div className="rounded-lg border border-[#2a2d37] bg-[#0f1117] p-4">
+              <div className="rounded-lg border border-surface-border bg-surface-base p-4">
                 <h4 className="mb-3 text-sm font-medium text-white">Configuration Summary</h4>
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   <div>
@@ -489,7 +489,7 @@ export function NLAgentWizard({ onClose, onCreated }: NLAgentWizardProps) {
                   </div>
                 </div>
                 {description && (
-                  <div className="mt-3 border-t border-[#2a2d37] pt-3">
+                  <div className="mt-3 border-t border-surface-border pt-3">
                     <span className="text-xs text-gray-500">Description:</span>
                     <p className="mt-1 text-xs text-gray-300 line-clamp-3">{description}</p>
                   </div>
@@ -531,7 +531,7 @@ export function NLAgentWizard({ onClose, onCreated }: NLAgentWizardProps) {
 
         {/* Footer Navigation */}
         {step > 0 && (
-          <div className="flex items-center justify-between border-t border-[#2a2d37] px-6 py-4">
+          <div className="flex items-center justify-between border-t border-surface-border px-6 py-4">
             <Button variant="ghost" size="sm" onClick={() => { setStep(step - 1); setError(null); }}>
               <ChevronLeft size={14} className="mr-1" /> Back
             </Button>

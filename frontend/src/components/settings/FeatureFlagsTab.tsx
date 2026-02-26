@@ -11,7 +11,7 @@ function Card({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-5">
+    <div className="rounded-lg border border-surface-border bg-surface-raised p-5">
       <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold">
         <Icon size={14} className="text-purple-400" />
         {title}
@@ -52,7 +52,7 @@ export function FeatureFlagsTab() {
         {flags.map((flag) => (
           <div
             key={flag.name}
-            className="flex items-center justify-between rounded-md border border-[#2a2d37] bg-[#0f1117] px-4 py-3"
+            className="flex items-center justify-between rounded-md border border-surface-border bg-surface-base px-4 py-3"
           >
             <div>
               <span className="text-sm font-medium">{flag.name.replace(/_/g, " ")}</span>

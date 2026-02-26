@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID, uuid4
@@ -204,7 +205,11 @@ async def list_rules(
 ) -> dict[str, Any]:
     """List routing rules with pagination."""
     rules, total = await RoutingRuleService.list(
-        session, is_active=is_active, strategy=strategy, limit=limit, offset=offset,
+        session,
+        is_active=is_active,
+        strategy=strategy,
+        limit=limit,
+        offset=offset,
     )
     return {
         "data": [r.model_dump(mode="json") for r in rules],
@@ -311,8 +316,12 @@ async def list_models(
 ) -> dict[str, Any]:
     """List registered models with optional filters."""
     entries, total = await ModelRegistry.list(
-        session, provider=provider, is_active=is_active, capability=capability,
-        limit=limit, offset=offset,
+        session,
+        provider=provider,
+        is_active=is_active,
+        capability=capability,
+        limit=limit,
+        offset=offset,
     )
     return {
         "data": [e.model_dump(mode="json") for e in entries],
@@ -426,7 +435,13 @@ async def providers_health_summary(
     for e in entries:
         pid = e.provider
         if pid not in summary:
-            summary[pid] = {"provider": pid, "healthy": 0, "degraded": 0, "unhealthy": 0, "total": 0}
+            summary[pid] = {
+                "provider": pid,
+                "healthy": 0,
+                "degraded": 0,
+                "unhealthy": 0,
+                "total": 0,
+            }
         summary[pid]["total"] += 1
         status = e.health_status or "healthy"
         if status in summary[pid]:
@@ -445,13 +460,15 @@ async def providers_health_detail(
         pid = e.provider
         if pid not in detail:
             detail[pid] = {"provider": pid, "models": []}
-        detail[pid]["models"].append({
-            "id": str(e.id),
-            "name": e.name,
-            "health_status": e.health_status or "healthy",
-            "error_rate": e.error_rate,
-            "avg_latency_ms": e.avg_latency_ms,
-        })
+        detail[pid]["models"].append(
+            {
+                "id": str(e.id),
+                "name": e.name,
+                "health_status": e.health_status or "healthy",
+                "error_rate": e.error_rate,
+                "avg_latency_ms": e.avg_latency_ms,
+            }
+        )
     return {"data": list(detail.values()), "meta": _meta()}
 
 
@@ -459,24 +476,82 @@ async def providers_health_detail(
 async def get_credential_schemas() -> dict[str, Any]:
     """Return credential field schemas per provider type."""
     schemas = {
-        "openai": {"fields": [{"name": "api_key", "type": "string", "required": True, "secret": True}]},
-        "anthropic": {"fields": [{"name": "api_key", "type": "string", "required": True, "secret": True}]},
-        "azure": {"fields": [
-            {"name": "api_key", "type": "string", "required": True, "secret": True},
-            {"name": "endpoint", "type": "string", "required": True, "secret": False},
-            {"name": "deployment_name", "type": "string", "required": True, "secret": False},
-            {"name": "api_version", "type": "string", "required": False, "secret": False},
-        ]},
-        "google": {"fields": [{"name": "api_key", "type": "string", "required": True, "secret": True}]},
-        "bedrock": {"fields": [
-            {"name": "aws_access_key_id", "type": "string", "required": True, "secret": True},
-            {"name": "aws_secret_access_key", "type": "string", "required": True, "secret": True},
-            {"name": "aws_region", "type": "string", "required": True, "secret": False},
-        ]},
-        "custom": {"fields": [
-            {"name": "api_key", "type": "string", "required": False, "secret": True},
-            {"name": "base_url", "type": "string", "required": True, "secret": False},
-        ]},
+        "openai": {
+            "fields": [
+                {"name": "api_key", "type": "string", "required": True, "secret": True}
+            ]
+        },
+        "anthropic": {
+            "fields": [
+                {"name": "api_key", "type": "string", "required": True, "secret": True}
+            ]
+        },
+        "azure": {
+            "fields": [
+                {"name": "api_key", "type": "string", "required": True, "secret": True},
+                {
+                    "name": "endpoint",
+                    "type": "string",
+                    "required": True,
+                    "secret": False,
+                },
+                {
+                    "name": "deployment_name",
+                    "type": "string",
+                    "required": True,
+                    "secret": False,
+                },
+                {
+                    "name": "api_version",
+                    "type": "string",
+                    "required": False,
+                    "secret": False,
+                },
+            ]
+        },
+        "google": {
+            "fields": [
+                {"name": "api_key", "type": "string", "required": True, "secret": True}
+            ]
+        },
+        "bedrock": {
+            "fields": [
+                {
+                    "name": "aws_access_key_id",
+                    "type": "string",
+                    "required": True,
+                    "secret": True,
+                },
+                {
+                    "name": "aws_secret_access_key",
+                    "type": "string",
+                    "required": True,
+                    "secret": True,
+                },
+                {
+                    "name": "aws_region",
+                    "type": "string",
+                    "required": True,
+                    "secret": False,
+                },
+            ]
+        },
+        "custom": {
+            "fields": [
+                {
+                    "name": "api_key",
+                    "type": "string",
+                    "required": False,
+                    "secret": True,
+                },
+                {
+                    "name": "base_url",
+                    "type": "string",
+                    "required": True,
+                    "secret": False,
+                },
+            ]
+        },
     }
     return {"data": schemas, "meta": _meta()}
 
@@ -539,7 +614,10 @@ async def store_provider_credentials(
     session.add(entry)
     await session.commit()
     await session.refresh(entry)
-    return {"data": {"provider_id": str(provider_id), "vault_secret_path": vault_path}, "meta": _meta()}
+    return {
+        "data": {"provider_id": str(provider_id), "vault_secret_path": vault_path},
+        "meta": _meta(),
+    }
 
 
 @router.post("/providers/{provider_id}/api-key", status_code=201)
@@ -561,7 +639,10 @@ async def store_provider_api_key(
     session.add(entry)
     await session.commit()
     await session.refresh(entry)
-    return {"data": {"provider_id": str(provider_id), "vault_secret_path": vault_path}, "meta": _meta()}
+    return {
+        "data": {"provider_id": str(provider_id), "vault_secret_path": vault_path},
+        "meta": _meta(),
+    }
 
 
 @router.post("/providers/{provider_id}/test-connection")
@@ -601,3 +682,73 @@ async def save_fallback_chain(body: FallbackChain) -> dict[str, Any]:
     global _fallback_chain_store
     _fallback_chain_store = body.model_dump()
     return {"data": _fallback_chain_store, "meta": _meta()}
+
+
+# ── Embeddings Endpoint ─────────────────────────────────────────────
+
+
+class EmbeddingsRequest(BaseModel):
+    """Payload for the embeddings endpoint."""
+
+    text: str = PField(..., min_length=1, description="Text to embed")
+    model: str = PField(
+        default="qrg-embedding-experimental",
+        description="Embeddings model deployment name",
+    )
+
+
+class EmbeddingsResponse(BaseModel):
+    """Response from the embeddings endpoint."""
+
+    embedding: list[float]
+    model: str
+    usage: dict[str, int]
+
+
+@router.post(
+    "/embeddings", response_model=EmbeddingsResponse, tags=["router", "embeddings"]
+)
+async def create_embedding(body: EmbeddingsRequest) -> EmbeddingsResponse:
+    """Generate a vector embedding for the provided text via Azure OpenAI.
+
+    Requires ``ARCHON_AZURE_OPENAI_API_KEY`` and optionally
+    ``ARCHON_AZURE_OPENAI_ENDPOINT`` to be set in the environment.
+    """
+    from app.config import settings
+    from app.services.router_service import call_azure_openai_with_retry
+
+    api_key = settings.AZURE_OPENAI_API_KEY or os.environ.get(
+        "AZURE_OPENAI_API_KEY", ""
+    )
+    if not api_key:
+        raise HTTPException(
+            status_code=503,
+            detail="Azure OpenAI API key not configured. Set ARCHON_AZURE_OPENAI_API_KEY.",
+        )
+
+    endpoint = settings.AZURE_OPENAI_ENDPOINT.rstrip("/")
+    deployment = body.model
+    url = (
+        f"{endpoint}/openai/deployments/{deployment}/embeddings?api-version=2023-05-15"
+    )
+
+    payload = {"input": body.text, "model": deployment}
+
+    try:
+        data = await call_azure_openai_with_retry(url, payload, api_key)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502, detail=f"Azure OpenAI error: {exc}"
+        ) from exc
+
+    embedding_data = data.get("data", [{}])[0]
+    usage = data.get("usage", {"prompt_tokens": 0, "total_tokens": 0})
+
+    return EmbeddingsResponse(
+        embedding=embedding_data.get("embedding", []),
+        model=data.get("model", deployment),
+        usage={
+            "prompt_tokens": usage.get("prompt_tokens", 0),
+            "total_tokens": usage.get("total_tokens", 0),
+        },
+    )

@@ -67,8 +67,8 @@ export function RunAgentDialog({ onClose }: RunAgentDialogProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="w-full max-w-md rounded-lg border border-[#2a2d37] bg-[#1a1d27] shadow-xl">
-        <div className="flex items-center justify-between border-b border-[#2a2d37] px-4 py-3">
+      <div className="w-full max-w-md rounded-lg border border-surface-border bg-surface-raised shadow-xl">
+        <div className="flex items-center justify-between border-b border-surface-border px-4 py-3">
           <div className="flex items-center gap-2">
             <Play size={16} className="text-purple-400" />
             <h2 className="text-sm font-semibold text-white">Run Agent</h2>
@@ -102,7 +102,7 @@ export function RunAgentDialog({ onClose }: RunAgentDialogProps) {
                     id="agent-select"
                     value={selectedAgentId}
                     onChange={(e) => setSelectedAgentId(e.target.value)}
-                    className="mt-1 w-full rounded-md border border-[#2a2d37] bg-[#141620] px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none"
+                    className="mt-1 w-full rounded-md border border-surface-border bg-surface-base px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none"
                   >
                     {agents.map((a) => (
                       <option key={a.id} value={a.id}>

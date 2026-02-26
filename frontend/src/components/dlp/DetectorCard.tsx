@@ -87,7 +87,7 @@ export function DetectorCard({
       className={`group relative flex flex-col gap-2 rounded-xl border p-4 text-left transition-all duration-200 ${
         isSelected
           ? "border-purple-500 bg-purple-500/10 shadow-lg shadow-purple-500/10"
-          : "border-[#2a2d37] bg-[#1a1d27] hover:border-white/20 hover:bg-white/5"
+          : "border-surface-border bg-surface-raised hover:border-white/20 hover:bg-white/5"
       }`}
     >
       {/* Header: Icon + Toggle */}

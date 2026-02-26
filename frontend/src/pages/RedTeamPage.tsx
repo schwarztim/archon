@@ -106,7 +106,7 @@ export function RedTeamPage() {
                 className={`rounded-full border px-3 py-1 text-xs transition-colors ${
                   selectedAttacks.includes(attack)
                     ? "border-purple-500 bg-purple-500/20 text-purple-300"
-                    : "border-[#2a2d37] bg-[#0f1117] text-gray-400 hover:border-gray-500"
+                    : "border-surface-border bg-surface-base text-gray-400 hover:border-gray-500"
                 }`}
               >
                 {attack.replace(/_/g, " ")}
@@ -135,7 +135,7 @@ export function RedTeamPage() {
 
       {/* Scan Results */}
       {activeScanId && (
-        <div className="mb-8 rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-5">
+        <div className="mb-8 rounded-lg border border-surface-border bg-surface-raised p-5">
           <h2 className="mb-3 text-sm font-semibold text-white">Scan Results</h2>
           {scanLoading ? (
             <div className="flex items-center gap-2 text-sm text-gray-400">
@@ -177,7 +177,7 @@ export function RedTeamPage() {
                   {result.vulnerabilities.map((vuln, i) => (
                     <div
                       key={i}
-                      className="rounded-md border border-[#2a2d37] bg-[#0f1117] p-3"
+                      className="rounded-md border border-surface-border bg-surface-base p-3"
                     >
                       <div className="mb-1 flex items-center gap-2">
                         <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
@@ -216,7 +216,7 @@ export function RedTeamPage() {
           {CAPABILITIES.map((cap) => {
             const Icon = cap.icon;
             return (
-              <div key={cap.title} className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-4">
+              <div key={cap.title} className="rounded-lg border border-surface-border bg-surface-raised p-4">
                 <div className="mb-2 flex items-center gap-2">
                   <Icon size={16} className="text-purple-400" />
                   <h3 className="text-sm font-semibold text-white">{cap.title}</h3>

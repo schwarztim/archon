@@ -112,7 +112,7 @@ export function TenantDetail({ tenant, onBack }: TenantDetailProps) {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} defaultValue="general">
-        <TabsList className="bg-[#1a1d27] dark:bg-[#1a1d27]">
+        <TabsList className="bg-surface-raised dark:bg-surface-raised">
           <TabsTrigger value="general">
             <Building2 size={14} className="mr-1.5" />General
           </TabsTrigger>
@@ -131,7 +131,7 @@ export function TenantDetail({ tenant, onBack }: TenantDetailProps) {
         </TabsList>
 
         <TabsContent value="general">
-          <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-6 dark:bg-[#1a1d27]">
+          <div className="rounded-lg border border-surface-border bg-surface-raised p-6 dark:bg-surface-raised">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="space-y-3">
                 <div>
@@ -185,7 +185,7 @@ export function TenantDetail({ tenant, onBack }: TenantDetailProps) {
         </TabsContent>
 
         <TabsContent value="billing">
-          <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-6 dark:bg-[#1a1d27]">
+          <div className="rounded-lg border border-surface-border bg-surface-raised p-6 dark:bg-surface-raised">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               <div>
                 <span className="text-xs text-gray-500">Plan</span>

@@ -170,7 +170,7 @@ export function SSOConfigPage() {
       </p>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="bg-[#1a1d27] dark:bg-[#1a1d27]">
+        <TabsList className="bg-surface-raised dark:bg-surface-raised">
           <TabsTrigger value="providers">Identity Providers</TabsTrigger>
           <TabsTrigger value="rbac">RBAC Matrix</TabsTrigger>
           <TabsTrigger value="roles">Custom Roles</TabsTrigger>

@@ -106,13 +106,13 @@ export function DocForgePage() {
       </p>
 
       {/* Tabs */}
-      <div className="mb-6 flex gap-2 border-b border-[#2a2d37] pb-2">
+      <div className="mb-6 flex gap-2 border-b border-surface-border pb-2">
         <button
           type="button"
           onClick={() => setActiveTab("documents")}
           className={`rounded-t-md px-4 py-2 text-sm font-medium transition-colors ${
             activeTab === "documents"
-              ? "bg-[#1a1d27] text-purple-400"
+              ? "bg-surface-raised text-purple-400"
               : "text-gray-400 hover:text-gray-200"
           }`}
         >
@@ -124,7 +124,7 @@ export function DocForgePage() {
           onClick={() => setActiveTab("collections")}
           className={`rounded-t-md px-4 py-2 text-sm font-medium transition-colors ${
             activeTab === "collections"
-              ? "bg-[#1a1d27] text-purple-400"
+              ? "bg-surface-raised text-purple-400"
               : "text-gray-400 hover:text-gray-200"
           }`}
         >
@@ -212,7 +212,7 @@ export function DocForgePage() {
 
           {/* Search results */}
           {searchDocs.isSuccess && searchResults.length > 0 && (
-            <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-5">
+            <div className="rounded-lg border border-surface-border bg-surface-raised p-5">
               <h3 className="mb-3 text-sm font-semibold text-white">
                 Search Results ({searchResults.length})
               </h3>
@@ -220,7 +220,7 @@ export function DocForgePage() {
                 {searchResults.map((r) => (
                   <div
                     key={r.id}
-                    className="rounded-md border border-[#2a2d37] bg-[#0f1117] p-3"
+                    className="rounded-md border border-surface-border bg-surface-base p-3"
                   >
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-medium text-white">{r.name}</span>
@@ -236,7 +236,7 @@ export function DocForgePage() {
           )}
 
           {/* Document list */}
-          <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-5">
+          <div className="rounded-lg border border-surface-border bg-surface-raised p-5">
             <h3 className="mb-3 text-sm font-semibold text-white">
               All Documents
             </h3>
@@ -255,7 +255,7 @@ export function DocForgePage() {
                 {documents.map((doc) => (
                   <div
                     key={doc.id}
-                    className="flex items-center justify-between rounded-md border border-[#2a2d37] bg-[#0f1117] px-3 py-2"
+                    className="flex items-center justify-between rounded-md border border-surface-border bg-surface-base px-3 py-2"
                   >
                     <div>
                       <span className="text-sm font-medium text-white">{doc.name}</span>
@@ -297,7 +297,7 @@ export function DocForgePage() {
       {activeTab === "collections" && (
         <div className="space-y-6">
           {/* Create collection */}
-          <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-5">
+          <div className="rounded-lg border border-surface-border bg-surface-raised p-5">
             <h3 className="mb-3 text-sm font-semibold text-white">Create Collection</h3>
             <div className="mb-3 flex flex-wrap gap-3">
               <Input
@@ -331,7 +331,7 @@ export function DocForgePage() {
           </div>
 
           {/* Collection list */}
-          <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-5">
+          <div className="rounded-lg border border-surface-border bg-surface-raised p-5">
             <h3 className="mb-3 text-sm font-semibold text-white">Collections</h3>
             {collectionsLoading ? (
               <div className="flex items-center gap-2 text-sm text-gray-400">
@@ -344,7 +344,7 @@ export function DocForgePage() {
                 {collections.map((coll) => (
                   <div
                     key={coll.id}
-                    className="flex items-center justify-between rounded-md border border-[#2a2d37] bg-[#0f1117] px-3 py-2"
+                    className="flex items-center justify-between rounded-md border border-surface-border bg-surface-base px-3 py-2"
                   >
                     <div>
                       <span className="text-sm font-medium text-white">{coll.name}</span>
@@ -379,7 +379,7 @@ export function DocForgePage() {
               {PIPELINE_STAGES.map((stage, i) => {
                 const Icon = stage.icon;
                 return (
-                  <div key={stage.title} className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-4">
+                  <div key={stage.title} className="rounded-lg border border-surface-border bg-surface-raised p-4">
                     <div className="mb-2 flex items-center gap-3">
                       <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-500/10">
                         <Icon size={16} className="text-purple-400" />
@@ -395,11 +395,11 @@ export function DocForgePage() {
               })}
             </div>
 
-            <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-5">
+            <div className="rounded-lg border border-surface-border bg-surface-raised p-5">
               <h3 className="mb-3 text-sm font-semibold text-white">Supported Formats</h3>
               <div className="flex flex-wrap gap-2">
                 {["PDF", "DOCX", "Markdown", "CSV", "TXT", "HTML", "JSON", "YAML"].map((fmt) => (
-                  <span key={fmt} className="rounded-full border border-[#2a2d37] bg-white/5 px-3 py-1 text-xs text-gray-300">
+                  <span key={fmt} className="rounded-full border border-surface-border bg-white/5 px-3 py-1 text-xs text-gray-300">
                     {fmt}
                   </span>
                 ))}

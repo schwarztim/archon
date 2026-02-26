@@ -37,7 +37,7 @@ export function MessageBubble({ message, onAction }: MessageBubbleProps) {
           "max-w-[80%] rounded-lg px-3 py-2 text-sm",
           isUser
             ? "bg-purple-600/20 text-purple-200"
-            : "bg-[#0f1117] text-gray-300",
+            : "bg-surface-base text-gray-300",
         )}
       >
         {/* Text content */}

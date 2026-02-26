@@ -49,13 +49,13 @@ _TRANSITION_ROLES: dict[str, list[str]] = {
     "draft": ["admin", "operator", "agent_creator"],
 }
 
-# In-memory stores (replaced by DB in production)
+# In-memory stores — TODO: migrate agent_states, deployments, and deployment_history to DB
 _scheduled_jobs: dict[str, list[ScheduledJob]] = {}
-_agent_states: dict[str, str] = {}
-_deployments: dict[str, Deployment] = {}
 _metrics_store: dict[str, list[dict[str, float]]] = {}
 _approval_gates: dict[str, list[ApprovalGate]] = {}
 _environments: dict[str, list[EnvironmentInfo]] = {}
+_agent_states: dict[str, str] = {}
+_deployments: dict[str, Deployment] = {}
 _deployment_history: dict[str, list[DeploymentHistoryEntry]] = {}
 _health_metrics: dict[str, HealthMetrics] = {}
 
@@ -202,7 +202,9 @@ class LifecycleService:
         key = f"{tenant_id}:{deployment_id}"
         deployment = _deployments.get(key)
         if deployment is None:
-            raise ValueError(f"Deployment {deployment_id} not found for tenant {tenant_id}")
+            raise ValueError(
+                f"Deployment {deployment_id} not found for tenant {tenant_id}"
+            )
 
         deployment.status = "rolled_back"
         deployment.completed_at = _utcnow()
@@ -503,11 +505,19 @@ class LifecycleService:
         key = f"{tenant_id}:{deployment_id}"
         deployment = _deployments.get(key)
         if deployment is None:
-            raise ValueError(f"Deployment {deployment_id} not found for tenant {tenant_id}")
+            raise ValueError(
+                f"Deployment {deployment_id} not found for tenant {tenant_id}"
+            )
 
-        current_idx = _STAGE_ORDER.index(deployment.environment) if deployment.environment in _STAGE_ORDER else -1
+        current_idx = (
+            _STAGE_ORDER.index(deployment.environment)
+            if deployment.environment in _STAGE_ORDER
+            else -1
+        )
         if current_idx < 0 or current_idx >= len(_STAGE_ORDER) - 1:
-            raise ValueError(f"Cannot promote from {deployment.environment}: already at final stage or unknown stage")
+            raise ValueError(
+                f"Cannot promote from {deployment.environment}: already at final stage or unknown stage"
+            )
 
         new_env = _STAGE_ORDER[current_idx + 1]
         deployment.environment = new_env
@@ -541,11 +551,19 @@ class LifecycleService:
         key = f"{tenant_id}:{deployment_id}"
         deployment = _deployments.get(key)
         if deployment is None:
-            raise ValueError(f"Deployment {deployment_id} not found for tenant {tenant_id}")
+            raise ValueError(
+                f"Deployment {deployment_id} not found for tenant {tenant_id}"
+            )
 
-        current_idx = _STAGE_ORDER.index(deployment.environment) if deployment.environment in _STAGE_ORDER else -1
+        current_idx = (
+            _STAGE_ORDER.index(deployment.environment)
+            if deployment.environment in _STAGE_ORDER
+            else -1
+        )
         if current_idx <= 0:
-            raise ValueError(f"Cannot demote from {deployment.environment}: already at first stage or unknown stage")
+            raise ValueError(
+                f"Cannot demote from {deployment.environment}: already at first stage or unknown stage"
+            )
 
         new_env = _STAGE_ORDER[current_idx - 1]
         deployment.environment = new_env
@@ -581,10 +599,18 @@ class LifecycleService:
         for stage_def in _PIPELINE_STAGES:
             if stage_def["stage"] not in custom_names:
                 stage_deployments = [
-                    d for d in _deployments.values()
+                    d
+                    for d in _deployments.values()
                     if d.environment == stage_def["stage"]
                 ]
-                active = next((d for d in stage_deployments if d.status in ("deploying", "active", "shadow")), None)
+                active = next(
+                    (
+                        d
+                        for d in stage_deployments
+                        if d.status in ("deploying", "active", "shadow")
+                    ),
+                    None,
+                )
                 defaults.append(
                     EnvironmentInfo(
                         name=stage_def["stage"],
@@ -613,16 +639,18 @@ class LifecycleService:
         _validate_tenant(tenant_id)
 
         source_deployments = [
-            d for d in _deployments.values()
-            if d.environment == source_env
+            d for d in _deployments.values() if d.environment == source_env
         ]
         target_deployments = [
-            d for d in _deployments.values()
-            if d.environment == target_env
+            d for d in _deployments.values() if d.environment == target_env
         ]
 
-        source_active = next((d for d in source_deployments if d.status in ("deploying", "active")), None)
-        target_active = next((d for d in target_deployments if d.status in ("deploying", "active")), None)
+        source_active = next(
+            (d for d in source_deployments if d.status in ("deploying", "active")), None
+        )
+        target_active = next(
+            (d for d in target_deployments if d.status in ("deploying", "active")), None
+        )
 
         differences: list[dict[str, Any]] = []
 
@@ -630,31 +658,37 @@ class LifecycleService:
         t_ver = str(target_active.version_id) if target_active else None
 
         if s_ver != t_ver:
-            differences.append({
-                "field": "version_id",
-                "source_value": s_ver,
-                "target_value": t_ver,
-            })
+            differences.append(
+                {
+                    "field": "version_id",
+                    "source_value": s_ver,
+                    "target_value": t_ver,
+                }
+            )
 
         s_strategy = source_active.strategy.type.value if source_active else None
         t_strategy = target_active.strategy.type.value if target_active else None
 
         if s_strategy != t_strategy:
-            differences.append({
-                "field": "strategy",
-                "source_value": s_strategy,
-                "target_value": t_strategy,
-            })
+            differences.append(
+                {
+                    "field": "strategy",
+                    "source_value": s_strategy,
+                    "target_value": t_strategy,
+                }
+            )
 
         s_status = source_active.status if source_active else None
         t_status = target_active.status if target_active else None
 
         if s_status != t_status:
-            differences.append({
-                "field": "status",
-                "source_value": s_status,
-                "target_value": t_status,
-            })
+            differences.append(
+                {
+                    "field": "status",
+                    "source_value": s_status,
+                    "target_value": t_status,
+                }
+            )
 
         return ConfigDiff(
             source_env=source_env,
@@ -744,7 +778,9 @@ class LifecycleService:
 
         deployment = _deployments.get(key)
         if deployment is None:
-            raise ValueError(f"Deployment {deployment_id} not found for tenant {tenant_id}")
+            raise ValueError(
+                f"Deployment {deployment_id} not found for tenant {tenant_id}"
+            )
 
         return HealthMetrics(
             deployment_id=deployment_id,

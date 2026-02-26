@@ -188,13 +188,13 @@ export function UsersPage() {
             placeholder="Search by name or email..."
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(0); }}
-            className="w-full rounded-lg border border-[#2a2d37] bg-[#1a1d27] py-2 pl-9 pr-3 text-sm text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none"
+            className="w-full rounded-lg border border-surface-border bg-surface-raised py-2 pl-9 pr-3 text-sm text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none"
           />
         </div>
         <select
           value={statusFilter}
           onChange={(e) => { setStatusFilter(e.target.value); setPage(0); }}
-          className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none"
+          className="rounded-lg border border-surface-border bg-surface-raised px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none"
         >
           <option value="all">All Statuses</option>
           <option value="active">Active</option>
@@ -230,7 +230,7 @@ export function UsersPage() {
       )}
 
       {/* Table */}
-      <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27]">
+      <div className="rounded-lg border border-surface-border bg-surface-raised">
         <div className="overflow-x-auto">
           {users.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12">
@@ -240,7 +240,7 @@ export function UsersPage() {
           ) : (
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-[#2a2d37] text-left text-xs text-gray-500">
+                <tr className="border-b border-surface-border text-left text-xs text-gray-500">
                   <th className="px-4 py-2 font-medium">
                     <input
                       type="checkbox"
@@ -260,7 +260,7 @@ export function UsersPage() {
               </thead>
               <tbody>
                 {users.map((u) => (
-                  <tr key={u.id} className="border-b border-[#2a2d37] hover:bg-white/5">
+                  <tr key={u.id} className="border-b border-surface-border hover:bg-white/5">
                     <td className="px-4 py-2">
                       <input
                         type="checkbox"
@@ -325,7 +325,7 @@ export function UsersPage() {
 
         {/* Pagination */}
         {total > limit && (
-          <div className="flex items-center justify-between border-t border-[#2a2d37] px-4 py-3">
+          <div className="flex items-center justify-between border-t border-surface-border px-4 py-3">
             <span className="text-xs text-gray-500">
               {page * limit + 1}–{Math.min((page + 1) * limit, total)} of {total}
             </span>
@@ -333,14 +333,14 @@ export function UsersPage() {
               <button
                 disabled={page === 0}
                 onClick={() => setPage((p) => p - 1)}
-                className="rounded border border-[#2a2d37] px-3 py-1 text-xs text-gray-400 hover:bg-white/5 disabled:opacity-40"
+                className="rounded border border-surface-border px-3 py-1 text-xs text-gray-400 hover:bg-white/5 disabled:opacity-40"
               >
                 Previous
               </button>
               <button
                 disabled={(page + 1) * limit >= total}
                 onClick={() => setPage((p) => p + 1)}
-                className="rounded border border-[#2a2d37] px-3 py-1 text-xs text-gray-400 hover:bg-white/5 disabled:opacity-40"
+                className="rounded border border-surface-border px-3 py-1 text-xs text-gray-400 hover:bg-white/5 disabled:opacity-40"
               >
                 Next
               </button>
@@ -401,7 +401,7 @@ function InviteModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="w-full max-w-md rounded-lg border border-[#2a2d37] bg-[#12141e] p-6">
+      <div className="w-full max-w-md rounded-lg border border-surface-border bg-surface-overlay p-6">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-white">Invite User</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-white" aria-label="Close">
@@ -422,7 +422,7 @@ function InviteModal({
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="mb-3 w-full rounded-lg border border-[#2a2d37] bg-[#1a1d27] px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none"
+            className="mb-3 w-full rounded-lg border border-surface-border bg-surface-raised px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none"
             placeholder="user@company.com"
           />
           <label className="mb-1 block text-xs text-gray-400">Name</label>
@@ -431,7 +431,7 @@ function InviteModal({
             required
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="mb-3 w-full rounded-lg border border-[#2a2d37] bg-[#1a1d27] px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none"
+            className="mb-3 w-full rounded-lg border border-surface-border bg-surface-raised px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none"
             placeholder="Full Name"
           />
           <label className="mb-1 block text-xs text-gray-400">Roles</label>
@@ -444,7 +444,7 @@ function InviteModal({
                 className={`rounded-full px-3 py-1 text-xs font-medium capitalize ${
                   roles.includes(r)
                     ? "bg-purple-600 text-white"
-                    : "bg-[#1a1d27] text-gray-400 border border-[#2a2d37]"
+                    : "bg-surface-raised text-gray-400 border border-surface-border"
                 }`}
               >
                 {r}
@@ -455,7 +455,7 @@ function InviteModal({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border border-[#2a2d37] px-4 py-2 text-sm text-gray-400 hover:bg-white/5"
+              className="rounded-lg border border-surface-border px-4 py-2 text-sm text-gray-400 hover:bg-white/5"
             >
               Cancel
             </button>
@@ -499,7 +499,7 @@ function EditUserModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="w-full max-w-md rounded-lg border border-[#2a2d37] bg-[#12141e] p-6">
+      <div className="w-full max-w-md rounded-lg border border-surface-border bg-surface-overlay p-6">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-white">Edit User</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-white" aria-label="Close">
@@ -518,13 +518,13 @@ function EditUserModal({
             required
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="mb-3 w-full rounded-lg border border-[#2a2d37] bg-[#1a1d27] px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none"
+            className="mb-3 w-full rounded-lg border border-surface-border bg-surface-raised px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none"
           />
           <label className="mb-1 block text-xs text-gray-400">Status</label>
           <select
             value={status}
             onChange={(e) => setStatus(e.target.value as ManagedUser["status"])}
-            className="mb-3 w-full rounded-lg border border-[#2a2d37] bg-[#1a1d27] px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none"
+            className="mb-3 w-full rounded-lg border border-surface-border bg-surface-raised px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none"
           >
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
@@ -540,7 +540,7 @@ function EditUserModal({
                 className={`rounded-full px-3 py-1 text-xs font-medium capitalize ${
                   roles.includes(r)
                     ? "bg-purple-600 text-white"
-                    : "bg-[#1a1d27] text-gray-400 border border-[#2a2d37]"
+                    : "bg-surface-raised text-gray-400 border border-surface-border"
                 }`}
               >
                 {r}
@@ -551,7 +551,7 @@ function EditUserModal({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border border-[#2a2d37] px-4 py-2 text-sm text-gray-400 hover:bg-white/5"
+              className="rounded-lg border border-surface-border px-4 py-2 text-sm text-gray-400 hover:bg-white/5"
             >
               Cancel
             </button>

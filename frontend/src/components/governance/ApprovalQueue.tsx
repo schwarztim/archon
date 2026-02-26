@@ -28,8 +28,8 @@ export function ApprovalQueue({ refreshKey }: Props) {
   useEffect(() => { void fetchApprovals(); }, [refreshKey, filter]);
 
   return (
-    <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27]">
-      <div className="flex items-center justify-between border-b border-[#2a2d37] px-4 py-3">
+    <div className="rounded-lg border border-surface-border bg-surface-raised">
+      <div className="flex items-center justify-between border-b border-surface-border px-4 py-3">
         <h2 className="flex items-center gap-2 text-sm font-semibold text-white">
           <Clock size={14} /> Approval Queue ({approvals.length})
         </h2>

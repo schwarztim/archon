@@ -14,13 +14,13 @@ function formatCurrency(value: number) {
 export function SummaryCards({ totalSpend, budgetUsedPct, projectedSpend, topModel }: SummaryCardsProps) {
   return (
     <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-4 dark:bg-[#1a1d27]">
+      <div className="rounded-lg border border-surface-border bg-surface-raised p-4 dark:bg-surface-raised">
         <div className="mb-1 flex items-center gap-2 text-xs text-gray-400">
           <DollarSign size={14} />Total Spend
         </div>
         <div className="text-2xl font-bold text-white">{formatCurrency(totalSpend)}</div>
       </div>
-      <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-4 dark:bg-[#1a1d27]">
+      <div className="rounded-lg border border-surface-border bg-surface-raised p-4 dark:bg-surface-raised">
         <div className="mb-1 flex items-center gap-2 text-xs text-gray-400">
           <Wallet size={14} />Spend vs Budget
         </div>
@@ -32,13 +32,13 @@ export function SummaryCards({ totalSpend, budgetUsedPct, projectedSpend, topMod
           />
         </div>
       </div>
-      <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-4 dark:bg-[#1a1d27]">
+      <div className="rounded-lg border border-surface-border bg-surface-raised p-4 dark:bg-surface-raised">
         <div className="mb-1 flex items-center gap-2 text-xs text-gray-400">
           <TrendingUp size={14} />Projected
         </div>
         <div className="text-2xl font-bold text-white">{formatCurrency(projectedSpend)}</div>
       </div>
-      <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-4 dark:bg-[#1a1d27]">
+      <div className="rounded-lg border border-surface-border bg-surface-raised p-4 dark:bg-surface-raised">
         <div className="mb-1 flex items-center gap-2 text-xs text-gray-400">
           <Cpu size={14} />Top Model
         </div>

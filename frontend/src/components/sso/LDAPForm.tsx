@@ -76,7 +76,7 @@ export function LDAPForm({ tenantId, ssoId, initialData, onSave }: LDAPFormProps
   }
 
   return (
-    <div className="space-y-6 rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-6 dark:bg-[#1a1d27]">
+    <div className="space-y-6 rounded-lg border border-surface-border bg-surface-raised p-6 dark:bg-surface-raised">
       <div className="space-y-4">
         <FieldRow label="Provider Name">
           <Input
@@ -166,7 +166,7 @@ export function LDAPForm({ tenantId, ssoId, initialData, onSave }: LDAPFormProps
 
       <div>
         <h3 className="mb-3 text-sm font-semibold text-white">Attribute Mappings</h3>
-        <div className="rounded-md border border-[#2a2d37] bg-[#0f1117] p-4 dark:bg-[#0f1117]">
+        <div className="rounded-md border border-surface-border bg-surface-base p-4 dark:bg-surface-base">
           <ClaimMapper mappings={mappings} onChange={setMappings} />
         </div>
       </div>

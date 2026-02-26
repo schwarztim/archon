@@ -38,7 +38,7 @@ export function StrategySelector({
               className={`rounded-lg border p-2 text-left transition-colors ${
                 strategy === s.value
                   ? "border-purple-500/50 bg-purple-500/10"
-                  : "border-[#2a2d37] bg-[#0f1117] hover:border-gray-500"
+                  : "border-surface-border bg-surface-base hover:border-gray-500"
               }`}
             >
               <span className="block text-xs font-medium text-white">{s.label}</span>

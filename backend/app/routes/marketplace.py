@@ -13,26 +13,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_session
 from app.interfaces.models.enterprise import AuthenticatedUser
 from app.middleware.auth import get_current_user
-from app.middleware.rbac import check_permission
 from app.models.marketplace import (
     CreatorProfile,
-    Installation,
     MarketplaceInstall,
     MarketplaceListing,
-    MarketplacePackage,
     MarketplaceReview,
     PackageRating,
-    PackageSearchResult,
     PackageSubmission,
-    Publisher,
-    PublisherAnalytics,
     PublisherProfile,
-    ReviewResult,
-    SignatureVerification,
 )
 from app.secrets.manager import get_secrets_manager, VaultSecretsManager
 from app.services.marketplace import MarketplaceService
-from app.services.marketplace_service import MarketplaceService as EnterpriseMarketplaceService
+from app.services.marketplace_service import (
+    MarketplaceService as EnterpriseMarketplaceService,
+)
 from starlette.responses import Response
 
 router = APIRouter(prefix="/marketplace", tags=["marketplace"])
@@ -215,7 +209,10 @@ async def list_reviews(
 ) -> dict[str, Any]:
     """List reviews for a listing."""
     reviews, total = await MarketplaceService.list_reviews(
-        session, listing_id, limit=limit, offset=offset,
+        session,
+        listing_id,
+        limit=limit,
+        offset=offset,
     )
     return {
         "data": [r.model_dump(mode="json") for r in reviews],
@@ -322,7 +319,7 @@ def _get_enterprise_svc(
     return EnterpriseMarketplaceService(secrets_manager=secrets)
 
 
-@router.post("/api/v1/marketplace/publishers", status_code=201)
+@router.post("/publishers", status_code=201)
 async def register_publisher(
     body: PublisherProfile,
     user: AuthenticatedUser = Depends(get_current_user),
@@ -332,14 +329,17 @@ async def register_publisher(
     """Register as a marketplace publisher with identity verification."""
     try:
         publisher = await svc.register_publisher(
-            user.tenant_id, user, body, session,
+            user.tenant_id,
+            user,
+            body,
+            session,
         )
     except PermissionError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     return {"data": publisher.model_dump(mode="json"), "meta": _meta()}
 
 
-@router.post("/api/v1/marketplace/packages", status_code=201)
+@router.post("/packages", status_code=201)
 async def publish_package(
     body: PackageSubmission,
     user: AuthenticatedUser = Depends(get_current_user),
@@ -349,7 +349,10 @@ async def publish_package(
     """Publish a package with GPG signing, security scan, and license check."""
     try:
         package = await svc.publish_package(
-            user.tenant_id, user, body, session,
+            user.tenant_id,
+            user,
+            body,
+            session,
         )
     except (PermissionError, ValueError) as exc:
         code = 403 if isinstance(exc, PermissionError) else 400
@@ -357,7 +360,7 @@ async def publish_package(
     return {"data": package.model_dump(mode="json"), "meta": _meta()}
 
 
-@router.post("/api/v1/marketplace/packages/{package_id}/install", status_code=201)
+@router.post("/packages/{package_id}/install", status_code=201)
 async def install_package(
     package_id: UUID,
     user: AuthenticatedUser = Depends(get_current_user),
@@ -367,7 +370,10 @@ async def install_package(
     """One-click install with RBAC check, credential setup, and dependency resolution."""
     try:
         installation = await svc.install_package(
-            user.tenant_id, user, package_id, session,
+            user.tenant_id,
+            user,
+            package_id,
+            session,
         )
     except (PermissionError, ValueError) as exc:
         code = 403 if isinstance(exc, PermissionError) else 404
@@ -375,7 +381,7 @@ async def install_package(
     return {"data": installation.model_dump(mode="json"), "meta": _meta()}
 
 
-@router.get("/api/v1/marketplace/packages/search")
+@router.get("/packages/search")
 async def search_packages(
     query: str | None = Query(default=None),
     category: str | None = Query(default=None),
@@ -397,7 +403,10 @@ async def search_packages(
         filters["min_rating"] = min_rating
 
     result = await svc.search_packages(
-        user.tenant_id, query, filters, session,
+        user.tenant_id,
+        query,
+        filters,
+        session,
     )
     return {
         "data": result.model_dump(mode="json"),
@@ -407,7 +416,7 @@ async def search_packages(
     }
 
 
-@router.post("/api/v1/marketplace/packages/{package_id}/rate", status_code=201)
+@router.post("/packages/{package_id}/rate", status_code=201)
 async def rate_package(
     package_id: UUID,
     body: PackageRating,
@@ -418,7 +427,12 @@ async def rate_package(
     """Rate and review a marketplace package."""
     try:
         pkg_rating = await svc.rate_package(
-            user.tenant_id, user, package_id, body.rating, body.review, session,
+            user.tenant_id,
+            user,
+            package_id,
+            body.rating,
+            body.review,
+            session,
         )
     except (PermissionError, ValueError) as exc:
         code = 403 if isinstance(exc, PermissionError) else 404
@@ -426,7 +440,7 @@ async def rate_package(
     return {"data": pkg_rating.model_dump(mode="json"), "meta": _meta()}
 
 
-@router.get("/api/v1/marketplace/publishers/analytics")
+@router.get("/publishers/analytics")
 async def get_publisher_analytics(
     user: AuthenticatedUser = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
@@ -435,7 +449,9 @@ async def get_publisher_analytics(
     """Get publisher analytics: installs, ratings, revenue."""
     try:
         analytics = await svc.get_publisher_analytics(
-            user.tenant_id, user, session,
+            user.tenant_id,
+            user,
+            session,
         )
     except (PermissionError, ValueError) as exc:
         code = 403 if isinstance(exc, PermissionError) else 404
@@ -443,7 +459,7 @@ async def get_publisher_analytics(
     return {"data": analytics.model_dump(mode="json"), "meta": _meta()}
 
 
-@router.get("/api/v1/marketplace/packages/{package_id}/verify")
+@router.get("/packages/{package_id}/verify")
 async def verify_package_signature(
     package_id: UUID,
     user: AuthenticatedUser = Depends(get_current_user),
@@ -458,7 +474,7 @@ async def verify_package_signature(
     return {"data": verification.model_dump(mode="json"), "meta": _meta()}
 
 
-@router.get("/api/v1/marketplace/categories")
+@router.get("/categories")
 async def list_categories(
     user: AuthenticatedUser = Depends(get_current_user),
     svc: EnterpriseMarketplaceService = Depends(_get_enterprise_svc),

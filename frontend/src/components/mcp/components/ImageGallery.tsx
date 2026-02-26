@@ -35,14 +35,14 @@ export function ImageGallery({ images, columns = 3 }: ImageGalleryProps) {
     <>
       {/* Grid */}
       <div
-        className="grid gap-2 rounded-lg border border-[#2a2d37] bg-[#0f1117] p-3"
+        className="grid gap-2 rounded-lg border border-surface-border bg-surface-base p-3"
         style={{ gridTemplateColumns: `repeat(${columns}, 1fr)` }}
       >
         {images.map((img, i) => (
           <button
             key={i}
             onClick={() => setLightboxIdx(i)}
-            className="group relative overflow-hidden rounded-md border border-[#2a2d37] transition-colors hover:border-purple-500/40"
+            className="group relative overflow-hidden rounded-md border border-surface-border transition-colors hover:border-purple-500/40"
           >
             <img
               src={img.src}

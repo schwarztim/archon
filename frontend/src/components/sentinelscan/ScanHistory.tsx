@@ -22,8 +22,8 @@ function statusBadge(status: string) {
 
 export function ScanHistory({ scans, onRerun }: ScanHistoryProps) {
   return (
-    <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27]">
-      <div className="border-b border-[#2a2d37] px-4 py-3">
+    <div className="rounded-lg border border-surface-border bg-surface-raised">
+      <div className="border-b border-surface-border px-4 py-3">
         <h2 className="text-sm font-semibold text-white">Scan History</h2>
       </div>
       {scans.length === 0 ? (
@@ -35,7 +35,7 @@ export function ScanHistory({ scans, onRerun }: ScanHistoryProps) {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-[#2a2d37] text-left text-xs text-gray-500">
+              <tr className="border-b border-surface-border text-left text-xs text-gray-500">
                 <th className="px-4 py-2 font-medium">Scan ID</th>
                 <th className="px-4 py-2 font-medium">Sources</th>
                 <th className="px-4 py-2 font-medium">Depth</th>
@@ -47,7 +47,7 @@ export function ScanHistory({ scans, onRerun }: ScanHistoryProps) {
             </thead>
             <tbody>
               {scans.map((s) => (
-                <tr key={s.id} className="border-b border-[#2a2d37] hover:bg-white/5">
+                <tr key={s.id} className="border-b border-surface-border hover:bg-white/5">
                   <td className="px-4 py-2 text-gray-400 font-mono text-xs">
                     {s.id.slice(0, 8)}…
                   </td>

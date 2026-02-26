@@ -30,7 +30,7 @@ const GROUP_OPTIONS = [
 ];
 
 const inputClass =
-  "w-full rounded-lg border border-[#2a2d37] bg-[#1a1d27] px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none";
+  "w-full rounded-lg border border-surface-border bg-surface-raised px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none";
 const labelClass = "mb-1 block text-xs font-medium text-gray-400";
 
 // ─── Component ───────────────────────────────────────────────────────
@@ -85,7 +85,7 @@ export function IdentityStep({ data, onChange }: IdentityStepProps) {
               className={`flex h-10 w-10 items-center justify-center rounded-lg border text-lg ${
                 data.icon === ico
                   ? "border-purple-500 bg-purple-500/20"
-                  : "border-[#2a2d37] bg-[#1a1d27] hover:border-gray-600"
+                  : "border-surface-border bg-surface-raised hover:border-gray-600"
               }`}
             >
               {ico}
@@ -128,7 +128,7 @@ export function IdentityStep({ data, onChange }: IdentityStepProps) {
           <button
             type="button"
             onClick={addTag}
-            className="rounded-lg border border-[#2a2d37] px-3 py-2 text-sm text-gray-400 hover:bg-white/5"
+            className="rounded-lg border border-surface-border px-3 py-2 text-sm text-gray-400 hover:bg-white/5"
           >
             Add
           </button>

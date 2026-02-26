@@ -78,7 +78,7 @@ export function AuditEventCard({ entry, expanded, onToggle }: Props) {
       />
 
       <div
-        className="mb-3 cursor-pointer rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-4 transition-colors hover:border-purple-500/30"
+        className="mb-3 cursor-pointer rounded-lg border border-surface-border bg-surface-raised p-4 transition-colors hover:border-purple-500/30"
         onClick={onToggle}
       >
         <div className="flex items-start justify-between">
@@ -115,7 +115,7 @@ export function AuditEventCard({ entry, expanded, onToggle }: Props) {
         </div>
 
         {expanded && (
-          <div className="mt-3 grid grid-cols-2 gap-3 border-t border-[#2a2d37] pt-3 text-xs">
+          <div className="mt-3 grid grid-cols-2 gap-3 border-t border-surface-border pt-3 text-xs">
             <div>
               <span className="text-gray-500">Resource ID:</span>{" "}
               <span className="text-gray-300">{entry.resource_id}</span>

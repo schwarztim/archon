@@ -35,14 +35,14 @@ export function AuditTimeline({
 
   if (entries.length === 0) {
     return (
-      <div className="flex h-48 items-center justify-center rounded-lg border border-[#2a2d37] bg-[#1a1d27]">
+      <div className="flex h-48 items-center justify-center rounded-lg border border-surface-border bg-surface-raised">
         <p className="text-sm text-gray-500">No audit events yet.</p>
       </div>
     );
   }
 
   return (
-    <div className="relative border-l-2 border-[#2a2d37] pl-2">
+    <div className="relative border-l-2 border-surface-border pl-2">
       {entries.map((entry) => (
         <AuditEventCard
           key={entry.id}

@@ -37,7 +37,7 @@ export function ConnectorCatalog({ types, onSelectType }: ConnectorCatalogProps)
             placeholder="Search connectors…"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="bg-gray-50 pl-9 dark:bg-[#0f1117]"
+            className="bg-gray-50 pl-9 dark:bg-surface-base"
           />
         </div>
         <div className="flex gap-1">
@@ -46,7 +46,7 @@ export function ConnectorCatalog({ types, onSelectType }: ConnectorCatalogProps)
             className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
               categoryFilter === "All"
                 ? "bg-purple-600 text-white"
-                : "bg-gray-100 text-gray-600 hover:text-gray-900 dark:bg-[#1a1d27] dark:text-gray-400 dark:hover:text-white"
+                : "bg-gray-100 text-gray-600 hover:text-gray-900 dark:bg-surface-raised dark:text-gray-400 dark:hover:text-white"
             }`}
           >
             All
@@ -58,7 +58,7 @@ export function ConnectorCatalog({ types, onSelectType }: ConnectorCatalogProps)
               className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
                 categoryFilter === cat
                   ? "bg-purple-600 text-white"
-                  : "bg-gray-100 text-gray-600 hover:text-gray-900 dark:bg-[#1a1d27] dark:text-gray-400 dark:hover:text-white"
+                  : "bg-gray-100 text-gray-600 hover:text-gray-900 dark:bg-surface-raised dark:text-gray-400 dark:hover:text-white"
               }`}
             >
               {cat}

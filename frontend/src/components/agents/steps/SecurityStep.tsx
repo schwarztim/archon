@@ -36,7 +36,7 @@ const PII_MODES = [
 ];
 
 const inputClass =
-  "w-full rounded-lg border border-[#2a2d37] bg-[#1a1d27] px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none";
+  "w-full rounded-lg border border-surface-border bg-surface-raised px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none";
 const labelClass = "mb-1 block text-xs font-medium text-gray-400";
 
 // ─── Component ───────────────────────────────────────────────────────
@@ -64,7 +64,7 @@ export function SecurityStep({ data, onChange }: SecurityStepProps) {
   return (
     <div className="space-y-5">
       {/* DLP Toggle */}
-      <div className="flex items-center justify-between rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-4">
+      <div className="flex items-center justify-between rounded-lg border border-surface-border bg-surface-raised p-4">
         <div>
           <p className="text-sm font-medium text-white">Data Loss Prevention (DLP)</p>
           <p className="text-xs text-gray-500">Scan inputs and outputs for sensitive data</p>
@@ -98,7 +98,7 @@ export function SecurityStep({ data, onChange }: SecurityStepProps) {
                 className={`flex items-start gap-3 rounded-lg border p-3 text-left transition-colors ${
                   isSelected
                     ? "border-purple-500 bg-purple-500/10"
-                    : "border-[#2a2d37] bg-[#1a1d27] hover:border-gray-600"
+                    : "border-surface-border bg-surface-raised hover:border-gray-600"
                 }`}
               >
                 <div
@@ -154,7 +154,7 @@ export function SecurityStep({ data, onChange }: SecurityStepProps) {
               className={`rounded-lg border p-3 text-left text-sm transition-colors ${
                 data.piiHandling === mode.value
                   ? "border-purple-500 bg-purple-500/10"
-                  : "border-[#2a2d37] bg-[#1a1d27] hover:border-gray-600"
+                  : "border-surface-border bg-surface-raised hover:border-gray-600"
               }`}
             >
               <span className="font-medium text-white">{mode.label}</span>
@@ -198,7 +198,7 @@ export function SecurityStep({ data, onChange }: SecurityStepProps) {
           <button
             type="button"
             onClick={addDomain}
-            className="rounded-lg border border-[#2a2d37] px-3 py-2 text-sm text-gray-400 hover:bg-white/5"
+            className="rounded-lg border border-surface-border px-3 py-2 text-sm text-gray-400 hover:bg-white/5"
           >
             Add
           </button>

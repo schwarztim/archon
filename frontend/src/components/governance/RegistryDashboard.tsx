@@ -82,8 +82,8 @@ export function RegistryDashboard() {
   }
 
   return (
-    <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27]">
-      <div className="flex items-center justify-between border-b border-[#2a2d37] px-4 py-3">
+    <div className="rounded-lg border border-surface-border bg-surface-raised">
+      <div className="flex items-center justify-between border-b border-surface-border px-4 py-3">
         <h2 className="flex items-center gap-2 text-sm font-semibold text-white">
           <ShieldCheck size={16} />
           Agent Registry ({filtered.length})
@@ -114,7 +114,7 @@ export function RegistryDashboard() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-[#2a2d37] text-left text-xs text-gray-500">
+              <tr className="border-b border-surface-border text-left text-xs text-gray-500">
                 <th className="px-4 py-2 font-medium">Agent</th>
                 <th className="px-4 py-2 font-medium">Owner</th>
                 <th className="px-4 py-2 font-medium">Compliance Status</th>
@@ -128,7 +128,7 @@ export function RegistryDashboard() {
               {filtered.map((a) => (
                 <tr
                   key={a.id}
-                  className="cursor-pointer border-b border-[#2a2d37] hover:bg-white/5"
+                  className="cursor-pointer border-b border-surface-border hover:bg-white/5"
                   onClick={() => setSelectedAgent(a.agent_id)}
                 >
                   <td className="px-4 py-2">

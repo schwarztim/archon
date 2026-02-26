@@ -155,9 +155,9 @@ function CreateTemplateModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="relative w-full max-w-lg rounded-xl border border-[#2a2d37] bg-[#12141e] shadow-2xl">
+      <div className="relative w-full max-w-lg rounded-xl border border-surface-border bg-surface-overlay shadow-2xl">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-[#2a2d37] px-6 py-4">
+        <div className="flex items-center justify-between border-b border-surface-border px-6 py-4">
           <h2 className="text-lg font-semibold text-white">Create Template</h2>
           <button onClick={onClose} className="rounded p-1 text-gray-400 hover:bg-white/10 hover:text-white" aria-label="Close">
             <X size={18} />
@@ -165,7 +165,7 @@ function CreateTemplateModal({
         </div>
 
         {/* Step indicators */}
-        <div className="flex items-center gap-2 border-b border-[#2a2d37] px-6 py-3">
+        <div className="flex items-center gap-2 border-b border-surface-border px-6 py-3">
           {["Details", "Configure", "Preview"].map((label, idx) => (
             <button
               key={label}
@@ -177,7 +177,7 @@ function CreateTemplateModal({
               }`}
             >
               <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold ${
-                idx === step ? "bg-purple-500 text-white" : idx < step ? "bg-green-500/30 text-green-400" : "bg-[#2a2d37] text-gray-500"
+                idx === step ? "bg-purple-500 text-white" : idx < step ? "bg-green-500/30 text-green-400" : "bg-surface-border text-gray-500"
               }`}>
                 {idx < step ? <Check size={10} /> : idx + 1}
               </span>
@@ -192,21 +192,21 @@ function CreateTemplateModal({
             <>
               <div>
                 <Label className="mb-1 block text-white">Name *</Label>
-                <Input placeholder="My Agent Template" value={name} onChange={(e) => setName(e.target.value)} className="bg-[#0f1117] text-white border-[#2a2d37]" />
+                <Input placeholder="My Agent Template" value={name} onChange={(e) => setName(e.target.value)} className="bg-surface-base text-white border-surface-border" />
               </div>
               <div>
                 <Label className="mb-1 block text-white">Description</Label>
-                <Textarea rows={3} placeholder="What does this template do?" value={description} onChange={(e) => setDescription(e.target.value)} className="bg-[#0f1117] text-white border-[#2a2d37]" />
+                <Textarea rows={3} placeholder="What does this template do?" value={description} onChange={(e) => setDescription(e.target.value)} className="bg-surface-base text-white border-surface-border" />
               </div>
               <div>
                 <Label className="mb-1 block text-white">Category *</Label>
-                <select value={category} onChange={(e) => setCategory(e.target.value as TemplateCategory)} className="h-9 w-full rounded-md border border-[#2a2d37] bg-[#0f1117] px-3 text-sm text-white">
+                <select value={category} onChange={(e) => setCategory(e.target.value as TemplateCategory)} className="h-9 w-full rounded-md border border-surface-border bg-surface-base px-3 text-sm text-white">
                   {ALL_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
               <div>
                 <Label className="mb-1 block text-white">Tags</Label>
-                <Input placeholder="chat, support, automation" value={tags} onChange={(e) => setTags(e.target.value)} className="bg-[#0f1117] text-white border-[#2a2d37]" />
+                <Input placeholder="chat, support, automation" value={tags} onChange={(e) => setTags(e.target.value)} className="bg-surface-base text-white border-surface-border" />
               </div>
             </>
           )}
@@ -214,7 +214,7 @@ function CreateTemplateModal({
             <>
               <div>
                 <Label className="mb-1 block text-white">Model</Label>
-                <select value={model} onChange={(e) => setModel(e.target.value)} className="h-9 w-full rounded-md border border-[#2a2d37] bg-[#0f1117] px-3 text-sm text-white">
+                <select value={model} onChange={(e) => setModel(e.target.value)} className="h-9 w-full rounded-md border border-surface-border bg-surface-base px-3 text-sm text-white">
                   {MODELS.map((m) => <option key={m} value={m}>{m}</option>)}
                 </select>
               </div>
@@ -231,7 +231,7 @@ function CreateTemplateModal({
                       type="button"
                       onClick={() => setTools(tools.includes(t) ? tools.filter((x) => x !== t) : [...tools, t])}
                       className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                        tools.includes(t) ? "bg-purple-500/20 text-purple-400" : "border border-[#2a2d37] text-gray-400 hover:bg-white/5"
+                        tools.includes(t) ? "bg-purple-500/20 text-purple-400" : "border border-surface-border text-gray-400 hover:bg-white/5"
                       }`}
                     >
                       {t.replace(/_/g, " ")}
@@ -242,7 +242,7 @@ function CreateTemplateModal({
             </>
           )}
           {step === 2 && (
-            <div className="rounded-lg border border-[#2a2d37] bg-[#0f1117] p-4 space-y-2 text-sm">
+            <div className="rounded-lg border border-surface-border bg-surface-base p-4 space-y-2 text-sm">
               <div><span className="text-gray-500">Name:</span> <span className="text-white">{name || "—"}</span></div>
               <div><span className="text-gray-500">Category:</span> <span className={`ml-1 rounded-full px-2 py-0.5 text-xs ${CATEGORY_COLORS[category]}`}>{category}</span></div>
               <div><span className="text-gray-500">Model:</span> <span className="text-white">{model}</span></div>
@@ -254,7 +254,7 @@ function CreateTemplateModal({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between border-t border-[#2a2d37] px-6 py-4">
+        <div className="flex items-center justify-between border-t border-surface-border px-6 py-4">
           {step > 0 ? (
             <Button variant="ghost" size="sm" onClick={() => setStep(step - 1)}>
               <ChevronLeft size={14} className="mr-1" /> Back
@@ -295,8 +295,8 @@ function TemplateDetailModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="relative w-full max-w-md rounded-xl border border-[#2a2d37] bg-[#12141e] shadow-2xl">
-        <div className="flex items-center justify-between border-b border-[#2a2d37] px-6 py-4">
+      <div className="relative w-full max-w-md rounded-xl border border-surface-border bg-surface-overlay shadow-2xl">
+        <div className="flex items-center justify-between border-b border-surface-border px-6 py-4">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-500/10">
               <Icon size={20} className="text-purple-400" />
@@ -428,7 +428,7 @@ export function TemplatesPage() {
         <div className="flex items-center gap-3">
           <LayoutTemplate size={24} className="text-purple-400" />
           <h1 className="text-2xl font-bold text-white">Templates</h1>
-          <span className="rounded-full bg-[#1a1d27] px-2 py-0.5 text-xs text-gray-400">{filtered.length}</span>
+          <span className="rounded-full bg-surface-raised px-2 py-0.5 text-xs text-gray-400">{filtered.length}</span>
         </div>
         <Button size="sm" className="bg-purple-600 hover:bg-purple-700" onClick={() => setShowCreate(true)}>
           <Plus size={14} className="mr-1.5" /> Create Template
@@ -440,7 +440,7 @@ export function TemplatesPage() {
       <div className="mb-5 flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px] max-w-xs">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-          <Input placeholder="Search templates…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 bg-[#0f1117] text-white border-[#2a2d37]" />
+          <Input placeholder="Search templates…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 bg-surface-base text-white border-surface-border" />
         </div>
         <div className="flex flex-wrap gap-1">
           <button onClick={() => setCatFilter("all")} className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${catFilter === "all" ? "bg-purple-500/20 text-purple-400" : "text-gray-400 hover:bg-white/5"}`}>
@@ -456,7 +456,7 @@ export function TemplatesPage() {
 
       {/* Gallery Grid */}
       {filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-lg border border-[#2a2d37] bg-[#1a1d27] py-16">
+        <div className="flex flex-col items-center justify-center rounded-lg border border-surface-border bg-surface-raised py-16">
           <LayoutTemplate size={40} className="mb-3 text-gray-600" />
           <p className="text-sm text-gray-500">No templates match your search.</p>
         </div>
@@ -473,7 +473,7 @@ export function TemplatesPage() {
               <div
                 key={key}
                 onClick={() => setDetailItem(data)}
-                className="group cursor-pointer rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-4 transition-colors hover:border-purple-500/30"
+                className="group cursor-pointer rounded-lg border border-surface-border bg-surface-raised p-4 transition-colors hover:border-purple-500/30"
               >
                 <div className="mb-3 flex items-start justify-between">
                   <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-500/10 group-hover:bg-purple-500/20 transition-colors">

@@ -28,7 +28,7 @@ export function RemediationPanel({ service, onApply }: RemediationPanelProps) {
   return (
     <div className="flex items-center gap-2">
       <select
-        className="rounded-md border border-[#2a2d37] bg-[#0f1117] px-2 py-1 text-xs text-gray-200 focus:border-purple-500 focus:outline-none"
+        className="rounded-md border border-surface-border bg-surface-base px-2 py-1 text-xs text-gray-200 focus:border-purple-500 focus:outline-none"
         value={selectedAction}
         onChange={(e) => setSelectedAction(e.target.value)}
       >

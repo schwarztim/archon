@@ -131,16 +131,16 @@ export function ExecutionGraph({ steps, className = "" }: ExecutionGraphProps) {
         proOptions={{ hideAttribution: true }}
         nodesDraggable={false}
         nodesConnectable={false}
-        className="bg-[#0f1117]"
+        className="bg-surface-base"
       >
         <Background color="#1a1d27" gap={20} />
-        <Controls className="!bg-[#1a1d27] !border-[#2a2d37]" />
+        <Controls className="!bg-surface-raised !border-surface-border" />
         <MiniMap
           nodeColor={(node) => {
             const status = (node.data as Record<string, unknown>)?.status as string;
             return STATUS_COLORS[status]?.border ?? "#4b5563";
           }}
-          className="!bg-[#0f1117] !border-[#2a2d37]"
+          className="!bg-surface-base !border-surface-border"
         />
       </ReactFlow>
     </div>

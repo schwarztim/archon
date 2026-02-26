@@ -107,14 +107,14 @@ export function DetectorPicker({ selected, onChange, detectors }: DetectorPicker
           <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500" />
           <input
             type="text"
-            className="w-full rounded-md border border-[#2a2d37] bg-white/5 py-1.5 pl-8 pr-3 text-sm text-gray-200 placeholder-gray-500 focus:border-purple-500 focus:outline-none"
+            className="w-full rounded-md border border-surface-border bg-white/5 py-1.5 pl-8 pr-3 text-sm text-gray-200 placeholder-gray-500 focus:border-purple-500 focus:outline-none"
             placeholder="Search detectors..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
         <select
-          className="rounded-md border border-[#2a2d37] bg-white/5 px-2 text-xs text-gray-300 focus:border-purple-500 focus:outline-none"
+          className="rounded-md border border-surface-border bg-white/5 px-2 text-xs text-gray-300 focus:border-purple-500 focus:outline-none"
           value={categoryFilter}
           onChange={(e) => setCategoryFilter(e.target.value)}
         >

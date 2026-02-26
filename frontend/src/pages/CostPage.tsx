@@ -211,8 +211,8 @@ export function CostPage() {
       <UsageChart series={chartData} providers={chartProviders} />
 
       {/* Usage Table */}
-      <div className="mb-6 rounded-lg border border-[#2a2d37] bg-[#1a1d27]">
-        <div className="border-b border-[#2a2d37] px-4 py-3">
+      <div className="mb-6 rounded-lg border border-surface-border bg-surface-raised">
+        <div className="border-b border-surface-border px-4 py-3">
           <h2 className="text-sm font-semibold text-white">Usage</h2>
         </div>
         <div className="overflow-x-auto">
@@ -224,7 +224,7 @@ export function CostPage() {
           ) : (
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-[#2a2d37] text-left text-xs text-gray-500">
+                <tr className="border-b border-surface-border text-left text-xs text-gray-500">
                   <th className="px-4 py-2 font-medium">Model</th>
                   <th className="px-4 py-2 font-medium">Agent</th>
                   <th className="px-4 py-2 font-medium text-right">Input Tokens</th>
@@ -235,7 +235,7 @@ export function CostPage() {
               </thead>
               <tbody>
                 {usage.map((u) => (
-                  <tr key={u.id} className="border-b border-[#2a2d37] hover:bg-white/5">
+                  <tr key={u.id} className="border-b border-surface-border hover:bg-white/5">
                     <td className="px-4 py-2 font-medium text-white">{u.model_id}</td>
                     <td className="px-4 py-2 text-gray-400">{u.agent_id}</td>
                     <td className="px-4 py-2 text-right text-gray-400">{formatTokens(u.input_tokens)}</td>
@@ -276,8 +276,8 @@ export function CostPage() {
       {topConsumers.length > 0 && <TopConsumers data={topConsumers} />}
 
       {/* Alerts */}
-      <div className="mb-6 rounded-lg border border-[#2a2d37] bg-[#1a1d27]">
-        <div className="border-b border-[#2a2d37] px-4 py-3">
+      <div className="mb-6 rounded-lg border border-surface-border bg-surface-raised">
+        <div className="border-b border-surface-border px-4 py-3">
           <h2 className="text-sm font-semibold text-white">Alerts</h2>
         </div>
         {alerts.length === 0 ? (
@@ -305,14 +305,14 @@ export function CostPage() {
 
       {/* Pricing */}
       {pricing.length > 0 && (
-        <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27]">
-          <div className="border-b border-[#2a2d37] px-4 py-3">
+        <div className="rounded-lg border border-surface-border bg-surface-raised">
+          <div className="border-b border-surface-border px-4 py-3">
             <h2 className="text-sm font-semibold text-white">Pricing</h2>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-[#2a2d37] text-left text-xs text-gray-500">
+                <tr className="border-b border-surface-border text-left text-xs text-gray-500">
                   <th className="px-4 py-2 font-medium">Model</th>
                   <th className="px-4 py-2 font-medium text-right">Input $/1K</th>
                   <th className="px-4 py-2 font-medium text-right">Output $/1K</th>
@@ -320,7 +320,7 @@ export function CostPage() {
               </thead>
               <tbody>
                 {pricing.map((p) => (
-                  <tr key={p.id} className="border-b border-[#2a2d37] hover:bg-white/5">
+                  <tr key={p.id} className="border-b border-surface-border hover:bg-white/5">
                     <td className="px-4 py-2 font-medium text-white">{p.model_id}</td>
                     <td className="px-4 py-2 text-right text-gray-400">${(p.cost_per_input_token * 1000).toFixed(4)}</td>
                     <td className="px-4 py-2 text-right text-gray-400">${(p.cost_per_output_token * 1000).toFixed(4)}</td>

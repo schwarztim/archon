@@ -152,7 +152,7 @@ function ToolIcon({ icon, size = 18 }: { icon: string; size?: number }) {
 // ─── Shared styles ──────────────────────────────────────────────────
 
 const inputClass =
-  "w-full rounded-lg border border-[#2a2d37] bg-[#1a1d27] px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none";
+  "w-full rounded-lg border border-surface-border bg-surface-raised px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none";
 
 const labelClass = "mb-1 block text-xs font-medium text-gray-400";
 
@@ -327,7 +327,7 @@ export function AgentWizard({ onClose, onSubmit, isPending, quickCreate = false 
               className={`flex h-10 w-10 items-center justify-center rounded-lg border text-lg ${
                 s1.icon === ico
                   ? "border-purple-500 bg-purple-500/20"
-                  : "border-[#2a2d37] bg-[#1a1d27] hover:border-gray-600"
+                  : "border-surface-border bg-surface-raised hover:border-gray-600"
               }`}
             >
               {ico}
@@ -359,7 +359,7 @@ export function AgentWizard({ onClose, onSubmit, isPending, quickCreate = false 
             className={`flex-1 ${inputClass}`}
             placeholder="Add tag..."
           />
-          <button type="button" onClick={addTag} className="rounded-lg border border-[#2a2d37] px-3 py-2 text-sm text-gray-400 hover:bg-white/5">
+          <button type="button" onClick={addTag} className="rounded-lg border border-surface-border px-3 py-2 text-sm text-gray-400 hover:bg-white/5">
             Add
           </button>
         </div>
@@ -460,10 +460,10 @@ export function AgentWizard({ onClose, onSubmit, isPending, quickCreate = false 
               className={`flex items-start gap-3 rounded-lg border p-3 text-left transition-colors ${
                 selected
                   ? "border-purple-500 bg-purple-500/10"
-                  : "border-[#2a2d37] bg-[#1a1d27] hover:border-gray-600"
+                  : "border-surface-border bg-surface-raised hover:border-gray-600"
               }`}
             >
-              <div className={`mt-0.5 rounded-lg p-2 ${selected ? "bg-purple-500/20 text-purple-400" : "bg-[#12141e] text-gray-500"}`}>
+              <div className={`mt-0.5 rounded-lg p-2 ${selected ? "bg-purple-500/20 text-purple-400" : "bg-surface-overlay text-gray-500"}`}>
                 <ToolIcon icon={tool.icon} size={16} />
               </div>
               <div className="flex-1 min-w-0">
@@ -481,7 +481,7 @@ export function AgentWizard({ onClose, onSubmit, isPending, quickCreate = false 
       </div>
       <button
         type="button"
-        className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-[#2a2d37] py-3 text-sm text-gray-500 hover:border-purple-500/50 hover:text-purple-400"
+        className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-surface-border py-3 text-sm text-gray-500 hover:border-purple-500/50 hover:text-purple-400"
       >
         <Plus size={16} />
         Custom Tool
@@ -491,7 +491,7 @@ export function AgentWizard({ onClose, onSubmit, isPending, quickCreate = false 
 
   const renderStep4 = () => (
     <div className="space-y-4">
-      <div className="flex items-center justify-between rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-4">
+      <div className="flex items-center justify-between rounded-lg border border-surface-border bg-surface-raised p-4">
         <div>
           <p className="text-sm font-medium text-white">Enable Knowledge Base</p>
           <p className="text-xs text-gray-500">Connect a vector store for RAG-powered responses</p>
@@ -507,7 +507,7 @@ export function AgentWizard({ onClose, onSubmit, isPending, quickCreate = false 
         </label>
       </div>
       {s4.enabled && (
-        <div className="space-y-4 rounded-lg border border-[#2a2d37] bg-[#12141e] p-4">
+        <div className="space-y-4 rounded-lg border border-surface-border bg-surface-overlay p-4">
           <div>
             <label className={labelClass}>Collection</label>
             <select value={s4.collection} onChange={(e) => setS4((p) => ({ ...p, collection: e.target.value }))} className={inputClass}>
@@ -542,7 +542,7 @@ export function AgentWizard({ onClose, onSubmit, isPending, quickCreate = false 
           </div>
           <div>
             <label className={labelClass}>Upload Documents</label>
-            <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-[#2a2d37] py-8 text-gray-500 hover:border-purple-500/50">
+            <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-surface-border py-8 text-gray-500 hover:border-purple-500/50">
               <Upload size={24} className="mb-2" />
               <p className="text-sm">Drop files here or click to upload</p>
               <p className="mt-1 text-xs text-gray-600">PDF, TXT, MD, CSV — up to 10MB</p>
@@ -555,7 +555,7 @@ export function AgentWizard({ onClose, onSubmit, isPending, quickCreate = false 
 
   const renderStep5 = () => (
     <div className="space-y-4">
-      <div className="flex items-center justify-between rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-4">
+      <div className="flex items-center justify-between rounded-lg border border-surface-border bg-surface-raised p-4">
         <div>
           <p className="text-sm font-medium text-white">DLP Protection</p>
           <p className="text-xs text-gray-500">Scan inputs and outputs for sensitive data</p>
@@ -593,7 +593,7 @@ export function AgentWizard({ onClose, onSubmit, isPending, quickCreate = false 
               <label
                 key={policy}
                 className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors ${
-                  selected ? "border-purple-500 bg-purple-500/10" : "border-[#2a2d37] bg-[#1a1d27] hover:border-gray-600"
+                  selected ? "border-purple-500 bg-purple-500/10" : "border-surface-border bg-surface-raised hover:border-gray-600"
                 }`}
               >
                 <input
@@ -629,7 +629,7 @@ export function AgentWizard({ onClose, onSubmit, isPending, quickCreate = false 
             className={`flex-1 ${inputClass}`}
             placeholder="example.com"
           />
-          <button type="button" onClick={addDomain} className="rounded-lg border border-[#2a2d37] px-3 py-2 text-sm text-gray-400 hover:bg-white/5">
+          <button type="button" onClick={addDomain} className="rounded-lg border border-surface-border px-3 py-2 text-sm text-gray-400 hover:bg-white/5">
             Add
           </button>
         </div>
@@ -650,10 +650,10 @@ export function AgentWizard({ onClose, onSubmit, isPending, quickCreate = false 
               className={`flex items-center gap-3 rounded-lg border p-3 text-left transition-colors ${
                 selected
                   ? "border-purple-500 bg-purple-500/10"
-                  : "border-[#2a2d37] bg-[#1a1d27] hover:border-gray-600"
+                  : "border-surface-border bg-surface-raised hover:border-gray-600"
               }`}
             >
-              <div className={`rounded-lg p-2 ${selected ? "bg-purple-500/20 text-purple-400" : "bg-[#12141e] text-gray-500"}`}>
+              <div className={`rounded-lg p-2 ${selected ? "bg-purple-500/20 text-purple-400" : "bg-surface-overlay text-gray-500"}`}>
                 <ToolIcon icon={conn.icon} size={16} />
               </div>
               <div className="flex-1 min-w-0">
@@ -687,7 +687,7 @@ export function AgentWizard({ onClose, onSubmit, isPending, quickCreate = false 
     return (
       <div className="space-y-4">
         {/* Identity summary */}
-        <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-4">
+        <div className="rounded-lg border border-surface-border bg-surface-raised p-4">
           <h4 className="mb-2 text-xs font-medium uppercase tracking-wider text-gray-500">Identity</h4>
           <div className="flex items-center gap-2">
             <span className="text-lg">{s1.icon}</span>
@@ -704,7 +704,7 @@ export function AgentWizard({ onClose, onSubmit, isPending, quickCreate = false 
         </div>
 
         {/* Model summary */}
-        <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-4">
+        <div className="rounded-lg border border-surface-border bg-surface-raised p-4">
           <h4 className="mb-2 text-xs font-medium uppercase tracking-wider text-gray-500">Model Configuration</h4>
           <div className="grid grid-cols-2 gap-2 text-xs">
             <div><span className="text-gray-500">Provider:</span> <span className="text-white">{payload.llm_config.provider}</span></div>
@@ -715,14 +715,14 @@ export function AgentWizard({ onClose, onSubmit, isPending, quickCreate = false 
           {payload.llm_config.system_prompt && (
             <div className="mt-2">
               <span className="text-xs text-gray-500">System Prompt:</span>
-              <p className="mt-1 line-clamp-2 rounded bg-[#12141e] p-2 font-mono text-xs text-gray-300">{payload.llm_config.system_prompt}</p>
+              <p className="mt-1 line-clamp-2 rounded bg-surface-overlay p-2 font-mono text-xs text-gray-300">{payload.llm_config.system_prompt}</p>
             </div>
           )}
         </div>
 
         {/* Tools summary */}
         {payload.tools.length > 0 && (
-          <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-4">
+          <div className="rounded-lg border border-surface-border bg-surface-raised p-4">
             <h4 className="mb-2 text-xs font-medium uppercase tracking-wider text-gray-500">
               Tools ({payload.tools.length})
             </h4>
@@ -730,7 +730,7 @@ export function AgentWizard({ onClose, onSubmit, isPending, quickCreate = false 
               {payload.tools.map((t) => {
                 const tool = PLACEHOLDER_TOOLS.find((pt) => pt.id === t);
                 return (
-                  <span key={t} className="rounded bg-[#12141e] px-2 py-1 text-xs text-gray-300">
+                  <span key={t} className="rounded bg-surface-overlay px-2 py-1 text-xs text-gray-300">
                     {tool?.name ?? t}
                   </span>
                 );
@@ -741,7 +741,7 @@ export function AgentWizard({ onClose, onSubmit, isPending, quickCreate = false 
 
         {/* RAG summary */}
         {payload.rag_config && (
-          <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-4">
+          <div className="rounded-lg border border-surface-border bg-surface-raised p-4">
             <h4 className="mb-2 text-xs font-medium uppercase tracking-wider text-gray-500">Knowledge (RAG)</h4>
             <div className="grid grid-cols-3 gap-2 text-xs">
               <div><span className="text-gray-500">Collection:</span> <span className="text-white">{payload.rag_config.collection || "—"}</span></div>
@@ -752,7 +752,7 @@ export function AgentWizard({ onClose, onSubmit, isPending, quickCreate = false 
         )}
 
         {/* Security summary */}
-        <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-4">
+        <div className="rounded-lg border border-surface-border bg-surface-raised p-4">
           <h4 className="mb-2 text-xs font-medium uppercase tracking-wider text-gray-500">Security</h4>
           <div className="grid grid-cols-2 gap-2 text-xs">
             <div><span className="text-gray-500">DLP:</span> <span className={payload.security_policy.dlp_enabled ? "text-green-400" : "text-gray-400"}>{payload.security_policy.dlp_enabled ? "Enabled" : "Disabled"}</span></div>
@@ -761,7 +761,7 @@ export function AgentWizard({ onClose, onSubmit, isPending, quickCreate = false 
           {payload.security_policy.guardrail_policies.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-1">
               {payload.security_policy.guardrail_policies.map((g) => (
-                <span key={g} className="rounded bg-[#12141e] px-2 py-1 text-xs text-gray-300">{g}</span>
+                <span key={g} className="rounded bg-surface-overlay px-2 py-1 text-xs text-gray-300">{g}</span>
               ))}
             </div>
           )}
@@ -769,7 +769,7 @@ export function AgentWizard({ onClose, onSubmit, isPending, quickCreate = false 
 
         {/* Connectors summary */}
         {payload.connectors.length > 0 && (
-          <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-4">
+          <div className="rounded-lg border border-surface-border bg-surface-raised p-4">
             <h4 className="mb-2 text-xs font-medium uppercase tracking-wider text-gray-500">
               Connectors ({payload.connectors.length})
             </h4>
@@ -777,7 +777,7 @@ export function AgentWizard({ onClose, onSubmit, isPending, quickCreate = false 
               {payload.connectors.map((c) => {
                 const conn = PLACEHOLDER_CONNECTORS.find((pc) => pc.id === c);
                 return (
-                  <span key={c} className="rounded bg-[#12141e] px-2 py-1 text-xs text-gray-300">{conn?.name ?? c}</span>
+                  <span key={c} className="rounded bg-surface-overlay px-2 py-1 text-xs text-gray-300">{conn?.name ?? c}</span>
                 );
               })}
             </div>
@@ -785,7 +785,7 @@ export function AgentWizard({ onClose, onSubmit, isPending, quickCreate = false 
         )}
 
         {/* Test Agent */}
-        <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-4">
+        <div className="rounded-lg border border-surface-border bg-surface-raised p-4">
           <div className="flex items-center justify-between">
             <div>
               <h4 className="text-xs font-medium uppercase tracking-wider text-gray-500">Test Agent</h4>
@@ -802,7 +802,7 @@ export function AgentWizard({ onClose, onSubmit, isPending, quickCreate = false 
             </button>
           </div>
           {testResult && (
-            <pre className="mt-3 whitespace-pre-wrap rounded bg-[#12141e] p-3 font-mono text-xs text-green-400">
+            <pre className="mt-3 whitespace-pre-wrap rounded bg-surface-overlay p-3 font-mono text-xs text-green-400">
               {testResult}
             </pre>
           )}
@@ -821,9 +821,9 @@ export function AgentWizard({ onClose, onSubmit, isPending, quickCreate = false 
   // ── Render ─────────────────────────────────────────────────────────
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-[#0e1017]/95 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex flex-col bg-surface-base/95 backdrop-blur-sm">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-[#2a2d37] px-6 py-4">
+      <div className="flex items-center justify-between border-b border-surface-border px-6 py-4">
         <div className="flex items-center gap-3">
           <Bot size={20} className="text-purple-400" />
           <h2 className="text-lg font-semibold text-white">
@@ -836,7 +836,7 @@ export function AgentWizard({ onClose, onSubmit, isPending, quickCreate = false 
       </div>
 
       {/* Step Indicator */}
-      <div className="border-b border-[#2a2d37] px-6 py-3">
+      <div className="border-b border-surface-border px-6 py-3">
         <div className="flex items-center gap-1">
           {stepsToShow.map((s, i) => {
             const Icon = s.icon;
@@ -845,7 +845,7 @@ export function AgentWizard({ onClose, onSubmit, isPending, quickCreate = false 
             return (
               <div key={i} className="flex items-center">
                 {i > 0 && (
-                  <div className={`mx-1 h-px w-8 ${isCompleted ? "bg-purple-500" : "bg-[#2a2d37]"}`} />
+                  <div className={`mx-1 h-px w-8 ${isCompleted ? "bg-purple-500" : "bg-surface-border"}`} />
                 )}
                 <button
                   type="button"
@@ -892,13 +892,13 @@ export function AgentWizard({ onClose, onSubmit, isPending, quickCreate = false 
       </div>
 
       {/* Footer */}
-      <div className="flex items-center justify-between border-t border-[#2a2d37] px-6 py-4">
+      <div className="flex items-center justify-between border-t border-surface-border px-6 py-4">
         <div>
           {step > 0 && (
             <button
               type="button"
               onClick={() => setStep((s) => s - 1)}
-              className="flex items-center gap-1 rounded-lg border border-[#2a2d37] px-4 py-2 text-sm text-gray-400 hover:bg-white/5"
+              className="flex items-center gap-1 rounded-lg border border-surface-border px-4 py-2 text-sm text-gray-400 hover:bg-white/5"
             >
               <ChevronLeft size={16} />
               Back
@@ -912,7 +912,7 @@ export function AgentWizard({ onClose, onSubmit, isPending, quickCreate = false 
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border border-[#2a2d37] px-4 py-2 text-sm text-gray-400 hover:bg-white/5"
+            className="rounded-lg border border-surface-border px-4 py-2 text-sm text-gray-400 hover:bg-white/5"
           >
             Cancel
           </button>

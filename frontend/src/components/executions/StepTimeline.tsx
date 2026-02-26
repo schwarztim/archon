@@ -68,7 +68,7 @@ function StepItem({ step, index, isLast }: { step: StepData; index: number; isLa
       {/* Timeline line */}
       <div className="flex flex-col items-center">
         <div className="mt-1">{stepStatusIcon(step.status)}</div>
-        {!isLast && <div className="mt-1 h-full w-px bg-[#2a2d37]" />}
+        {!isLast && <div className="mt-1 h-full w-px bg-surface-border" />}
       </div>
 
       {/* Content */}
@@ -108,7 +108,7 @@ function StepItem({ step, index, isLast }: { step: StepData; index: number; isLa
 
         {/* Expanded detail */}
         {expanded && (
-          <div className="mt-2 space-y-2 rounded border border-[#2a2d37] bg-black/30 p-3">
+          <div className="mt-2 space-y-2 rounded border border-surface-border bg-black/30 p-3">
             {step.input && (
               <div>
                 <div className="mb-1 text-[10px] font-semibold uppercase text-gray-500">Input</div>

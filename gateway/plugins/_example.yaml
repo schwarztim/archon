@@ -1,0 +1,35 @@
+# Example MCP plugin definition for the Archon Gateway.
+#
+# Copy this file and customise for your target MCP server.
+# Files prefixed with "_" are loaded like any other — rename or set
+# `enabled: false` to prevent this example from appearing in production.
+
+name: example-echo-plugin
+display_name: "Example Echo Server"
+version: "0.1.0"
+enabled: false
+description: >
+  A minimal example showing all supported fields.
+  Replace with a real MCP server endpoint before enabling.
+
+# Transport: http | stdio | sse
+transport: http
+endpoint: "http://localhost:9000"
+
+# Auth: none | bearer | api_key | oauth2
+auth_type: bearer
+auth_header: "Authorization"
+
+# Informational list of tool names exposed by this plugin.
+# The gateway discovers the real list at runtime via MCP /tools.
+tools:
+  - echo
+  - ping
+
+# Free-form extra metadata — not interpreted by the gateway core.
+metadata:
+  maintainer: "platform-team@example.com"
+  docs: "https://docs.example.com/mcp/echo-plugin"
+  tags:
+    - example
+    - echo

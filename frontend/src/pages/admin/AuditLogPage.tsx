@@ -145,7 +145,7 @@ export function AuditLogPage() {
         <button
           onClick={() => exportToCsv(entries)}
           disabled={entries.length === 0}
-          className="flex items-center gap-2 rounded-lg border border-[#2a2d37] px-4 py-2 text-sm text-gray-300 hover:bg-white/5 disabled:opacity-40"
+          className="flex items-center gap-2 rounded-lg border border-surface-border px-4 py-2 text-sm text-gray-300 hover:bg-white/5 disabled:opacity-40"
         >
           <Download size={16} />
           Export CSV
@@ -161,7 +161,7 @@ export function AuditLogPage() {
             placeholder="Search by actor, action, or resource..."
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(0); }}
-            className="w-full rounded-lg border border-[#2a2d37] bg-[#1a1d27] py-2 pl-9 pr-3 text-sm text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none"
+            className="w-full rounded-lg border border-surface-border bg-surface-raised py-2 pl-9 pr-3 text-sm text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none"
           />
         </div>
         <button
@@ -169,7 +169,7 @@ export function AuditLogPage() {
           className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm ${
             showFilters
               ? "border-purple-500 text-purple-400"
-              : "border-[#2a2d37] text-gray-400 hover:bg-white/5"
+              : "border-surface-border text-gray-400 hover:bg-white/5"
           }`}
         >
           <Filter size={16} />
@@ -179,13 +179,13 @@ export function AuditLogPage() {
 
       {/* Expanded Filters */}
       {showFilters && (
-        <div className="mb-4 grid grid-cols-1 gap-3 rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mb-4 grid grid-cols-1 gap-3 rounded-lg border border-surface-border bg-surface-raised p-4 sm:grid-cols-2 lg:grid-cols-4">
           <div>
             <label className="mb-1 block text-xs text-gray-400">Action</label>
             <select
               value={actionFilter}
               onChange={(e) => { setActionFilter(e.target.value); setPage(0); }}
-              className="w-full rounded-lg border border-[#2a2d37] bg-[#12141e] px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none"
+              className="w-full rounded-lg border border-surface-border bg-surface-overlay px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none"
             >
               <option value="all">All Actions</option>
               {distinctActions.map((a) => (
@@ -200,7 +200,7 @@ export function AuditLogPage() {
             <select
               value={resultFilter}
               onChange={(e) => { setResultFilter(e.target.value); setPage(0); }}
-              className="w-full rounded-lg border border-[#2a2d37] bg-[#12141e] px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none"
+              className="w-full rounded-lg border border-surface-border bg-surface-overlay px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none"
             >
               <option value="all">All Results</option>
               <option value="success">Success</option>
@@ -214,7 +214,7 @@ export function AuditLogPage() {
               type="date"
               value={dateFrom}
               onChange={(e) => { setDateFrom(e.target.value); setPage(0); }}
-              className="w-full rounded-lg border border-[#2a2d37] bg-[#12141e] px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none"
+              className="w-full rounded-lg border border-surface-border bg-surface-overlay px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none"
             />
           </div>
           <div>
@@ -223,14 +223,14 @@ export function AuditLogPage() {
               type="date"
               value={dateTo}
               onChange={(e) => { setDateTo(e.target.value); setPage(0); }}
-              className="w-full rounded-lg border border-[#2a2d37] bg-[#12141e] px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none"
+              className="w-full rounded-lg border border-surface-border bg-surface-overlay px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none"
             />
           </div>
         </div>
       )}
 
       {/* Table */}
-      <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27]">
+      <div className="rounded-lg border border-surface-border bg-surface-raised">
         <div className="overflow-x-auto">
           {entries.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12">
@@ -240,7 +240,7 @@ export function AuditLogPage() {
           ) : (
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-[#2a2d37] text-left text-xs text-gray-500">
+                <tr className="border-b border-surface-border text-left text-xs text-gray-500">
                   <th className="px-4 py-2 font-medium">Timestamp</th>
                   <th className="px-4 py-2 font-medium">Actor</th>
                   <th className="px-4 py-2 font-medium">Action</th>
@@ -251,7 +251,7 @@ export function AuditLogPage() {
               </thead>
               <tbody>
                 {entries.map((e) => (
-                  <tr key={e.id} className="border-b border-[#2a2d37] hover:bg-white/5">
+                  <tr key={e.id} className="border-b border-surface-border hover:bg-white/5">
                     <td className="whitespace-nowrap px-4 py-2 text-gray-400">
                       {new Date(e.timestamp).toLocaleString()}
                     </td>
@@ -279,7 +279,7 @@ export function AuditLogPage() {
 
         {/* Pagination */}
         {total > limit && (
-          <div className="flex items-center justify-between border-t border-[#2a2d37] px-4 py-3">
+          <div className="flex items-center justify-between border-t border-surface-border px-4 py-3">
             <span className="text-xs text-gray-500">
               {page * limit + 1}–{Math.min((page + 1) * limit, total)} of {total}
             </span>
@@ -287,14 +287,14 @@ export function AuditLogPage() {
               <button
                 disabled={page === 0}
                 onClick={() => setPage((p) => p - 1)}
-                className="rounded border border-[#2a2d37] px-3 py-1 text-xs text-gray-400 hover:bg-white/5 disabled:opacity-40"
+                className="rounded border border-surface-border px-3 py-1 text-xs text-gray-400 hover:bg-white/5 disabled:opacity-40"
               >
                 Previous
               </button>
               <button
                 disabled={(page + 1) * limit >= total}
                 onClick={() => setPage((p) => p + 1)}
-                className="rounded border border-[#2a2d37] px-3 py-1 text-xs text-gray-400 hover:bg-white/5 disabled:opacity-40"
+                className="rounded border border-surface-border px-3 py-1 text-xs text-gray-400 hover:bg-white/5 disabled:opacity-40"
               >
                 Next
               </button>

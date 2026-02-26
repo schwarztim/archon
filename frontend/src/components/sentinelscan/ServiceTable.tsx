@@ -56,8 +56,8 @@ function typeBadge(type: string) {
 export function ServiceTable({ services, onServiceClick, selectedIds, onToggleSelect, onSelectAll }: ServiceTableProps) {
   if (services.length === 0) {
     return (
-      <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27]">
-        <div className="border-b border-[#2a2d37] px-4 py-3">
+      <div className="rounded-lg border border-surface-border bg-surface-raised">
+        <div className="border-b border-surface-border px-4 py-3">
           <h2 className="text-sm font-semibold text-white">Service Inventory (0)</h2>
         </div>
         <div className="flex flex-col items-center justify-center py-12">
@@ -69,14 +69,14 @@ export function ServiceTable({ services, onServiceClick, selectedIds, onToggleSe
   }
 
   return (
-    <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27]">
-      <div className="border-b border-[#2a2d37] px-4 py-3">
+    <div className="rounded-lg border border-surface-border bg-surface-raised">
+      <div className="border-b border-surface-border px-4 py-3">
         <h2 className="text-sm font-semibold text-white">Service Inventory ({services.length})</h2>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-[#2a2d37] text-left text-xs text-gray-500">
+            <tr className="border-b border-surface-border text-left text-xs text-gray-500">
               {onToggleSelect && (
                 <th className="px-3 py-2 font-medium w-8">
                   <input
@@ -101,7 +101,7 @@ export function ServiceTable({ services, onServiceClick, selectedIds, onToggleSe
             {services.map((svc) => (
               <tr
                 key={svc.id}
-                className="border-b border-[#2a2d37] hover:bg-white/5 cursor-pointer"
+                className="border-b border-surface-border hover:bg-white/5 cursor-pointer"
                 onClick={() => onServiceClick?.(svc)}
               >
                 {onToggleSelect && (
