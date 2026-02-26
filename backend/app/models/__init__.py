@@ -218,7 +218,13 @@ from app.models.router import (
     FallbackChainConfigDB,
 )
 from app.models.lifecycle import DeploymentRecord, HealthCheck, LifecycleEvent
-from app.models.cost import Budget, CostAlert, ProviderPricing, TokenLedger
+from app.models.cost import (
+    Budget,
+    CostAlert,
+    DepartmentBudget,
+    ProviderPricing,
+    TokenLedger,
+)
 from app.models.tenancy import BillingRecord, Tenant, TenantQuota, UsageMeteringRecord
 from app.models.governance import (
     AgentRegistryEntry,
@@ -301,6 +307,7 @@ __all__ = [
     "DLPDetectedEntity",
     "DLPPolicy",
     "DLPScanResult",
+    "DepartmentBudget",
     "DeploymentRecord",
     "DiscoveredService",
     "DiscoveryScan",

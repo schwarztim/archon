@@ -146,16 +146,22 @@ async def test_compare_success() -> None:
     session = _mock_session()
 
     v1 = AgentVersion(
-        id=VERSION_ID_1, agent_id=AGENT_ID, version="1.0.0",
+        id=VERSION_ID_1,
+        agent_id=AGENT_ID,
+        version="1.0.0",
         definition={"model": "gpt-4", "temperature": 0.7},
         created_by=OWNER_ID,
     )
     v2 = AgentVersion(
-        id=VERSION_ID_2, agent_id=AGENT_ID, version="1.0.1",
+        id=VERSION_ID_2,
+        agent_id=AGENT_ID,
+        version="1.0.1",
         definition={"model": "gpt-4o", "temperature": 0.7, "top_p": 0.9},
         created_by=OWNER_ID,
     )
-    session.get = AsyncMock(side_effect=lambda cls, uid: v1 if uid == VERSION_ID_1 else v2)
+    session.get = AsyncMock(
+        side_effect=lambda cls, uid: v1 if uid == VERSION_ID_1 else v2
+    )
 
     result = await AgentVersionService.compare(session, VERSION_ID_1, VERSION_ID_2)
     assert result["v1"]["version"] == "1.0.0"
@@ -180,10 +186,15 @@ async def test_compare_v2_not_found() -> None:
     """compare raises ValueError when second version is not found."""
     session = _mock_session()
     v1 = AgentVersion(
-        id=VERSION_ID_1, agent_id=AGENT_ID, version="1.0.0",
-        definition={}, created_by=OWNER_ID,
+        id=VERSION_ID_1,
+        agent_id=AGENT_ID,
+        version="1.0.0",
+        definition={},
+        created_by=OWNER_ID,
     )
-    session.get = AsyncMock(side_effect=lambda cls, uid: v1 if uid == VERSION_ID_1 else None)
+    session.get = AsyncMock(
+        side_effect=lambda cls, uid: v1 if uid == VERSION_ID_1 else None
+    )
 
     with pytest.raises(ValueError, match="not found"):
         await AgentVersionService.compare(session, VERSION_ID_1, VERSION_ID_2)
@@ -196,14 +207,22 @@ async def test_compare_different_agents() -> None:
     other_agent = uuid4()
 
     v1 = AgentVersion(
-        id=VERSION_ID_1, agent_id=AGENT_ID, version="1.0.0",
-        definition={}, created_by=OWNER_ID,
+        id=VERSION_ID_1,
+        agent_id=AGENT_ID,
+        version="1.0.0",
+        definition={},
+        created_by=OWNER_ID,
     )
     v2 = AgentVersion(
-        id=VERSION_ID_2, agent_id=other_agent, version="1.0.0",
-        definition={}, created_by=OWNER_ID,
+        id=VERSION_ID_2,
+        agent_id=other_agent,
+        version="1.0.0",
+        definition={},
+        created_by=OWNER_ID,
     )
-    session.get = AsyncMock(side_effect=lambda cls, uid: v1 if uid == VERSION_ID_1 else v2)
+    session.get = AsyncMock(
+        side_effect=lambda cls, uid: v1 if uid == VERSION_ID_1 else v2
+    )
 
     with pytest.raises(ValueError, match="different agents"):
         await AgentVersionService.compare(session, VERSION_ID_1, VERSION_ID_2)
@@ -216,14 +235,22 @@ async def test_compare_identical_versions() -> None:
     defn = {"model": "gpt-4"}
 
     v1 = AgentVersion(
-        id=VERSION_ID_1, agent_id=AGENT_ID, version="1.0.0",
-        definition=defn, created_by=OWNER_ID,
+        id=VERSION_ID_1,
+        agent_id=AGENT_ID,
+        version="1.0.0",
+        definition=defn,
+        created_by=OWNER_ID,
     )
     v2 = AgentVersion(
-        id=VERSION_ID_2, agent_id=AGENT_ID, version="1.0.1",
-        definition=defn, created_by=OWNER_ID,
+        id=VERSION_ID_2,
+        agent_id=AGENT_ID,
+        version="1.0.1",
+        definition=defn,
+        created_by=OWNER_ID,
     )
-    session.get = AsyncMock(side_effect=lambda cls, uid: v1 if uid == VERSION_ID_1 else v2)
+    session.get = AsyncMock(
+        side_effect=lambda cls, uid: v1 if uid == VERSION_ID_1 else v2
+    )
 
     result = await AgentVersionService.compare(session, VERSION_ID_1, VERSION_ID_2)
     assert result["summary"]["total_changes"] == 0
@@ -242,12 +269,18 @@ async def test_rollback_success() -> None:
     session.refresh = AsyncMock()
 
     target = AgentVersion(
-        id=VERSION_ID_1, agent_id=AGENT_ID, version="1.0.0",
-        definition={"model": "gpt-4"}, created_by=OWNER_ID,
+        id=VERSION_ID_1,
+        agent_id=AGENT_ID,
+        version="1.0.0",
+        definition={"model": "gpt-4"},
+        created_by=OWNER_ID,
     )
     latest = AgentVersion(
-        id=VERSION_ID_2, agent_id=AGENT_ID, version="2.0.0",
-        definition={"model": "gpt-4o"}, created_by=OWNER_ID,
+        id=VERSION_ID_2,
+        agent_id=AGENT_ID,
+        version="2.0.0",
+        definition={"model": "gpt-4o"},
+        created_by=OWNER_ID,
     )
     session.get = AsyncMock(return_value=target)
 
@@ -257,7 +290,10 @@ async def test_rollback_success() -> None:
     session.exec = AsyncMock(return_value=exec_result)
 
     result = await AgentVersionService.rollback(
-        session, agent_id=AGENT_ID, target_version_id=VERSION_ID_1, created_by=OWNER_ID,
+        session,
+        agent_id=AGENT_ID,
+        target_version_id=VERSION_ID_1,
+        created_by=OWNER_ID,
     )
 
     assert result.definition == {"model": "gpt-4"}
@@ -275,7 +311,10 @@ async def test_rollback_target_not_found() -> None:
 
     with pytest.raises(ValueError, match="not found"):
         await AgentVersionService.rollback(
-            session, agent_id=AGENT_ID, target_version_id=VERSION_ID_1, created_by=OWNER_ID,
+            session,
+            agent_id=AGENT_ID,
+            target_version_id=VERSION_ID_1,
+            created_by=OWNER_ID,
         )
 
 
@@ -286,14 +325,20 @@ async def test_rollback_wrong_agent() -> None:
     other_agent = uuid4()
 
     target = AgentVersion(
-        id=VERSION_ID_1, agent_id=other_agent, version="1.0.0",
-        definition={}, created_by=OWNER_ID,
+        id=VERSION_ID_1,
+        agent_id=other_agent,
+        version="1.0.0",
+        definition={},
+        created_by=OWNER_ID,
     )
     session.get = AsyncMock(return_value=target)
 
     with pytest.raises(ValueError, match="does not belong"):
         await AgentVersionService.rollback(
-            session, agent_id=AGENT_ID, target_version_id=VERSION_ID_1, created_by=OWNER_ID,
+            session,
+            agent_id=AGENT_ID,
+            target_version_id=VERSION_ID_1,
+            created_by=OWNER_ID,
         )
 
 
@@ -309,7 +354,9 @@ async def test_promote_success() -> None:
     session.refresh = AsyncMock()
 
     source = AgentVersion(
-        id=VERSION_ID_1, agent_id=AGENT_ID, version="1.0.0",
+        id=VERSION_ID_1,
+        agent_id=AGENT_ID,
+        version="1.0.0",
         definition={"model": "gpt-4", "_environment": "development"},
         created_by=OWNER_ID,
     )
@@ -320,8 +367,10 @@ async def test_promote_success() -> None:
     session.exec = AsyncMock(return_value=exec_result)
 
     result = await AgentVersionService.promote(
-        session, version_id=VERSION_ID_1,
-        target_environment="staging", created_by=OWNER_ID,
+        session,
+        version_id=VERSION_ID_1,
+        target_environment="staging",
+        created_by=OWNER_ID,
     )
 
     assert result.definition["_environment"] == "staging"
@@ -336,8 +385,10 @@ async def test_promote_invalid_environment() -> None:
 
     with pytest.raises(ValueError, match="Invalid environment"):
         await AgentVersionService.promote(
-            session, version_id=VERSION_ID_1,
-            target_environment="invalid", created_by=OWNER_ID,
+            session,
+            version_id=VERSION_ID_1,
+            target_environment="invalid",
+            created_by=OWNER_ID,
         )
 
 
@@ -349,8 +400,10 @@ async def test_promote_version_not_found() -> None:
 
     with pytest.raises(ValueError, match="not found"):
         await AgentVersionService.promote(
-            session, version_id=VERSION_ID_1,
-            target_environment="staging", created_by=OWNER_ID,
+            session,
+            version_id=VERSION_ID_1,
+            target_environment="staging",
+            created_by=OWNER_ID,
         )
 
 
@@ -360,7 +413,9 @@ async def test_promote_wrong_order() -> None:
     session = _mock_session()
 
     source = AgentVersion(
-        id=VERSION_ID_1, agent_id=AGENT_ID, version="1.0.0",
+        id=VERSION_ID_1,
+        agent_id=AGENT_ID,
+        version="1.0.0",
         definition={"model": "gpt-4", "_environment": "development"},
         created_by=OWNER_ID,
     )
@@ -368,8 +423,10 @@ async def test_promote_wrong_order() -> None:
 
     with pytest.raises(ValueError, match="Cannot promote"):
         await AgentVersionService.promote(
-            session, version_id=VERSION_ID_1,
-            target_environment="production", created_by=OWNER_ID,
+            session,
+            version_id=VERSION_ID_1,
+            target_environment="production",
+            created_by=OWNER_ID,
         )
 
 
@@ -384,14 +441,20 @@ def client() -> TestClient:
     mock_session = _mock_session()
 
     v1 = AgentVersion(
-        id=VERSION_ID_1, agent_id=AGENT_ID, version="1.0.0",
+        id=VERSION_ID_1,
+        agent_id=AGENT_ID,
+        version="1.0.0",
         definition={"model": "gpt-4", "temperature": 0.7},
-        created_by=OWNER_ID, created_at=NOW,
+        created_by=OWNER_ID,
+        created_at=NOW,
     )
     v2 = AgentVersion(
-        id=VERSION_ID_2, agent_id=AGENT_ID, version="1.0.1",
+        id=VERSION_ID_2,
+        agent_id=AGENT_ID,
+        version="1.0.1",
         definition={"model": "gpt-4o", "temperature": 0.7},
-        created_by=OWNER_ID, created_at=NOW,
+        created_by=OWNER_ID,
+        created_at=NOW,
     )
 
     async def _get(cls: type, uid: UUID) -> AgentVersion | None:
@@ -417,9 +480,9 @@ def client() -> TestClient:
 
 
 def test_compare_route_success(client: TestClient) -> None:
-    """GET /api/v1/agents/{id}/versions/compare returns diff."""
+    """GET /api/v1/versioning/agents/{id}/versions/compare returns diff."""
     resp = client.get(
-        f"/api/v1/agents/{AGENT_ID}/versions/compare",
+        f"/api/v1/versioning/agents/{AGENT_ID}/versions/compare",
         params={"v1": str(VERSION_ID_1), "v2": str(VERSION_ID_2)},
     )
     assert resp.status_code == 200
@@ -432,7 +495,7 @@ def test_compare_route_version_not_found(client: TestClient) -> None:
     """GET compare returns 404 when a version does not exist."""
     missing_id = uuid4()
     resp = client.get(
-        f"/api/v1/agents/{AGENT_ID}/versions/compare",
+        f"/api/v1/versioning/agents/{AGENT_ID}/versions/compare",
         params={"v1": str(missing_id), "v2": str(VERSION_ID_2)},
     )
     assert resp.status_code == 404
@@ -442,7 +505,7 @@ def test_compare_route_wrong_agent(client: TestClient) -> None:
     """GET compare returns 400 when versions don't belong to the agent in path."""
     wrong_agent = uuid4()
     resp = client.get(
-        f"/api/v1/agents/{wrong_agent}/versions/compare",
+        f"/api/v1/versioning/agents/{wrong_agent}/versions/compare",
         params={"v1": str(VERSION_ID_1), "v2": str(VERSION_ID_2)},
     )
     assert resp.status_code == 400
@@ -456,7 +519,7 @@ def test_compare_route_wrong_agent(client: TestClient) -> None:
 def test_rollback_route_success(client: TestClient) -> None:
     """POST rollback returns 201 with the new version."""
     resp = client.post(
-        f"/api/v1/agents/{AGENT_ID}/versions/{VERSION_ID_1}/rollback",
+        f"/api/v1/versioning/agents/{AGENT_ID}/versions/{VERSION_ID_1}/rollback",
         json={"created_by": str(OWNER_ID)},
     )
     assert resp.status_code == 201
@@ -478,7 +541,7 @@ def test_rollback_route_not_found() -> None:
 
     missing = uuid4()
     resp = c.post(
-        f"/api/v1/agents/{AGENT_ID}/versions/{missing}/rollback",
+        f"/api/v1/versioning/agents/{AGENT_ID}/versions/{missing}/rollback",
         json={"created_by": str(OWNER_ID)},
     )
     assert resp.status_code == 404
@@ -493,7 +556,7 @@ def test_rollback_route_not_found() -> None:
 def test_promote_route_success(client: TestClient) -> None:
     """POST promote returns 201 with the promoted version."""
     resp = client.post(
-        f"/api/v1/agents/{AGENT_ID}/versions/{VERSION_ID_1}/promote",
+        f"/api/v1/versioning/agents/{AGENT_ID}/versions/{VERSION_ID_1}/promote",
         json={"target_environment": "staging", "created_by": str(OWNER_ID)},
     )
     # The fixture version has no _environment, so default is 'development' → staging is valid
@@ -505,7 +568,7 @@ def test_promote_route_success(client: TestClient) -> None:
 def test_promote_route_invalid_env(client: TestClient) -> None:
     """POST promote returns 400 for an invalid environment name."""
     resp = client.post(
-        f"/api/v1/agents/{AGENT_ID}/versions/{VERSION_ID_1}/promote",
+        f"/api/v1/versioning/agents/{AGENT_ID}/versions/{VERSION_ID_1}/promote",
         json={"target_environment": "unknown", "created_by": str(OWNER_ID)},
     )
     assert resp.status_code == 400
@@ -519,7 +582,7 @@ def test_promote_route_invalid_env(client: TestClient) -> None:
 def test_compare_response_envelope(client: TestClient) -> None:
     """Compare response follows standard envelope format."""
     resp = client.get(
-        f"/api/v1/agents/{AGENT_ID}/versions/compare",
+        f"/api/v1/versioning/agents/{AGENT_ID}/versions/compare",
         params={"v1": str(VERSION_ID_1), "v2": str(VERSION_ID_2)},
     )
     body = resp.json()
@@ -532,7 +595,7 @@ def test_compare_response_envelope(client: TestClient) -> None:
 def test_rollback_response_envelope(client: TestClient) -> None:
     """Rollback response follows standard envelope format."""
     resp = client.post(
-        f"/api/v1/agents/{AGENT_ID}/versions/{VERSION_ID_1}/rollback",
+        f"/api/v1/versioning/agents/{AGENT_ID}/versions/{VERSION_ID_1}/rollback",
         json={"created_by": str(OWNER_ID)},
     )
     body = resp.json()

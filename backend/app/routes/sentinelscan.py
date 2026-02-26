@@ -106,7 +106,11 @@ async def list_scans(
 ) -> dict[str, Any]:
     """List discovery scans with pagination."""
     scans, total = await SentinelScanner.list_scans(
-        session, scan_type=scan_type, status=status, limit=limit, offset=offset,
+        session,
+        scan_type=scan_type,
+        status=status,
+        limit=limit,
+        offset=offset,
     )
     return {
         "data": [s.model_dump(mode="json") for s in scans],
@@ -272,7 +276,11 @@ async def list_risk_classifications(
 ) -> dict[str, Any]:
     """List risk classifications with pagination and filters."""
     classifications, total = await SentinelScanner.list_risk_classifications(
-        session, risk_tier=risk_tier, min_score=min_score, limit=limit, offset=offset,
+        session,
+        risk_tier=risk_tier,
+        min_score=min_score,
+        limit=limit,
+        offset=offset,
     )
     return {
         "data": [c.model_dump(mode="json") for c in classifications],
@@ -373,11 +381,17 @@ async def run_discovery(
         time_range_days=body.time_range_days,
     )
     result = await SentinelScanService.discover_shadow_ai(
-        tenant_id=user.tenant_id, user_id=user.id, config=config,
+        tenant_id=user.tenant_id,
+        user_id=user.id,
+        config=config,
     )
     await _audit(
-        session, user, "sentinel.discovery.executed", "sentinel_scan",
-        str(result.id), {"shadow_count": result.shadow_count},
+        session,
+        user,
+        "sentinel.discovery.executed",
+        "sentinel_scan",
+        str(result.id),
+        {"shadow_count": result.shadow_count},
     )
     return {"data": result.model_dump(mode="json"), "meta": _meta()}
 
@@ -394,10 +408,15 @@ async def ingest_logs(
 ) -> dict[str, Any]:
     """Ingest SSO/audit logs from identity providers."""
     result = await SentinelScanService.ingest_sso_logs(
-        tenant_id=user.tenant_id, source=body.source, log_data=body.log_data,
+        tenant_id=user.tenant_id,
+        source=body.source,
+        log_data=body.log_data,
     )
     await _audit(
-        session, user, "sentinel.ingest.completed", "sso_logs",
+        session,
+        user,
+        "sentinel.ingest.completed",
+        "sso_logs",
         details={"source": result.source, "records": result.records_processed},
     )
     return {"data": result.model_dump(mode="json"), "meta": _meta()}
@@ -437,7 +456,10 @@ async def scan_credentials(
         tenant_id=user.tenant_id,
     )
     await _audit(
-        session, user, "sentinel.credential_scan.executed", "credential_scan",
+        session,
+        user,
+        "sentinel.credential_scan.executed",
+        "credential_scan",
         details={"exposures_found": len(exposures)},
     )
     return {
@@ -479,8 +501,12 @@ async def create_remediation(
         action=body.action,
     )
     await _audit(
-        session, user, "sentinel.remediation.created", "remediation_workflow",
-        str(workflow.id), {"asset_id": str(body.asset_id), "action": body.action},
+        session,
+        user,
+        "sentinel.remediation.created",
+        "remediation_workflow",
+        str(workflow.id),
+        {"asset_id": str(body.asset_id), "action": body.action},
     )
     return {"data": workflow.model_dump(mode="json"), "meta": _meta()}
 
@@ -496,10 +522,15 @@ async def generate_report(
 ) -> dict[str, Any]:
     """Generate monthly AI security posture report."""
     report = await SentinelScanService.generate_posture_report(
-        tenant_id=user.tenant_id, user_id=user.id, period=body.period,
+        tenant_id=user.tenant_id,
+        user_id=user.id,
+        period=body.period,
     )
     await _audit(
-        session, user, "sentinel.report.generated", "posture_report",
+        session,
+        user,
+        "sentinel.report.generated",
+        "posture_report",
         details={"period": body.period},
     )
     return {"data": report.model_dump(mode="json"), "meta": _meta()}
@@ -569,8 +600,12 @@ async def run_scan_v1(
         scan_depth=body.scan_depth,
     )
     await _audit(
-        session, user, "sentinelscan.scan.executed", "sentinel_scan",
-        result["id"], {"findings_count": len(result["findings"])},
+        session,
+        user,
+        "sentinelscan.scan.executed",
+        "sentinel_scan",
+        result["id"],
+        {"findings_count": len(result["findings"])},
     )
     return {"data": result, "meta": _meta()}
 
@@ -599,18 +634,20 @@ async def list_services_v1(
     )
     return {
         "data": result["services"],
-        "meta": _meta(pagination={
-            "total": result["total"],
-            "limit": result["limit"],
-            "offset": result["offset"],
-        }),
+        "meta": _meta(
+            pagination={
+                "total": result["total"],
+                "limit": result["limit"],
+                "offset": result["offset"],
+            }
+        ),
     }
 
 
 # ── GET /api/v1/sentinelscan/posture ────────────────────────────────
 
 
-@scan_router.get("/posture")
+@scan_router.get("/posture/weighted")
 async def get_posture_v1(
     user: AuthenticatedUser = Depends(require_permission("sentinel", "read")),
     session: AsyncSession = Depends(get_session),
@@ -655,8 +692,12 @@ async def remediate_finding_v1(
         action=body.action,
     )
     await _audit(
-        session, user, "sentinelscan.remediate.applied", "sentinel_finding",
-        finding_id, {"action": body.action},
+        session,
+        user,
+        "sentinelscan.remediate.applied",
+        "sentinel_finding",
+        finding_id,
+        {"action": body.action},
     )
     return {"data": result, "meta": _meta()}
 
@@ -678,7 +719,10 @@ async def bulk_remediate_v1(
         action=body.action,
     )
     await _audit(
-        session, user, "sentinelscan.remediate.bulk", "sentinel_findings",
+        session,
+        user,
+        "sentinelscan.remediate.bulk",
+        "sentinel_findings",
         details={"action": body.action, "count": len(body.finding_ids)},
     )
     return {"data": result, "meta": _meta()}
@@ -702,9 +746,11 @@ async def scan_history_v1(
     )
     return {
         "data": result["scans"],
-        "meta": _meta(pagination={
-            "total": result["total"],
-            "limit": result["limit"],
-            "offset": result["offset"],
-        }),
+        "meta": _meta(
+            pagination={
+                "total": result["total"],
+                "limit": result["limit"],
+                "offset": result["offset"],
+            }
+        ),
     }

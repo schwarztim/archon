@@ -66,7 +66,7 @@ class TemplateUpdate(BaseModel):
 class InstantiateRequest(BaseModel):
     """Payload for instantiating a template into an agent (legacy)."""
 
-    owner_id: UUID = UUID("00000000-0000-0000-0000-000000000001")
+    owner_id: UUID
 
 
 # ── Helpers ──────────────────────────────────────────────────────────
@@ -103,7 +103,10 @@ async def search_templates(
 ) -> dict[str, Any]:
     """Search templates with text or semantic matching."""
     results = await TemplateService.search_templates(
-        session, user.tenant_id, q, semantic=semantic,
+        session,
+        user.tenant_id,
+        q,
+        semantic=semantic,
     )
     return {
         "data": [r.model_dump(mode="json") for r in results],
@@ -151,7 +154,11 @@ async def list_templates(
             is_featured=is_featured,
         )
         result = await TemplateService.list_templates(
-            session, user.tenant_id, filters, page=page, page_size=page_size,
+            session,
+            user.tenant_id,
+            filters,
+            page=page,
+            page_size=page_size,
         )
         return {
             "data": [t.model_dump(mode="json") for t in result.items],
@@ -201,7 +208,10 @@ async def create_template(
             is_featured=body.is_featured,
         )
         resp = await TemplateService.create_template(
-            session, user.tenant_id, user, enterprise_data,
+            session,
+            user.tenant_id,
+            user,
+            enterprise_data,
         )
         return {
             "data": resp.model_dump(mode="json"),
@@ -252,7 +262,11 @@ async def publish_template(
 ) -> dict[str, Any]:
     """Publish a template to the marketplace with Vault-based signature."""
     resp = await TemplateService.publish_template(
-        session, user.tenant_id, user, template_id, secrets,
+        session,
+        user.tenant_id,
+        user,
+        template_id,
+        secrets,
     )
     if resp is None:
         raise HTTPException(status_code=404, detail="Template not found")
@@ -273,7 +287,11 @@ async def install_template(
     """Install a template with config wizard and credential checks."""
     overrides = body.overrides if body else {}
     result = await TemplateService.install_template(
-        session, user.tenant_id, user, template_id, secrets,
+        session,
+        user.tenant_id,
+        user,
+        template_id,
+        secrets,
         config_overrides=overrides,
     )
     if result is None:
@@ -293,7 +311,11 @@ async def rate_template(
 ) -> dict[str, Any]:
     """Rate and review a template."""
     result = await TemplateService.rate_template(
-        session, user.tenant_id, user, template_id, body,
+        session,
+        user.tenant_id,
+        user,
+        template_id,
+        body,
     )
     if result is None:
         raise HTTPException(status_code=404, detail="Template not found")
@@ -311,7 +333,10 @@ async def fork_template(
 ) -> dict[str, Any]:
     """Fork a template for customisation."""
     result = await TemplateService.fork_template(
-        session, user.tenant_id, user, template_id,
+        session,
+        user.tenant_id,
+        user,
+        template_id,
     )
     if result is None:
         raise HTTPException(status_code=404, detail="Template not found")

@@ -5,9 +5,11 @@ calls to the audit_logs table after the response is sent.  Adds the
 ``X-Correlation-ID`` response header on every request.
 
 Middleware execution order in FastAPI (LIFO — last added runs first):
-  add_middleware(AuditMiddleware)   ← registered first → runs LAST (outermost)
-  add_middleware(TenantMiddleware)  ← registered after → runs before Audit
-  add_middleware(DLPMiddleware)     ← registered last  → runs FIRST (innermost)
+  add_middleware(AuditMiddleware)   ← registered first → runs LAST (innermost)
+  add_middleware(TenantMiddleware)  ← registered second → runs before Audit (middle)
+  add_middleware(DLPMiddleware)     ← registered last  → runs FIRST (outermost)
+
+Effective ingress order: DLPMiddleware → TenantMiddleware → AuditMiddleware → route
 
 This guarantees ``request.state.tenant_id`` is set by TenantMiddleware
 before AuditMiddleware reads it.

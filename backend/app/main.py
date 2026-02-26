@@ -137,10 +137,10 @@ def create_app() -> FastAPI:
 
     application.add_middleware(MetricsMiddleware)
 
-    # -- Audit middleware (registered before TenantMiddleware so it runs AFTER it)
+    # -- Audit middleware (registered first so it runs LAST/innermost after Tenant)
     # FastAPI applies middleware in LIFO order: last registered = outermost = runs first.
     # TenantMiddleware must set request.state.tenant_id before AuditMiddleware reads it.
-    # Order: DLPMiddleware → TenantMiddleware → AuditMiddleware → MetricsMiddleware → route
+    # Effective ingress order: DLPMiddleware → TenantMiddleware → AuditMiddleware → route
     from app.middleware.audit_middleware import AuditMiddleware
 
     application.add_middleware(AuditMiddleware)

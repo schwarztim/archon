@@ -1548,7 +1548,9 @@ class DLPService:
             return ScanAction.BLOCK
         if risk_level == RiskLevel.HIGH:
             return ScanAction.REDACT
-        if risk_level == RiskLevel.MEDIUM and str(direction) == ScanDirection.OUTPUT:
+        if risk_level == RiskLevel.MEDIUM and (
+            direction == ScanDirection.OUTPUT or direction == ScanDirection.OUTPUT.value
+        ):
             return ScanAction.REDACT
         return ScanAction.ALLOW
 
