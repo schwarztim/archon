@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { ClipboardList } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { apiGet } from "@/api/client";
 import { AuditTimeline } from "@/components/audit/AuditTimeline";
 import { AuditFilters, type AuditFilterValues } from "@/components/audit/AuditFilters";
@@ -10,10 +11,9 @@ const PAGE_SIZE = 20;
 
 export function AuditPage() {
   const [entries, setEntries] = useState<AuditEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
+  const [offset, setOffset] = useState(0);
   const [total, setTotal] = useState(0);
-  const [error, setError] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [filters, setFilters] = useState<AuditFilterValues>({
     search: "",
     action: "",
@@ -32,42 +32,43 @@ export function AuditPage() {
     return p;
   }, [filters]);
 
-  const fetchAuditLogs = useCallback(
-    async (offset: number, append: boolean) => {
-      if (!append) setLoading(true);
-      else setLoadingMore(true);
-      setError(null);
-      try {
-        const params: Record<string, string | number> = {
-          limit: PAGE_SIZE,
-          offset,
-          ...queryParams,
-        };
-        const res = await apiGet<AuditEntry[]>("/audit-logs/", params);
-        const data = Array.isArray(res.data) ? res.data : [];
-        setEntries((prev) => (append ? [...prev, ...data] : data));
-        setTotal(res.meta?.pagination?.total ?? data.length);
-      } catch {
-        if (!append) setEntries([]);
-      } finally {
-        setLoading(false);
-        setLoadingMore(false);
-      }
-    },
-    [queryParams],
-  );
-
+  // Reset to first page whenever filters change
   useEffect(() => {
-    void fetchAuditLogs(0, false);
-  }, [fetchAuditLogs]);
+    setOffset(0);
+    setEntries([]);
+  }, [queryParams]);
 
-  const handleLoadMore = useCallback(() => {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["audit-logs", queryParams, offset],
+    queryFn: () =>
+      apiGet<AuditEntry[]>("/audit-logs/", {
+        limit: PAGE_SIZE,
+        offset,
+        ...queryParams,
+      }),
+  });
+
+  // Accumulate results when offset advances (load more)
+  useEffect(() => {
+    if (!data) return;
+    const fetched = Array.isArray(data.data) ? data.data : [];
+    setTotal(data.meta?.pagination?.total ?? fetched.length);
+    setEntries((prev) => (offset === 0 ? fetched : [...prev, ...fetched]));
+    setLoadingMore(false);
+  }, [data, offset]);
+
+  const handleLoadMore = () => {
     if (entries.length < total) {
-      void fetchAuditLogs(entries.length, true);
+      setLoadingMore(true);
+      setOffset(entries.length);
     }
-  }, [entries.length, total, fetchAuditLogs]);
+  };
 
-  if (loading) {
+  const handleFiltersChange = (next: AuditFilterValues) => {
+    setFilters(next);
+  };
+
+  if (isLoading && offset === 0) {
     return (
       <div className="flex h-64 items-center justify-center">
         <p className="text-gray-400">Loading...</p>
@@ -79,7 +80,7 @@ export function AuditPage() {
     <div className="p-6">
       {error && (
         <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400">
-          {error}
+          Failed to load audit logs.
         </div>
       )}
 
@@ -95,7 +96,7 @@ export function AuditPage() {
         events.
       </p>
 
-      <AuditFilters filters={filters} onChange={setFilters} />
+      <AuditFilters filters={filters} onChange={handleFiltersChange} />
 
       <AuditTimeline
         entries={entries}

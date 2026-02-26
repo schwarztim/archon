@@ -42,7 +42,10 @@ from app.routes.tenancy import router as tenancy_router
 # Phase 3 routers
 from app.routes.dlp import router as dlp_router
 from app.routes.governance import router as governance_router
-from app.routes.sentinelscan import router as sentinelscan_router, scan_router as sentinelscan_scan_router
+from app.routes.sentinelscan import (
+    router as sentinelscan_router,
+    scan_router as sentinelscan_scan_router,
+)
 from app.routes.mcp_security import router as mcp_security_router
 
 # Workflow routers
@@ -134,12 +137,15 @@ def create_app() -> FastAPI:
 
     application.add_middleware(MetricsMiddleware)
 
-    # -- Audit middleware (after request-ID so request_id is available) --
+    # -- Audit middleware (registered before TenantMiddleware so it runs AFTER it)
+    # FastAPI applies middleware in LIFO order: last registered = outermost = runs first.
+    # TenantMiddleware must set request.state.tenant_id before AuditMiddleware reads it.
+    # Order: DLPMiddleware → TenantMiddleware → AuditMiddleware → MetricsMiddleware → route
     from app.middleware.audit_middleware import AuditMiddleware
 
     application.add_middleware(AuditMiddleware)
 
-    # -- Tenant middleware (extracts tenant_id from JWT for downstream use) --
+    # -- Tenant middleware (extracts tenant_id from JWT; runs before Audit) --
     from app.middleware.tenant_middleware import TenantMiddleware
 
     application.add_middleware(TenantMiddleware)
@@ -163,7 +169,9 @@ def create_app() -> FastAPI:
     application.include_router(router_api_router, prefix=settings.API_PREFIX)
     application.include_router(sandbox_router, prefix=settings.API_PREFIX)
     application.include_router(templates_router, prefix=settings.API_PREFIX)
-    application.include_router(versioning_router, prefix=settings.API_PREFIX + "/versioning")
+    application.include_router(
+        versioning_router, prefix=settings.API_PREFIX + "/versioning"
+    )
     application.include_router(wizard_router, prefix=settings.API_PREFIX)
     application.include_router(ws_router)
 
@@ -197,7 +205,9 @@ def create_app() -> FastAPI:
     application.include_router(edge_router, prefix=settings.API_PREFIX)
 
     # -- DocForge routers ---------------------------------------------
-    application.include_router(docforge_router, prefix=settings.API_PREFIX + "/docforge")
+    application.include_router(
+        docforge_router, prefix=settings.API_PREFIX + "/docforge"
+    )
     application.include_router(docforge_collections_router, prefix=settings.API_PREFIX)
 
     # -- Enterprise SSO & SCIM ----------------------------------------
@@ -254,7 +264,9 @@ def create_app() -> FastAPI:
 
     # -- Exception handlers -------------------------------------------
     @application.exception_handler(Exception)
-    async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    async def global_exception_handler(
+        request: Request, exc: Exception
+    ) -> JSONResponse:
         """Return structured JSON errors with request_id."""
         rid = getattr(request.state, "request_id", "")
         logger.error(

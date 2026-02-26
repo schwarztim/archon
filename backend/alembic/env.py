@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from logging.config import fileConfig
 
 from alembic import context
@@ -10,8 +11,9 @@ from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
 from sqlmodel import SQLModel
 
-# Import all models so metadata is populated
-from app.models import Agent, Execution, User  # noqa: F401
+# Import ALL models so autogenerate can see their tables
+from app.models import *  # noqa: F401, F403
+import app.models  # ensure all submodules are loaded  # noqa: F401
 
 config = context.config
 
@@ -44,8 +46,13 @@ def do_run_migrations(connection):  # noqa: ANN001
 
 async def run_async_migrations() -> None:
     """Run migrations in 'online' mode with async engine."""
+    config_section = config.get_section(config.config_ini_section, {})
+    # Override DB URL from environment if set
+    db_url = os.environ.get("ARCHON_DATABASE_URL") or os.environ.get("DATABASE_URL")
+    if db_url:
+        config_section["sqlalchemy.url"] = db_url
     connectable = async_engine_from_config(
-        config.get_section(config.config_ini_section, {}),
+        config_section,
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )

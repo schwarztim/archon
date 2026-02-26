@@ -38,20 +38,36 @@ class Agent(SQLModel, table=True):
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     name: str
-    description: str | None = Field(default=None, sa_column=Column(SAText, nullable=True))
+    description: str | None = Field(
+        default=None, sa_column=Column(SAText, nullable=True)
+    )
     definition: dict[str, Any] = Field(sa_column=Column(JSON, nullable=False))
     status: str = Field(default="draft")
     owner_id: UUID = Field(foreign_key="users.id")
-    tags: list[str] = Field(default_factory=list, sa_column=Column(JSON, nullable=False))
-    steps: list[dict] | None = Field(default=None, sa_column=Column(JSON, nullable=True))
-    tools: list[dict] | None = Field(default=None, sa_column=Column(JSON, nullable=True))
+    tags: list[str] = Field(
+        default_factory=list, sa_column=Column(JSON, nullable=False)
+    )
+    steps: list[dict] | None = Field(
+        default=None, sa_column=Column(JSON, nullable=True)
+    )
+    tools: list[dict] | None = Field(
+        default=None, sa_column=Column(JSON, nullable=True)
+    )
     llm_config: dict | None = Field(default=None, sa_column=Column(JSON, nullable=True))
     rag_config: dict | None = Field(default=None, sa_column=Column(JSON, nullable=True))
     mcp_config: dict | None = Field(default=None, sa_column=Column(JSON, nullable=True))
-    security_policy: dict | None = Field(default=None, sa_column=Column(JSON, nullable=True))
-    input_schema: dict | None = Field(default=None, sa_column=Column(JSON, nullable=True))
-    output_schema: dict | None = Field(default=None, sa_column=Column(JSON, nullable=True))
-    graph_definition: dict | None = Field(default=None, sa_column=Column(JSON, nullable=True))
+    security_policy: dict | None = Field(
+        default=None, sa_column=Column(JSON, nullable=True)
+    )
+    input_schema: dict | None = Field(
+        default=None, sa_column=Column(JSON, nullable=True)
+    )
+    output_schema: dict | None = Field(
+        default=None, sa_column=Column(JSON, nullable=True)
+    )
+    graph_definition: dict | None = Field(
+        default=None, sa_column=Column(JSON, nullable=True)
+    )
     group_id: str | None = Field(default=None)
     created_at: datetime = Field(default_factory=_utcnow)
     updated_at: datetime = Field(default_factory=_utcnow)
@@ -66,10 +82,16 @@ class Execution(SQLModel, table=True):
     agent_id: UUID = Field(foreign_key="agents.id")
     status: str = Field(default="queued")
     input_data: dict[str, Any] = Field(sa_column=Column(JSON, nullable=False))
-    output_data: dict[str, Any] | None = Field(default=None, sa_column=Column(JSON, nullable=True))
+    output_data: dict[str, Any] | None = Field(
+        default=None, sa_column=Column(JSON, nullable=True)
+    )
     error: str | None = Field(default=None, sa_column=Column(SAText, nullable=True))
-    steps: list[dict] | None = Field(default=None, sa_column=Column(JSON, nullable=True))
-    metrics: dict[str, Any] | None = Field(default=None, sa_column=Column(JSON, nullable=True))
+    steps: list[dict] | None = Field(
+        default=None, sa_column=Column(JSON, nullable=True)
+    )
+    metrics: dict[str, Any] | None = Field(
+        default=None, sa_column=Column(JSON, nullable=True)
+    )
     started_at: datetime | None = Field(default=None)
     completed_at: datetime | None = Field(default=None)
     created_at: datetime = Field(default_factory=_utcnow)
@@ -85,7 +107,9 @@ class AgentVersion(SQLModel, table=True):
     agent_id: UUID = Field(foreign_key="agents.id")
     version: str
     definition: dict[str, Any] = Field(sa_column=Column(JSON, nullable=False))
-    change_log: str | None = Field(default=None, sa_column=Column(SAText, nullable=True))
+    change_log: str | None = Field(
+        default=None, sa_column=Column(SAText, nullable=True)
+    )
     created_by: UUID = Field(foreign_key="users.id")
     created_at: datetime = Field(default_factory=_utcnow)
 
@@ -127,10 +151,14 @@ class Template(SQLModel, table=True):
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     name: str = Field(index=True)
-    description: str | None = Field(default=None, sa_column=Column(SAText, nullable=True))
+    description: str | None = Field(
+        default=None, sa_column=Column(SAText, nullable=True)
+    )
     category: str = Field(index=True)
     definition: dict[str, Any] = Field(sa_column=Column(JSON, nullable=False))
-    tags: list[str] = Field(default_factory=list, sa_column=Column(JSON, nullable=False))
+    tags: list[str] = Field(
+        default_factory=list, sa_column=Column(JSON, nullable=False)
+    )
     is_featured: bool = Field(default=False)
     usage_count: int = Field(default=0)
     author_id: UUID = Field(foreign_key="users.id")
@@ -139,26 +167,73 @@ class Template(SQLModel, table=True):
 
 
 class AuditLog(SQLModel, table=True):
-    """Immutable append-only audit trail for platform actions."""
+    """Immutable append-only audit trail with tamper-evident hash chain.
+
+    Consolidated from audit_logs, enterprise_audit_events, and
+    governance_audit_entries into a single authoritative table.
+    """
 
     __tablename__ = "audit_logs"
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
-    actor_id: UUID = Field(foreign_key="users.id")
+
+    # Tenant isolation (set by TenantMiddleware before this is written)
+    tenant_id: str = Field(default="default", index=True)
+
+    # Correlation tracking (set per-request by AuditMiddleware)
+    correlation_id: str = Field(default="", index=True)
+
+    # Actor — nullable for unauthenticated / system calls
+    actor_id: UUID | None = Field(default=None, index=True)
+
+    # Action semantics
     action: str
-    resource_type: str
-    resource_id: UUID
-    details: dict[str, Any] | None = Field(default=None, sa_column=Column(JSON, nullable=True))
+    resource_type: str | None = Field(default=None, index=True)
+    resource_id: str | None = Field(default=None, index=True)
+
+    # HTTP context
+    status_code: int | None = Field(default=None)
+    ip_address: str | None = Field(default=None)
+    user_agent: str | None = Field(
+        default=None, sa_column=Column(SAText, nullable=True)
+    )
+
+    # Rich detail payload (backwards-compatible)
+    details: dict[str, Any] | None = Field(
+        default=None, sa_column=Column(JSON, nullable=True)
+    )
+
+    # Tamper-evident SHA-256 hash chain
+    hash: str = Field(default="", index=True)
+    prev_hash: str = Field(default="genesis")
+
     created_at: datetime = Field(default_factory=_utcnow)
 
 
-from app.models.router import ModelRegistryEntry, RoutingRule
+from app.models.router import (
+    ModelRegistryEntry,
+    ProviderHealthHistory,
+    RoutingRule,
+    VisualRoutingRuleDB,
+    FallbackChainConfigDB,
+)
 from app.models.lifecycle import DeploymentRecord, HealthCheck, LifecycleEvent
 from app.models.cost import Budget, CostAlert, ProviderPricing, TokenLedger
 from app.models.tenancy import BillingRecord, Tenant, TenantQuota, UsageMeteringRecord
-from app.models.governance import AgentRegistryEntry, AuditEntry, CompliancePolicy, ComplianceRecord
+from app.models.governance import (
+    AgentRegistryEntry,
+    AuditEntry,
+    CompliancePolicy,
+    ComplianceRecord,
+)
 from app.models.dlp import DLPDetectedEntity, DLPPolicy, DLPScanResult
-from app.models.sentinelscan import DiscoveredService, DiscoveryScan, RiskClassification
+from app.models.sentinelscan import (
+    DiscoveredService,
+    DiscoveryScan,
+    RiskClassification,
+    SentinelFinding,
+    SentinelScanHistory,
+)
 from app.models.mcp_security import (
     MCPResponseValidation,
     MCPSandboxSession,
@@ -199,6 +274,8 @@ from app.models.redteam import (
     VulnerabilityFinding,
 )
 from app.models.settings import FeatureFlag, PlatformSetting, SettingsAPIKey
+from app.models.workflow import Workflow, WorkflowRun, WorkflowRunStep, WorkflowSchedule
+from app.models.oauth import OAuthPendingState
 
 
 __all__ = [
@@ -213,18 +290,20 @@ __all__ = [
     "AuditEntry",
     "AuditLog",
     "BillingRecord",
-    "CompliancePolicy",
-    "ComplianceRecord",
     "Budget",
-    "Connector",
     "Collection",
     "CollectionConfig",
+    "CompliancePolicy",
+    "ComplianceRecord",
+    "Connector",
     "CostAlert",
     "CreatorProfile",
     "DLPDetectedEntity",
     "DLPPolicy",
     "DLPScanResult",
     "DeploymentRecord",
+    "DiscoveredService",
+    "DiscoveryScan",
     "Document",
     "DocumentChunk",
     "DocumentPermission",
@@ -232,14 +311,14 @@ __all__ = [
     "EdgeDevice",
     "EdgeModelDeployment",
     "EdgeSyncRecord",
-    "DiscoveredService",
-    "DiscoveryScan",
-    "Execution",
     "EnterpriseAuditEvent",
+    "Execution",
+    "FallbackChainConfigDB",
+    "FederationConfig",
+    "FeatureFlag",
     "FleetConfig",
     "HealthCheck",
     "LifecycleEvent",
-    "FederationConfig",
     "MCPComponent",
     "MCPInteraction",
     "MCPResponseValidation",
@@ -255,17 +334,23 @@ __all__ = [
     "MeshNode",
     "Model",
     "ModelRegistryEntry",
+    "OAuthPendingState",
+    "PlatformSetting",
     "ProviderPricing",
+    "ProviderHealthHistory",
     "RiskClassification",
     "RoutingRule",
+    "SAMLProvider",
     "ScanSummary",
-    "SecurityScanConfig",
-    "SecurityScanResult",
     "SearchHit",
     "SearchResult",
-    "Severity",
-    "SAMLProvider",
     "SecretRegistration",
+    "SecurityScanConfig",
+    "SecurityScanResult",
+    "SentinelFinding",
+    "SentinelScanHistory",
+    "SettingsAPIKey",
+    "Severity",
     "Template",
     "Tenant",
     "TenantConfiguration",
@@ -276,8 +361,10 @@ __all__ = [
     "User",
     "UserIdentity",
     "UserRole",
+    "VisualRoutingRuleDB",
     "VulnerabilityFinding",
-    "FeatureFlag",
-    "PlatformSetting",
-    "SettingsAPIKey",
+    "Workflow",
+    "WorkflowRun",
+    "WorkflowRunStep",
+    "WorkflowSchedule",
 ]

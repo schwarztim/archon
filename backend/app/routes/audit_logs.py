@@ -16,8 +16,9 @@ from app.database import get_session
 from app.middleware.auth import get_current_user
 from app.interfaces.models.enterprise import AuthenticatedUser
 from app.services import AuditLogService
+from app.services.audit_service import AuditService
 
-router = APIRouter(prefix="/audit/logs", tags=["audit-logs"])
+router = APIRouter(prefix="/audit-logs", tags=["audit-logs"])
 
 
 # ── Helpers ──────────────────────────────────────────────────────────
@@ -99,7 +100,20 @@ async def export_audit_logs(
 
     if format == "csv":
         buf = io.StringIO()
-        fieldnames = ["id", "actor_id", "action", "resource_type", "resource_id", "details", "created_at"]
+        fieldnames = [
+            "id",
+            "tenant_id",
+            "correlation_id",
+            "actor_id",
+            "action",
+            "resource_type",
+            "resource_id",
+            "status_code",
+            "ip_address",
+            "hash",
+            "prev_hash",
+            "created_at",
+        ]
         writer = csv.DictWriter(buf, fieldnames=fieldnames, extrasaction="ignore")
         writer.writeheader()
         for row in rows:
@@ -114,6 +128,40 @@ async def export_audit_logs(
     return {
         "data": rows,
         "meta": _meta(pagination={"total": total, "limit": limit, "offset": offset}),
+    }
+
+
+@router.get("/verify-chain")
+async def verify_audit_chain(
+    tenant_id: str = Query(
+        ..., description="Tenant ID whose hash chain should be verified"
+    ),
+    session: AsyncSession = Depends(get_session),
+    _user: AuthenticatedUser = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Verify the tamper-evident hash chain for a tenant's audit logs.
+
+    Walks every entry in chronological order and checks that each
+    entry's ``prev_hash`` matches the previous entry's ``hash``, and
+    that the stored ``hash`` matches the recomputed value.
+
+    Returns a summary with ``valid`` (bool), ``entries`` (int), and
+    a list of ``errors`` (empty when the chain is intact).
+    """
+    try:
+        result = await AuditService.verify_chain(
+            session=session,
+            tenant_id=tenant_id,
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Chain verification failed: {exc}",
+        ) from exc
+
+    return {
+        "data": result,
+        "meta": _meta(),
     }
 
 
@@ -133,21 +181,47 @@ async def list_audit_logs(
 ) -> dict[str, Any]:
     """List audit log entries with filters.
 
-    Supports filtering by resource_type, resource_id, actor_id, action,
-    date range, and full-text search.
+    Requires at least one of: resource_type, actor_id, action, search, or date range.
+    Dispatches to resource or actor-scoped service methods when those filters are provided.
     """
-    entries, total = await _fetch_entries(
-        session,
-        resource_type=resource_type,
-        resource_id=resource_id,
-        actor_id=actor_id,
-        action=action,
-        search=search,
-        date_from=date_from,
-        date_to=date_to,
-        limit=limit,
-        offset=offset,
-    )
+    has_filter = any([resource_type, actor_id, action, search, date_from, date_to])
+    if not has_filter:
+        raise HTTPException(status_code=422, detail="At least one filter is required.")
+
+    if resource_type is not None and resource_id is None:
+        raise HTTPException(
+            status_code=422,
+            detail="resource_id is required when resource_type is provided.",
+        )
+
+    if resource_type is not None:
+        entries, total = await AuditLogService.list_by_resource(
+            session,
+            resource_type=resource_type,
+            resource_id=resource_id,
+            limit=limit,
+            offset=offset,
+        )
+    elif actor_id is not None:
+        entries, total = await AuditLogService.list_by_actor(
+            session,
+            actor_id=actor_id,
+            limit=limit,
+            offset=offset,
+        )
+    else:
+        entries, total = await _fetch_entries(
+            session,
+            resource_type=resource_type,
+            resource_id=resource_id,
+            actor_id=actor_id,
+            action=action,
+            search=search,
+            date_from=date_from,
+            date_to=date_to,
+            limit=limit,
+            offset=offset,
+        )
     return {
         "data": [e.model_dump(mode="json") for e in entries] if entries else [],
         "meta": _meta(
@@ -173,6 +247,8 @@ async def block_mutations(
         content={
             "data": None,
             "meta": _meta(),
-            "errors": [{"code": "METHOD_NOT_ALLOWED", "message": "Audit logs are immutable"}],
+            "errors": [
+                {"code": "METHOD_NOT_ALLOWED", "message": "Audit logs are immutable"}
+            ],
         },
     )

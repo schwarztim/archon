@@ -30,8 +30,13 @@ class Settings(BaseSettings):
     KEYCLOAK_URL: str = "http://localhost:8180/auth/realms/archon"
     KEYCLOAK_CLIENT_ID: str = "archon-app"
 
+    # Vault
+    VAULT_ADDR: str = "http://localhost:8200"
+    VAULT_TOKEN: str = "dev-token"
+
     # Auth mode — set to "true" to bypass Keycloak and use dev HS256 JWTs
-    AUTH_DEV_MODE: bool = True
+    # Default is False for production safety; override with ARCHON_AUTH_DEV_MODE=true locally
+    AUTH_DEV_MODE: bool = False
 
     # API
     API_PREFIX: str = "/api/v1"

@@ -30,32 +30,183 @@ from app.models.dlp import (
 
 logger = logging.getLogger(__name__)
 
-# ── Secret Patterns (200+ cloud credential regex) ──────────────────
+# ── Presidio Integration (optional) ────────────────────────────────
+# Gracefully degrade to enhanced regex if presidio packages are absent.
+
+_PRESIDIO_AVAILABLE = False
+_presidio_analyzer: Any = None
+_presidio_anonymizer: Any = None
+
+try:
+    from presidio_analyzer import AnalyzerEngine  # type: ignore[import]
+    from presidio_anonymizer import AnonymizerEngine  # type: ignore[import]
+
+    _presidio_analyzer = AnalyzerEngine()
+    _presidio_anonymizer = AnonymizerEngine()
+    _PRESIDIO_AVAILABLE = True
+    logger.info("Presidio NER engine loaded — using ML-backed PII detection")
+except ImportError:
+    logger.debug(
+        "presidio-analyzer/presidio-anonymizer not installed — "
+        "using enhanced regex fallback for NER"
+    )
+
+# Presidio entity types supported
+_PRESIDIO_ENTITIES: list[str] = [
+    "PERSON",
+    "LOCATION",
+    "ORGANIZATION",
+    "PHONE_NUMBER",
+    "EMAIL_ADDRESS",
+    "CREDIT_CARD",
+    "CRYPTO",
+    "DATE_TIME",
+    "IBAN_CODE",
+    "IP_ADDRESS",
+    "MEDICAL_LICENSE",
+    "US_SSN",
+    "US_BANK_NUMBER",
+    "US_DRIVER_LICENSE",
+    "US_PASSPORT",
+]
+
+# ── Enhanced Regex NER Fallback ─────────────────────────────────────
+# Used when Presidio is not available. Covers PERSON, ORG, LOCATION.
+
+_NER_FALLBACK_PATTERNS: list[tuple[str, re.Pattern[str], float]] = [
+    # PERSON — honorific + capitalized names
+    (
+        "PERSON",
+        re.compile(
+            r"\b(?:Mr\.|Mrs\.|Ms\.|Dr\.|Prof\.)\s+[A-Z][a-z]{1,20}(?:\s+[A-Z][a-z]{1,20}){0,2}\b"
+        ),
+        0.75,
+    ),
+    # PERSON — First Last pattern (two consecutive capitalized words)
+    (
+        "PERSON",
+        re.compile(r"(?<!\. )(?<!\n)\b([A-Z][a-z]{2,15})\s+([A-Z][a-z]{2,15})\b"),
+        0.5,
+    ),
+    # ORGANIZATION — common corporate suffixes
+    (
+        "ORGANIZATION",
+        re.compile(
+            r"\b[A-Z][a-zA-Z\s&,\.']{2,40}"
+            r"(?:\s+(?:Corp(?:oration)?|Inc(?:orporated)?|Ltd|LLC|LLP|"
+            r"Co(?:mpany)?|Group|Holdings?|Enterprises?|Solutions?|"
+            r"Technologies?|Services?|Systems?|Associates?))\b"
+        ),
+        0.85,
+    ),
+    # LOCATION — US states
+    (
+        "LOCATION",
+        re.compile(
+            r"\b(?:Alabama|Alaska|Arizona|Arkansas|California|Colorado|Connecticut|"
+            r"Delaware|Florida|Georgia|Hawaii|Idaho|Illinois|Indiana|Iowa|Kansas|"
+            r"Kentucky|Louisiana|Maine|Maryland|Massachusetts|Michigan|Minnesota|"
+            r"Mississippi|Missouri|Montana|Nebraska|Nevada|New\s+Hampshire|"
+            r"New\s+Jersey|New\s+Mexico|New\s+York|North\s+Carolina|North\s+Dakota|"
+            r"Ohio|Oklahoma|Oregon|Pennsylvania|Rhode\s+Island|South\s+Carolina|"
+            r"South\s+Dakota|Tennessee|Texas|Utah|Vermont|Virginia|Washington|"
+            r"West\s+Virginia|Wisconsin|Wyoming|District\s+of\s+Columbia)\b"
+        ),
+        0.9,
+    ),
+    # LOCATION — major countries
+    (
+        "LOCATION",
+        re.compile(
+            r"\b(?:United\s+States|United\s+Kingdom|Canada|Australia|Germany|"
+            r"France|Japan|China|India|Brazil|Mexico|Italy|Spain|Russia|"
+            r"South\s+Korea|Netherlands|Sweden|Norway|Denmark|Switzerland|"
+            r"New\s+Zealand|Singapore|Hong\s+Kong)\b"
+        ),
+        0.9,
+    ),
+    # LOCATION — City/Town/Village patterns
+    (
+        "LOCATION",
+        re.compile(
+            r"\b[A-Z][a-z]{2,20}\s+(?:City|Town|Village|County|District|Province|State)\b"
+        ),
+        0.7,
+    ),
+    # DATE_TIME — common date formats
+    (
+        "DATE_TIME",
+        re.compile(
+            r"\b(?:(?:0?[1-9]|1[0-2])[/-](?:0?[1-9]|[12]\d|3[01])[/-](?:19|20)\d{2}|"
+            r"(?:19|20)\d{2}[/-](?:0?[1-9]|1[0-2])[/-](?:0?[1-9]|[12]\d|3[01])|"
+            r"(?:January|February|March|April|May|June|July|August|September|"
+            r"October|November|December)\s+\d{1,2},?\s+(?:19|20)\d{2})\b"
+        ),
+        0.85,
+    ),
+]
+
 
 _SECRET_PATTERNS: list[tuple[str, re.Pattern[str], float, str]] = []
 
 
-def _sp(name: str, pattern: str, confidence: float = 1.0, severity: str = "critical") -> None:
+def _sp(
+    name: str, pattern: str, confidence: float = 1.0, severity: str = "critical"
+) -> None:
     """Register a secret pattern."""
     _SECRET_PATTERNS.append((name, re.compile(pattern), confidence, severity))
 
 
 # --- AWS ---
 _sp("aws_access_key", r"\b(?:AKIA|ABIA|ACCA|ASIA)[0-9A-Z]{16}\b")
-_sp("aws_secret_key", r"(?i)aws[_\-]?secret[_\-]?access[_\-]?key[\s:=\"']+([A-Za-z0-9/+=]{40})\b", 0.95)
-_sp("aws_session_token", r"(?i)aws[_\-]?session[_\-]?token[\s:=\"']+([A-Za-z0-9/+=]{100,})", 0.9)
-_sp("aws_mws_key", r"amzn\.mws\.[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
+_sp(
+    "aws_secret_key",
+    r"(?i)aws[_\-]?secret[_\-]?access[_\-]?key[\s:=\"']+([A-Za-z0-9/+=]{40})\b",
+    0.95,
+)
+_sp(
+    "aws_session_token",
+    r"(?i)aws[_\-]?session[_\-]?token[\s:=\"']+([A-Za-z0-9/+=]{100,})",
+    0.9,
+)
+_sp(
+    "aws_mws_key",
+    r"amzn\.mws\.[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
+)
 _sp("aws_arn", r"arn:aws:iam::\d{12}:[\w/+=,.@-]+", 0.7, "medium")
 
 # --- Azure ---
-_sp("azure_client_secret", r"(?i)(?:client[_\-]?secret|azure[_\-]?secret)[\s:=\"']+([A-Za-z0-9~._-]{34,})", 0.9)
-_sp("azure_storage_key", r"(?i)(?:DefaultEndpointsProtocol|AccountKey)=[A-Za-z0-9+/=]{40,}")
-_sp("azure_sas_token", r"(?:sv=\d{4}-\d{2}-\d{2}&(?:ss|srt|sp|se|st|spr|sig)=[^&\s]+){2,}")
-_sp("azure_connection_string", r"(?i)(?:Server|Data Source)=tcp:[^;]+;.*(?:Password|Pwd)=[^;]+", 0.95)
+_sp(
+    "azure_client_secret",
+    r"(?i)(?:client[_\-]?secret|azure[_\-]?secret)[\s:=\"']+([A-Za-z0-9~._-]{34,})",
+    0.9,
+)
+_sp(
+    "azure_storage_key",
+    r"(?i)(?:DefaultEndpointsProtocol|AccountKey)=[A-Za-z0-9+/=]{40,}",
+)
+_sp(
+    "azure_sas_token",
+    r"(?:sv=\d{4}-\d{2}-\d{2}&(?:ss|srt|sp|se|st|spr|sig)=[^&\s]+){2,}",
+)
+_sp(
+    "azure_connection_string",
+    r"(?i)(?:Server|Data Source)=tcp:[^;]+;.*(?:Password|Pwd)=[^;]+",
+    0.95,
+)
 _sp("azure_devops_pat", r"(?i)(?:azure|ado|devops)[_\-]?pat[\s:=\"']+[a-z0-9]{52}", 0.9)
-_sp("azure_subscription_key", r"(?i)(?:Ocp-Apim-Subscription-Key|subscription[_\-]?key)[\s:=\"']+[a-f0-9]{32}", 0.9)
+_sp(
+    "azure_subscription_key",
+    r"(?i)(?:Ocp-Apim-Subscription-Key|subscription[_\-]?key)[\s:=\"']+[a-f0-9]{32}",
+    0.9,
+)
 _sp("azure_cosmos_key", r"(?i)AccountKey=[A-Za-z0-9+/=]{64,}")
-_sp("azure_ad_client_id", r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", 0.3, "low")
+_sp(
+    "azure_ad_client_id",
+    r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
+    0.3,
+    "low",
+)
 
 # --- GCP ---
 _sp("gcp_api_key", r"AIza[0-9A-Za-z\-_]{35}")
@@ -80,7 +231,10 @@ _sp("gitlab_pipeline_token", r"glptt-[a-f0-9]{40}")
 _sp("slack_bot_token", r"xoxb-[0-9A-Za-z\-]{50,}")
 _sp("slack_user_token", r"xoxp-[0-9A-Za-z\-]{50,}")
 _sp("slack_app_token", r"xapp-[0-9]-[A-Za-z0-9\-]{50,}")
-_sp("slack_webhook", r"https://hooks\.slack\.com/services/T[A-Z0-9]+/B[A-Z0-9]+/[A-Za-z0-9]+")
+_sp(
+    "slack_webhook",
+    r"https://hooks\.slack\.com/services/T[A-Z0-9]+/B[A-Z0-9]+/[A-Za-z0-9]+",
+)
 _sp("slack_config_token", r"xoxe\.xoxp-1-[A-Za-z0-9\-]{140,}")
 
 # --- Database URIs ---
@@ -93,8 +247,15 @@ _sp("elasticsearch_uri", r"(?i)https?://[^\s:]+:[^\s@]+@[^\s]+(?::9200|:9243)")
 _sp("amqp_uri", r"amqps?://[^\s:]+:[^\s@]+@[^\s/]+")
 
 # --- JWTs & tokens ---
-_sp("jwt_token", r"eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}", 0.95, "high")
-_sp("bearer_token", r"(?i)(?:Bearer|Authorization)\s+[A-Za-z0-9\-._~+/]+=*", 0.8, "high")
+_sp(
+    "jwt_token",
+    r"eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}",
+    0.95,
+    "high",
+)
+_sp(
+    "bearer_token", r"(?i)(?:Bearer|Authorization)\s+[A-Za-z0-9\-._~+/]+=*", 0.8, "high"
+)
 _sp("basic_auth", r"(?i)Authorization:\s*Basic\s+[A-Za-z0-9+/]+=*", 0.95)
 
 # --- Private keys ---
@@ -107,10 +268,30 @@ _sp("pkcs8_private_key", r"-----BEGIN PRIVATE KEY-----")
 _sp("encrypted_private_key", r"-----BEGIN ENCRYPTED PRIVATE KEY-----")
 
 # --- Generic API keys ---
-_sp("generic_api_key", r"(?i)(?:api[_\-]?key|apikey)[\s:=\"']+[A-Za-z0-9\-._]{20,}", 0.8, "high")
-_sp("generic_secret", r"(?i)(?:secret[_\-]?key|client[_\-]?secret|app[_\-]?secret)[\s:=\"']+[A-Za-z0-9\-._]{20,}", 0.85, "high")
-_sp("generic_token", r"(?i)(?:access[_\-]?token|auth[_\-]?token|refresh[_\-]?token)[\s:=\"']+[A-Za-z0-9\-._]{20,}", 0.8, "high")
-_sp("generic_credential", r'(?i)(?:credential|cred)[\s:="\']+[A-Za-z0-9\-._]{20,}', 0.75, "high")
+_sp(
+    "generic_api_key",
+    r"(?i)(?:api[_\-]?key|apikey)[\s:=\"']+[A-Za-z0-9\-._]{20,}",
+    0.8,
+    "high",
+)
+_sp(
+    "generic_secret",
+    r"(?i)(?:secret[_\-]?key|client[_\-]?secret|app[_\-]?secret)[\s:=\"']+[A-Za-z0-9\-._]{20,}",
+    0.85,
+    "high",
+)
+_sp(
+    "generic_token",
+    r"(?i)(?:access[_\-]?token|auth[_\-]?token|refresh[_\-]?token)[\s:=\"']+[A-Za-z0-9\-._]{20,}",
+    0.8,
+    "high",
+)
+_sp(
+    "generic_credential",
+    r'(?i)(?:credential|cred)[\s:="\']+[A-Za-z0-9\-._]{20,}',
+    0.75,
+    "high",
+)
 
 # --- Stripe ---
 _sp("stripe_live_key", r"sk_live_[A-Za-z0-9]{24,}")
@@ -149,18 +330,35 @@ _sp("pypi_token", r"pypi-[A-Za-z0-9_-]{50,}")
 _sp("docker_config_auth", r'(?i)"auth"\s*:\s*"[A-Za-z0-9+/=]{20,}"', 0.85)
 
 # --- Heroku ---
-_sp("heroku_api_key", r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}", 0.3, "low")
+_sp(
+    "heroku_api_key",
+    r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}",
+    0.3,
+    "low",
+)
 
 # --- Hashicorp ---
 _sp("vault_token", r"(?:hvs|hvb|hvr)\.[A-Za-z0-9_-]{24,}")
 _sp("terraform_token", r"(?:atlasv1-)?[A-Za-z0-9]{14}\.[A-Za-z0-9]{67}")
 
 # --- Datadog ---
-_sp("datadog_api_key", r"(?i)(?:dd|datadog)[_\-]?api[_\-]?key[\s:=\"']+[a-f0-9]{32}", 0.9)
-_sp("datadog_app_key", r"(?i)(?:dd|datadog)[_\-]?app[_\-]?key[\s:=\"']+[a-f0-9]{40}", 0.9)
+_sp(
+    "datadog_api_key",
+    r"(?i)(?:dd|datadog)[_\-]?api[_\-]?key[\s:=\"']+[a-f0-9]{32}",
+    0.9,
+)
+_sp(
+    "datadog_app_key",
+    r"(?i)(?:dd|datadog)[_\-]?app[_\-]?key[\s:=\"']+[a-f0-9]{40}",
+    0.9,
+)
 
 # --- New Relic ---
-_sp("newrelic_license_key", r"(?i)new[_\-]?relic[_\-]?license[_\-]?key[\s:=\"']+[A-Za-z0-9]{40}", 0.9)
+_sp(
+    "newrelic_license_key",
+    r"(?i)new[_\-]?relic[_\-]?license[_\-]?key[\s:=\"']+[A-Za-z0-9]{40}",
+    0.9,
+)
 _sp("newrelic_api_key", r"NRAK-[A-Z0-9]{27}")
 _sp("newrelic_insights_key", r"NRI[a-zA-Z0-9\-]{32,}")
 
@@ -168,17 +366,27 @@ _sp("newrelic_insights_key", r"NRI[a-zA-Z0-9\-]{32,}")
 _sp("okta_api_token", r"00[A-Za-z0-9_-]{40}")
 
 # --- PagerDuty ---
-_sp("pagerduty_key", r"(?i)pagerduty[_\-]?(?:api|integration)[_\-]?key[\s:=\"']+[A-Za-z0-9+]{20,}", 0.9)
+_sp(
+    "pagerduty_key",
+    r"(?i)pagerduty[_\-]?(?:api|integration)[_\-]?key[\s:=\"']+[A-Za-z0-9+]{20,}",
+    0.9,
+)
 
 # --- Shopify ---
 _sp("shopify_access_token", r"shpat_[a-fA-F0-9]{32}")
 _sp("shopify_shared_secret", r"shpss_[a-fA-F0-9]{32}")
 
 # --- Atlassian ---
-_sp("atlassian_api_token", r"(?i)(?:atlassian|jira|confluence)[_\-]?api[_\-]?token[\s:=\"']+[A-Za-z0-9]{24,}", 0.85)
+_sp(
+    "atlassian_api_token",
+    r"(?i)(?:atlassian|jira|confluence)[_\-]?api[_\-]?token[\s:=\"']+[A-Za-z0-9]{24,}",
+    0.85,
+)
 
 # --- Cloudflare ---
-_sp("cloudflare_api_key", r"(?i)cloudflare[_\-]?api[_\-]?key[\s:=\"']+[a-f0-9]{37}", 0.9)
+_sp(
+    "cloudflare_api_key", r"(?i)cloudflare[_\-]?api[_\-]?key[\s:=\"']+[a-f0-9]{37}", 0.9
+)
 _sp("cloudflare_api_token", r"(?i)cf[_\-]?api[_\-]?token[\s:=\"']+[A-Za-z0-9_-]{40,}")
 
 # --- Doppler ---
@@ -189,7 +397,11 @@ _sp("grafana_api_key", r"eyJrIjoi[A-Za-z0-9+/=]{30,}")
 _sp("grafana_service_account", r"glsa_[A-Za-z0-9]{32}_[a-f0-9]{8}")
 
 # --- Supabase ---
-_sp("supabase_key", r"(?:eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\.eyJpc3MiOiJzdXBhYmFzZS)[A-Za-z0-9._-]+", 0.9)
+_sp(
+    "supabase_key",
+    r"(?:eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\.eyJpc3MiOiJzdXBhYmFzZS)[A-Za-z0-9._-]+",
+    0.9,
+)
 
 # --- Linear ---
 _sp("linear_api_key", r"lin_api_[A-Za-z0-9]{40}")
@@ -198,10 +410,18 @@ _sp("linear_api_key", r"lin_api_[A-Za-z0-9]{40}")
 _sp("algolia_api_key", r"(?i)algolia[_\-]?api[_\-]?key[\s:=\"']+[a-f0-9]{32}", 0.9)
 
 # --- Auth0 ---
-_sp("auth0_client_secret", r"(?i)auth0[_\-]?client[_\-]?secret[\s:=\"']+[A-Za-z0-9_-]{32,}", 0.9)
+_sp(
+    "auth0_client_secret",
+    r"(?i)auth0[_\-]?client[_\-]?secret[\s:=\"']+[A-Za-z0-9_-]{32,}",
+    0.9,
+)
 
 # --- Confluent ---
-_sp("confluent_key", r"(?i)confluent[_\-]?(?:api|cloud)[_\-]?key[\s:=\"']+[A-Z0-9]{16}", 0.9)
+_sp(
+    "confluent_key",
+    r"(?i)confluent[_\-]?(?:api|cloud)[_\-]?key[\s:=\"']+[A-Z0-9]{16}",
+    0.9,
+)
 
 # --- Databricks ---
 _sp("databricks_token", r"dapi[a-f0-9]{32}")
@@ -215,10 +435,18 @@ _sp("digitalocean_refresh", r"dor_v1_[a-f0-9]{64}")
 _sp("dynatrace_token", r"dt0c01\.[A-Z0-9]{24}\.[A-Za-z0-9]{64}")
 
 # --- Fastly ---
-_sp("fastly_api_token", r"(?i)fastly[_\-]?api[_\-]?token[\s:=\"']+[A-Za-z0-9_-]{32,}", 0.9)
+_sp(
+    "fastly_api_token",
+    r"(?i)fastly[_\-]?api[_\-]?token[\s:=\"']+[A-Za-z0-9_-]{32,}",
+    0.9,
+)
 
 # --- Finicity ---
-_sp("finicity_key", r"(?i)finicity[_\-]?(?:app|partner)[_\-]?key[\s:=\"']+[a-f0-9]{32}", 0.9)
+_sp(
+    "finicity_key",
+    r"(?i)finicity[_\-]?(?:app|partner)[_\-]?key[\s:=\"']+[a-f0-9]{32}",
+    0.9,
+)
 
 # --- Flutterwave ---
 _sp("flutterwave_key", r"FLWSECK_TEST-[a-f0-9]{32}-X")
@@ -231,11 +459,22 @@ _sp("frameio_token", r"fio-u-[A-Za-z0-9_-]{64,}")
 _sp("gocardless_token", r"live_[A-Za-z0-9_-]{40,}")
 
 # --- HubSpot ---
-_sp("hubspot_api_key", r"(?i)hubspot[_\-]?api[_\-]?key[\s:=\"']+[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}", 0.9)
-_sp("hubspot_private_app", r"pat-(?:na|eu)1-[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}")
+_sp(
+    "hubspot_api_key",
+    r"(?i)hubspot[_\-]?api[_\-]?key[\s:=\"']+[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}",
+    0.9,
+)
+_sp(
+    "hubspot_private_app",
+    r"pat-(?:na|eu)1-[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}",
+)
 
 # --- Intercom ---
-_sp("intercom_token", r"(?i)intercom[_\-]?(?:api|access)[_\-]?token[\s:=\"']+[a-zA-Z0-9=_-]{60,}", 0.9)
+_sp(
+    "intercom_token",
+    r"(?i)intercom[_\-]?(?:api|access)[_\-]?token[\s:=\"']+[a-zA-Z0-9=_-]{60,}",
+    0.9,
+)
 
 # --- Lob ---
 _sp("lob_api_key", r"(?:live|test)_[a-f0-9]{35}")
@@ -245,7 +484,11 @@ _sp("mapbox_token", r"pk\.[A-Za-z0-9_-]{60,}\.[A-Za-z0-9_-]{20,}")
 _sp("mapbox_secret", r"sk\.[A-Za-z0-9_-]{60,}\.[A-Za-z0-9_-]{20,}")
 
 # --- MessageBird ---
-_sp("messagebird_key", r"(?i)messagebird[_\-]?(?:api|access)[_\-]?key[\s:=\"']+[A-Za-z0-9]{25}", 0.9)
+_sp(
+    "messagebird_key",
+    r"(?i)messagebird[_\-]?(?:api|access)[_\-]?key[\s:=\"']+[A-Za-z0-9]{25}",
+    0.9,
+)
 
 # --- Notion ---
 _sp("notion_token", r"(?:ntn_|secret_)[A-Za-z0-9]{43,}")
@@ -261,7 +504,11 @@ _sp("postman_api_key", r"PMAK-[A-Za-z0-9]{24}-[a-f0-9]{34}")
 _sp("pulumi_token", r"pul-[a-f0-9]{40}")
 
 # --- RapidAPI ---
-_sp("rapidapi_key", r"(?i)(?:x-rapidapi-key|rapidapi[_\-]?key)[\s:=\"']+[a-f0-9]{50}", 0.9)
+_sp(
+    "rapidapi_key",
+    r"(?i)(?:x-rapidapi-key|rapidapi[_\-]?key)[\s:=\"']+[a-f0-9]{50}",
+    0.9,
+)
 
 # --- Rubygems ---
 _sp("rubygems_api_key", r"rubygems_[a-f0-9]{48}")
@@ -270,22 +517,39 @@ _sp("rubygems_api_key", r"rubygems_[a-f0-9]{48}")
 _sp("sentry_dsn", r"https://[a-f0-9]{32}@[a-z0-9]+\.ingest\.sentry\.io/\d+")
 
 # --- Sidekiq ---
-_sp("sidekiq_secret", r"(?i)BUNDLE_ENTERPRISE__CONTRIBSYS__COM[\s:=\"']+[a-f0-9]+:[a-f0-9]+", 0.85)
+_sp(
+    "sidekiq_secret",
+    r"(?i)BUNDLE_ENTERPRISE__CONTRIBSYS__COM[\s:=\"']+[a-f0-9]+:[a-f0-9]+",
+    0.85,
+)
 
 # --- Snyk ---
-_sp("snyk_token", r"(?i)snyk[_\-]?token[\s:=\"']+[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}", 0.9)
+_sp(
+    "snyk_token",
+    r"(?i)snyk[_\-]?token[\s:=\"']+[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}",
+    0.9,
+)
 
 # --- Sonar ---
 _sp("sonarqube_token", r"sq[a-z]_[a-f0-9]{40}")
 
 # --- Splunk ---
-_sp("splunk_hec_token", r"(?i)splunk[_\-]?hec[_\-]?token[\s:=\"']+[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}", 0.9)
+_sp(
+    "splunk_hec_token",
+    r"(?i)splunk[_\-]?hec[_\-]?token[\s:=\"']+[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}",
+    0.9,
+)
 
 # --- Vercel ---
 _sp("vercel_token", r"(?i)vercel[_\-]?token[\s:=\"']+[A-Za-z0-9]{24,}", 0.9)
 
 # --- Vonage/Nexmo ---
-_sp("vonage_key", r"(?i)(?:vonage|nexmo)[_\-]?(?:api|key)[\s:=\"']+[a-f0-9]{8}", 0.85, "high")
+_sp(
+    "vonage_key",
+    r"(?i)(?:vonage|nexmo)[_\-]?(?:api|key)[\s:=\"']+[a-f0-9]{8}",
+    0.85,
+    "high",
+)
 
 # --- Zendesk ---
 _sp("zendesk_token", r"(?i)zendesk[_\-]?(?:api|token)[\s:=\"']+[A-Za-z0-9]{40,}", 0.9)
@@ -298,18 +562,44 @@ _sp("generic_passwd", r"(?i)(?:passwd|pwd)[\s:=\"']+\S{6,}", 0.7, "high")
 
 _PII_PATTERNS: list[tuple[str, re.Pattern[str], float]] = [
     ("email", re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b"), 0.95),
-    ("phone_us", re.compile(r"\b(?:\+1[\s-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}\b"), 0.85),
+    (
+        "phone_us",
+        re.compile(r"\b(?:\+1[\s-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}\b"),
+        0.85,
+    ),
     ("phone_intl", re.compile(r"\b\+[1-9]\d{1,2}[\s.-]?\d{4,14}\b"), 0.8),
     ("ssn", re.compile(r"\b\d{3}-\d{2}-\d{4}\b"), 1.0),
-    ("credit_card_visa", re.compile(r"\b4\d{3}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b"), 1.0),
-    ("credit_card_mc", re.compile(r"\b5[1-5]\d{2}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b"), 1.0),
+    (
+        "credit_card_visa",
+        re.compile(r"\b4\d{3}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b"),
+        1.0,
+    ),
+    (
+        "credit_card_mc",
+        re.compile(r"\b5[1-5]\d{2}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b"),
+        1.0,
+    ),
     ("credit_card_amex", re.compile(r"\b3[47]\d{2}[\s-]?\d{6}[\s-]?\d{5}\b"), 1.0),
-    ("credit_card_discover", re.compile(r"\b6(?:011|5\d{2})[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b"), 1.0),
+    (
+        "credit_card_discover",
+        re.compile(r"\b6(?:011|5\d{2})[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b"),
+        1.0,
+    ),
     ("ip_address", re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b"), 0.6),
-    ("date_of_birth", re.compile(r"\b(?:0[1-9]|1[0-2])[/-](?:0[1-9]|[12]\d|3[01])[/-](?:19|20)\d{2}\b"), 0.7),
+    (
+        "date_of_birth",
+        re.compile(
+            r"\b(?:0[1-9]|1[0-2])[/-](?:0[1-9]|[12]\d|3[01])[/-](?:19|20)\d{2}\b"
+        ),
+        0.7,
+    ),
     ("us_passport", re.compile(r"\b[A-Z]\d{8}\b"), 0.6),
     ("drivers_license", re.compile(r"\b[A-Z]\d{7,12}\b"), 0.5),
-    ("iban", re.compile(r"\b[A-Z]{2}\d{2}[A-Z0-9]{4}\d{7}(?:[A-Z0-9]?\d{0,16})\b"), 0.85),
+    (
+        "iban",
+        re.compile(r"\b[A-Z]{2}\d{2}[A-Z0-9]{4}\d{7}(?:[A-Z0-9]?\d{0,16})\b"),
+        0.85,
+    ),
     ("nhs_number", re.compile(r"\b\d{3}\s?\d{3}\s?\d{4}\b"), 0.5),
     ("medicare_number", re.compile(r"\b\d{4}\s?\d{5}\s?\d{1}\b"), 0.5),
 ]
@@ -335,24 +625,40 @@ _REDACT_MAP: dict[str, str] = {
 
 # Prompt injection heuristics
 _INJECTION_PATTERNS: list[re.Pattern[str]] = [
-    re.compile(r"(?i)ignore\s+(?:all\s+)?(?:previous|above|prior)\s+(?:instructions?|prompts?|rules?)"),
-    re.compile(r"(?i)disregard\s+(?:all\s+)?(?:previous|above|prior)\s+(?:instructions?|prompts?|rules?)"),
+    re.compile(
+        r"(?i)ignore\s+(?:all\s+)?(?:previous|above|prior)\s+(?:instructions?|prompts?|rules?)"
+    ),
+    re.compile(
+        r"(?i)disregard\s+(?:all\s+)?(?:previous|above|prior)\s+(?:instructions?|prompts?|rules?)"
+    ),
     re.compile(r"(?i)you\s+are\s+now\s+(?:a|an|in)\s+"),
     re.compile(r"(?i)new\s+(?:system\s+)?instructions?:\s*"),
     re.compile(r"(?i)(?:system|admin|root)\s*(?:prompt|override|mode)\s*:"),
     re.compile(r"(?i)forget\s+(?:all|everything|your)\s+"),
     re.compile(r"(?i)do\s+not\s+follow\s+"),
-    re.compile(r"(?i)bypass\s+(?:all\s+)?(?:safety|content|security)\s+(?:filters?|restrictions?|rules?)"),
+    re.compile(
+        r"(?i)bypass\s+(?:all\s+)?(?:safety|content|security)\s+(?:filters?|restrictions?|rules?)"
+    ),
     re.compile(r"(?i)\bDAN\b.*\bjailbreak\b"),
     re.compile(r"(?i)pretend\s+(?:you\s+are|to\s+be)\s+"),
-    re.compile(r"(?i)act\s+as\s+(?:if\s+)?(?:you\s+(?:are|were)\s+)?(?:a\s+)?(?:different|unrestricted|evil)"),
+    re.compile(
+        r"(?i)act\s+as\s+(?:if\s+)?(?:you\s+(?:are|were)\s+)?(?:a\s+)?(?:different|unrestricted|evil)"
+    ),
     re.compile(r"(?i)<\|im_start\|>|<\|im_end\|>|\[INST\]|\[/INST\]|<<SYS>>|<</SYS>>"),
 ]
 
 # Toxicity keyword blocklist (lightweight, no ML needed)
 _TOXICITY_KEYWORDS: list[str] = [
-    "kill", "murder", "attack", "bomb", "weapon", "exploit",
-    "hack into", "steal data", "ransomware", "malware",
+    "kill",
+    "murder",
+    "attack",
+    "bomb",
+    "weapon",
+    "exploit",
+    "hack into",
+    "steal data",
+    "ransomware",
+    "malware",
 ]
 
 
@@ -361,6 +667,21 @@ def _preview(text: str, max_len: int = 8) -> str:
     if len(text) <= max_len:
         return text[:3] + "..."
     return text[:max_len] + "..."
+
+
+# ── Exceptions ─────────────────────────────────────────────────────
+
+
+class DLPBlockedError(Exception):
+    """Raised when DLP action is 'block' and findings are present.
+
+    Callers must catch this and prevent the text from being processed
+    or returned to any client.
+    """
+
+    def __init__(self, message: str = "Content blocked by DLP policy") -> None:
+        super().__init__(message)
+        self.message = message
 
 
 # ── DLP Service ────────────────────────────────────────────────────
@@ -385,13 +706,15 @@ class DLPService:
         findings: list[SecretFinding] = []
         for name, pattern, confidence, severity in _SECRET_PATTERNS:
             for match in pattern.finditer(content):
-                findings.append(SecretFinding(
-                    pattern_name=name,
-                    matched_text_preview=_preview(match.group()),
-                    position=(match.start(), match.end()),
-                    confidence=confidence,
-                    severity=severity,
-                ))
+                findings.append(
+                    SecretFinding(
+                        pattern_name=name,
+                        matched_text_preview=_preview(match.group()),
+                        position=(match.start(), match.end()),
+                        confidence=confidence,
+                        severity=severity,
+                    )
+                )
 
         # Deduplicate overlapping ranges — keep higher-confidence
         findings.sort(key=lambda f: (f.position[0], -f.confidence))
@@ -414,12 +737,14 @@ class DLPService:
         findings: list[PIIFinding] = []
         for pii_type, pattern, confidence in _PII_PATTERNS:
             for match in pattern.finditer(content):
-                findings.append(PIIFinding(
-                    pii_type=pii_type,
-                    matched_text_preview=_preview(match.group()),
-                    position=(match.start(), match.end()),
-                    confidence=confidence,
-                ))
+                findings.append(
+                    PIIFinding(
+                        pii_type=pii_type,
+                        matched_text_preview=_preview(match.group()),
+                        position=(match.start(), match.end()),
+                        confidence=confidence,
+                    )
+                )
 
         # Deduplicate overlapping ranges
         findings.sort(key=lambda f: (f.position[0], -f.confidence))
@@ -458,9 +783,7 @@ class DLPService:
             DLPScanResultSchema with findings, risk level, and recommended action.
         """
         start_ts = time.monotonic()
-        content_id = hashlib.sha256(
-            f"{tenant_id}:{content}".encode()
-        ).hexdigest()[:16]
+        content_id = hashlib.sha256(f"{tenant_id}:{content}".encode()).hexdigest()[:16]
 
         # Layer 1: secrets
         secret_findings = DLPService.scan_for_secrets(content)
@@ -470,7 +793,8 @@ class DLPService:
 
         # Layer 3: semantic classification — risk scoring
         all_findings: list[SecretFinding | PIIFinding] = [
-            *secret_findings, *pii_findings,
+            *secret_findings,
+            *pii_findings,
         ]
         risk_level = DLPService._classify_risk(secret_findings, pii_findings)
 
@@ -527,6 +851,418 @@ class DLPService:
             result = result[:start] + placeholder + result[end:]
         return result
 
+    # ── apply_action() — 5-action policy enforcement ──────────────
+
+    @staticmethod
+    def apply_action(
+        text: str,
+        findings: list[SecretFinding | PIIFinding],
+        action: str,
+        *,
+        alert_callback: Any | None = None,
+    ) -> str:
+        """Apply a DLP action to text based on detected findings.
+
+        Actions:
+            detect  — Return text unchanged; findings are logged (no modification).
+            redact  — Replace each finding span with ``[REDACTED:{entity_type}]``.
+            mask    — Partial masking preserving useful non-sensitive portions:
+                        SSN: ``***-**-1234`` (last 4 digits)
+                        Email: ``j***@example.com`` (first char + domain)
+                        Credit card: ``****-****-****-1234`` (last 4 digits)
+                        API key: ``AKIA****...****WXYZ`` (first 4 + last 4)
+                        Default: first 2 chars + ``***``
+            block   — Raise ``DLPBlockedError``; processing must stop.
+            alert   — Log findings to audit + call optional callback; return text unchanged.
+
+        Args:
+            text: The text to process.
+            findings: Findings from scan_for_secrets() / scan_for_pii().
+            action: One of detect | redact | mask | block | alert.
+            alert_callback: Optional callable(findings) invoked for alert action.
+
+        Returns:
+            Processed text string (for detect/mask/redact/alert).
+
+        Raises:
+            DLPBlockedError: When action == "block" and findings exist.
+            ValueError: When an unknown action is specified.
+        """
+        action = action.lower().strip()
+
+        if action not in {"detect", "redact", "mask", "block", "alert"}:
+            raise ValueError(
+                f"Unknown DLP action: {action!r}. Must be one of: detect, redact, mask, block, alert"
+            )
+
+        if not findings:
+            logger.debug(
+                "apply_action called with empty findings list; action=%s", action
+            )
+            return text
+
+        if action == "detect":
+            logger.info(
+                "DLP detect action — findings logged, text not modified",
+                extra={"findings_count": len(findings), "action": "detect"},
+            )
+            return text
+
+        if action == "block":
+            entity_types = DLPService._summarize_entity_types(findings)
+            logger.warning(
+                "DLP block action triggered",
+                extra={"findings_count": len(findings), "entity_types": entity_types},
+            )
+            raise DLPBlockedError(
+                f"Content blocked by DLP policy — detected: {', '.join(entity_types)}"
+            )
+
+        if action == "alert":
+            entity_types = DLPService._summarize_entity_types(findings)
+            logger.warning(
+                "DLP alert action — admin notification triggered",
+                extra={
+                    "findings_count": len(findings),
+                    "entity_types": entity_types,
+                    "action": "alert",
+                },
+            )
+            if alert_callback is not None:
+                try:
+                    alert_callback(findings)
+                except Exception:
+                    logger.exception("DLP alert callback raised an exception")
+            return text
+
+        # For redact and mask — process findings in reverse order to preserve offsets
+        sorted_findings = sorted(findings, key=lambda f: f.position[0], reverse=True)
+        result = text
+
+        for finding in sorted_findings:
+            start, end = finding.position
+            original_span = result[start:end]
+
+            if action == "redact":
+                entity_type = DLPService._get_entity_type(finding)
+                placeholder = f"[REDACTED:{entity_type}]"
+            else:  # mask
+                placeholder = DLPService._mask_value(original_span, finding)
+
+            result = result[:start] + placeholder + result[end:]
+
+        logger.info(
+            "DLP action applied",
+            extra={
+                "action": action,
+                "findings_count": len(findings),
+                "text_changed": result != text,
+            },
+        )
+        return result
+
+    @staticmethod
+    def _get_entity_type(finding: SecretFinding | PIIFinding) -> str:
+        """Get a canonical entity type string from a finding."""
+        if isinstance(finding, SecretFinding):
+            return finding.pattern_name.upper()
+        return finding.pii_type.upper()
+
+    @staticmethod
+    def _summarize_entity_types(
+        findings: list[SecretFinding | PIIFinding],
+    ) -> list[str]:
+        """Return unique entity types from findings list."""
+        seen: set[str] = set()
+        result: list[str] = []
+        for f in findings:
+            et = DLPService._get_entity_type(f)
+            if et not in seen:
+                seen.add(et)
+                result.append(et)
+        return result
+
+    @staticmethod
+    def _mask_value(value: str, finding: SecretFinding | PIIFinding) -> str:
+        """Apply entity-specific partial masking.
+
+        Masking rules per entity type:
+        - SSN (NNN-NN-NNNN):          ``***-**-1234``          (last 4 visible)
+        - Email (a@b.com):            ``a***@b.com``           (first char + domain)
+        - Credit card:                ``****-****-****-1234``  (last 4 visible)
+        - API key / generic secret:   ``AKIA****...****WXYZ``  (first 4 + last 4)
+        - Phone:                      ``(***) ***-1234``       (last 4 visible)
+        - IP address:                 ``***.***.***.N``        (last octet visible)
+        - Default:                    first 2 chars + ``***``
+        """
+        if isinstance(finding, PIIFinding):
+            pii_type = finding.pii_type
+        else:
+            pii_type = finding.pattern_name
+
+        # SSN masking — show last 4 digits
+        if "ssn" in pii_type:
+            digits = re.sub(r"\D", "", value)
+            if len(digits) == 9:
+                return f"***-**-{digits[-4:]}"
+            return "***-**-****"
+
+        # Email masking — show first char of local + full domain
+        if "email" in pii_type or "@" in value:
+            if "@" in value:
+                local, domain = value.split("@", 1)
+                masked_local = local[0] + "***" if local else "***"
+                return f"{masked_local}@{domain}"
+            return "***@***.***"
+
+        # Credit card masking — show last 4 digits
+        if "credit_card" in pii_type or re.match(r"[\d\s\-]{13,19}", value):
+            digits = re.sub(r"\D", "", value)
+            if len(digits) >= 4:
+                last_four = digits[-4:]
+                return f"****-****-****-{last_four}"
+            return "****-****-****-****"
+
+        # Phone masking — show last 4 digits
+        if "phone" in pii_type:
+            digits = re.sub(r"\D", "", value)
+            if len(digits) >= 4:
+                return f"(***) ***-{digits[-4:]}"
+            return "(***) ***-****"
+
+        # IP address masking — show last octet
+        if "ip_address" in pii_type or re.match(
+            r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$", value
+        ):
+            parts = value.split(".")
+            if len(parts) == 4:
+                return f"***.***.***.{parts[-1]}"
+            return "***.***.***.***"
+
+        # API key / secret masking — show first 4 + last 4
+        if any(
+            kw in pii_type for kw in ("api_key", "secret", "token", "key", "aws_access")
+        ):
+            stripped = value.strip()
+            if len(stripped) >= 8:
+                return f"{stripped[:4]}****...****{stripped[-4:]}"
+            return "****...****"
+
+        # Default: show first 2 chars + ***
+        stripped = value.strip()
+        if len(stripped) >= 2:
+            return f"{stripped[:2]}***"
+        return "***"
+
+    @staticmethod
+    def calculate_severity(findings: list[SecretFinding | PIIFinding]) -> str:
+        """Calculate overall severity from a list of findings.
+
+        Severity tiers:
+            high    — Cloud credentials (AWS/GCP/Azure keys), private keys, JWTs
+            medium  — SSN, credit cards, health IDs, API keys
+            low     — Emails, phones, IP addresses, dates, generic PII
+
+        Returns:
+            ``"high"`` | ``"medium"`` | ``"low"``
+        """
+        if not findings:
+            return "low"
+
+        HIGH_SECRET_TYPES = frozenset(
+            [
+                "aws_access_key",
+                "aws_secret_key",
+                "aws_session_token",
+                "gcp_api_key",
+                "gcp_service_account",
+                "gcp_oauth_token",
+                "azure_client_secret",
+                "azure_storage_key",
+                "rsa_private_key",
+                "openssh_private_key",
+                "ec_private_key",
+                "pgp_private_key",
+                "dsa_private_key",
+                "pkcs8_private_key",
+                "encrypted_private_key",
+                "jwt_token",
+                "stripe_live_key",
+                "github_pat_fine",
+                "github_pat_classic",
+                "github_oauth",
+                "github_app_token",
+                "vault_token",
+                "databricks_token",
+            ]
+        )
+        MEDIUM_SECRET_TYPES = frozenset(
+            [
+                "generic_api_key",
+                "generic_secret",
+                "generic_token",
+                "bearer_token",
+                "basic_auth",
+                "slack_bot_token",
+                "stripe_test_key",
+                "npm_token",
+                "pypi_token",
+            ]
+        )
+        HIGH_PII_TYPES = frozenset(
+            [
+                "ssn",
+                "credit_card_visa",
+                "credit_card_mc",
+                "credit_card_amex",
+                "credit_card_discover",
+            ]
+        )
+        MEDIUM_PII_TYPES = frozenset(
+            [
+                "iban",
+                "us_passport",
+                "drivers_license",
+                "nhs_number",
+                "medicare_number",
+            ]
+        )
+
+        for finding in findings:
+            if isinstance(finding, SecretFinding):
+                if (
+                    finding.severity == "critical"
+                    or finding.pattern_name in HIGH_SECRET_TYPES
+                ):
+                    return "high"
+            else:
+                if finding.pii_type in HIGH_PII_TYPES:
+                    return "high"
+
+        for finding in findings:
+            if isinstance(finding, SecretFinding):
+                if (
+                    finding.pattern_name in MEDIUM_SECRET_TYPES
+                    or finding.severity == "high"
+                ):
+                    return "medium"
+            else:
+                if finding.pii_type in MEDIUM_PII_TYPES:
+                    return "medium"
+
+        return "low"
+
+    # ── NER Layer (Presidio or enhanced regex fallback) ────────────
+
+    @staticmethod
+    def scan_for_ner_entities(
+        content: str,
+        entity_types: list[str] | None = None,
+        language: str = "en",
+    ) -> list[PIIFinding]:
+        """Scan content for named entities using Presidio or enhanced regex fallback.
+
+        If ``presidio-analyzer`` is installed, delegates to ``AnalyzerEngine``
+        for ML-backed entity recognition with high accuracy.
+
+        If Presidio is NOT available, uses an enhanced regex NER fallback
+        covering PERSON, ORGANIZATION, LOCATION, DATE_TIME patterns.
+
+        Args:
+            content: Text to analyze.
+            entity_types: List of entity types to detect. Defaults to all supported.
+            language: Language code for Presidio (default: "en").
+
+        Returns:
+            List of PIIFinding objects (same schema as regex PII findings).
+        """
+        if not content or not content.strip():
+            return []
+
+        entities = entity_types or _PRESIDIO_ENTITIES
+
+        if _PRESIDIO_AVAILABLE and _presidio_analyzer is not None:
+            return DLPService._scan_with_presidio(content, entities, language)
+        else:
+            return DLPService._scan_with_ner_fallback(content, entities)
+
+    @staticmethod
+    def _scan_with_presidio(
+        content: str,
+        entities: list[str],
+        language: str,
+    ) -> list[PIIFinding]:
+        """Delegate NER scanning to Microsoft Presidio AnalyzerEngine."""
+        try:
+            results = _presidio_analyzer.analyze(
+                text=content,
+                entities=entities,
+                language=language,
+            )
+            findings: list[PIIFinding] = []
+            for result in results:
+                findings.append(
+                    PIIFinding(
+                        pii_type=result.entity_type,
+                        matched_text_preview=_preview(
+                            content[result.start : result.end]
+                        ),
+                        position=(result.start, result.end),
+                        confidence=result.score,
+                    )
+                )
+            # Deduplicate overlapping
+            findings.sort(key=lambda f: (f.position[0], -f.confidence))
+            deduped: list[PIIFinding] = []
+            last_end = -1
+            for f in findings:
+                if f.position[0] >= last_end:
+                    deduped.append(f)
+                    last_end = f.position[1]
+            return deduped
+        except Exception:
+            logger.exception("Presidio analyzer failed — falling back to regex NER")
+            return DLPService._scan_with_ner_fallback(content, entities)
+
+    @staticmethod
+    def _scan_with_ner_fallback(
+        content: str,
+        entities: list[str],
+    ) -> list[PIIFinding]:
+        """Enhanced regex NER fallback when Presidio is not available.
+
+        Covers: PERSON (with honorifics), ORGANIZATION (Corp/Inc/LLC/etc.),
+        LOCATION (US states, major countries, city patterns), DATE_TIME.
+
+        Note: This is a best-effort approximation. For production deployments
+        with strict PII requirements, install presidio-analyzer for ML accuracy.
+        """
+        findings: list[PIIFinding] = []
+        entity_set = set(entities)
+
+        for entity_type, pattern, confidence in _NER_FALLBACK_PATTERNS:
+            if entity_type not in entity_set:
+                continue
+            for match in pattern.finditer(content):
+                findings.append(
+                    PIIFinding(
+                        pii_type=entity_type,
+                        matched_text_preview=_preview(match.group()),
+                        position=(match.start(), match.end()),
+                        confidence=confidence,
+                    )
+                )
+
+        # Deduplicate overlapping ranges — keep higher confidence
+        findings.sort(key=lambda f: (f.position[0], -f.confidence))
+        deduped: list[PIIFinding] = []
+        last_end = -1
+        for f in findings:
+            if f.position[0] >= last_end:
+                deduped.append(f)
+                last_end = f.position[1]
+        return deduped
+
     # ── Guardrails ─────────────────────────────────────────────────
 
     @staticmethod
@@ -555,41 +1291,49 @@ class DLPService:
         if guardrail_config.enable_injection_detection:
             for pattern in _INJECTION_PATTERNS:
                 if pattern.search(content):
-                    violations.append(GuardrailViolation(
-                        rule="prompt_injection",
-                        detail=f"Injection pattern detected: {pattern.pattern[:50]}",
-                        severity="critical",
-                    ))
+                    violations.append(
+                        GuardrailViolation(
+                            rule="prompt_injection",
+                            detail=f"Injection pattern detected: {pattern.pattern[:50]}",
+                            severity="critical",
+                        )
+                    )
                     break  # One injection finding is enough to flag
 
         # 2. Blocked topics
         for topic in guardrail_config.blocked_topics:
             if topic.lower() in content_lower:
-                violations.append(GuardrailViolation(
-                    rule="blocked_topic",
-                    detail=f"Content references blocked topic: {topic}",
-                    severity="high",
-                ))
+                violations.append(
+                    GuardrailViolation(
+                        rule="blocked_topic",
+                        detail=f"Content references blocked topic: {topic}",
+                        severity="high",
+                    )
+                )
 
         # 3. Toxicity scoring (keyword-based lightweight check)
         toxicity_hits = sum(1 for kw in _TOXICITY_KEYWORDS if kw in content_lower)
         toxicity_score = min(toxicity_hits / max(len(_TOXICITY_KEYWORDS), 1), 1.0)
         if toxicity_score > guardrail_config.max_toxicity_score:
-            violations.append(GuardrailViolation(
-                rule="toxicity",
-                detail=f"Toxicity score {toxicity_score:.2f} exceeds threshold {guardrail_config.max_toxicity_score}",
-                severity="high",
-            ))
+            violations.append(
+                GuardrailViolation(
+                    rule="toxicity",
+                    detail=f"Toxicity score {toxicity_score:.2f} exceeds threshold {guardrail_config.max_toxicity_score}",
+                    severity="high",
+                )
+            )
 
         # 4. PII echo prevention
         if guardrail_config.enable_pii_echo_prevention:
             pii_findings = DLPService.scan_for_pii(content)
             if pii_findings:
-                violations.append(GuardrailViolation(
-                    rule="pii_echo",
-                    detail=f"PII detected in output: {len(pii_findings)} finding(s)",
-                    severity="high",
-                ))
+                violations.append(
+                    GuardrailViolation(
+                        rule="pii_echo",
+                        detail=f"PII detected in output: {len(pii_findings)} finding(s)",
+                        severity="high",
+                    )
+                )
 
         passed = len(violations) == 0
         action = ScanAction.ALLOW if passed else ScanAction.BLOCK
@@ -673,23 +1417,27 @@ class DLPService:
             if policy.tenant_id != tenant_id:
                 continue
             if not policy.is_active:
-                evaluations.append(PolicyEvaluation(
-                    policy_id=policy.id,
-                    matched=False,
-                    action=ScanAction.ALLOW,
-                    reason="Policy is inactive",
-                ))
+                evaluations.append(
+                    PolicyEvaluation(
+                        policy_id=policy.id,
+                        matched=False,
+                        action=ScanAction.ALLOW,
+                        reason="Policy is inactive",
+                    )
+                )
                 continue
 
             matched, reason = DLPService._evaluate_single_policy(content, policy)
             action = ScanAction(policy.action) if matched else ScanAction.ALLOW
 
-            evaluations.append(PolicyEvaluation(
-                policy_id=policy.id,
-                matched=matched,
-                action=action,
-                reason=reason,
-            ))
+            evaluations.append(
+                PolicyEvaluation(
+                    policy_id=policy.id,
+                    matched=matched,
+                    action=action,
+                    reason=reason,
+                )
+            )
 
         logger.info(
             "Policy evaluation complete",
@@ -758,12 +1506,14 @@ class DLPService:
                 except Exception:
                     exists = False
 
-            results.append(VaultCrossRef(
-                finding=finding,
-                vault_path=vault_path,
-                exists_in_vault=exists,
-                rotation_triggered=rotation_triggered,
-            ))
+            results.append(
+                VaultCrossRef(
+                    finding=finding,
+                    vault_path=vault_path,
+                    exists_in_vault=exists,
+                    rotation_triggered=rotation_triggered,
+                )
+            )
 
         return results
 
@@ -779,14 +1529,20 @@ class DLPService:
             return RiskLevel.CRITICAL
         if secret_findings:
             return RiskLevel.HIGH
-        if any(f.pii_type in ("ssn", "credit_card_visa", "credit_card_mc", "credit_card_amex") for f in pii_findings):
+        if any(
+            f.pii_type
+            in ("ssn", "credit_card_visa", "credit_card_mc", "credit_card_amex")
+            for f in pii_findings
+        ):
             return RiskLevel.HIGH
         if pii_findings:
             return RiskLevel.MEDIUM
         return RiskLevel.LOW
 
     @staticmethod
-    def _decide_action(risk_level: RiskLevel, direction: ScanDirection | str) -> ScanAction:
+    def _decide_action(
+        risk_level: RiskLevel, direction: ScanDirection | str
+    ) -> ScanAction:
         """Map risk level + direction to an action."""
         if risk_level == RiskLevel.CRITICAL:
             return ScanAction.BLOCK
@@ -822,11 +1578,13 @@ class DLPService:
 
         for keyword, entity_type in entity_map.items():
             if keyword in text_lower:
-                rules.append({
-                    "type": "detect",
-                    "entity": entity_type,
-                    "source": "nl_parse",
-                })
+                rules.append(
+                    {
+                        "type": "detect",
+                        "entity": entity_type,
+                        "source": "nl_parse",
+                    }
+                )
 
         # Detect action keywords
         action_map = {
@@ -843,11 +1601,13 @@ class DLPService:
 
         for keyword, action in action_map.items():
             if keyword in text_lower:
-                rules.append({
-                    "type": "action",
-                    "action": action,
-                    "source": "nl_parse",
-                })
+                rules.append(
+                    {
+                        "type": "action",
+                        "action": action,
+                        "source": "nl_parse",
+                    }
+                )
                 break
 
         # Detect scope constraints
@@ -922,7 +1682,11 @@ class DLPService:
 
         # Check rules for catch-all entity
         for rule in policy.rules:
-            if rule.get("type") == "detect" and rule.get("entity") in ("all", "pii_all", "credentials_all"):
+            if rule.get("type") == "detect" and rule.get("entity") in (
+                "all",
+                "pii_all",
+                "credentials_all",
+            ):
                 secret_findings = DLPService.scan_for_secrets(content)
                 pii_findings = DLPService.scan_for_pii(content)
                 if secret_findings or pii_findings:

@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Play, Loader2, ChevronDown, ChevronUp, X, Clock, Zap, DollarSign, CheckCircle2, Circle, AlertCircle, Trash2, RefreshCw } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { listExecutions, createExecution, deleteExecution } from "@/api/executions";
 import { listAgents } from "@/api/agents";
 import { Button } from "@/components/ui/Button";
@@ -273,12 +274,8 @@ function ExecutionDetail({ execution, agentName }: { execution: Execution; agent
 
 export function ExecutionsPage() {
   const navigate = useNavigate();
-  const [executions, setExecutions] = useState<Execution[]>([]);
-  const [agents, setAgents] = useState<AgentSummary[]>([]);
-  const [agentMap, setAgentMap] = useState<Record<string, string>>({});
+  const queryClient = useQueryClient();
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [showRunModal, setShowRunModal] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
@@ -289,63 +286,46 @@ export function ExecutionsPage() {
   const [filterDateTo, setFilterDateTo] = useState<string>("");
 
   // Auto-refresh ref
-  const autoRefreshRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // ── Build filter params ──────────────────────────────────────────────
+  const execParams: Record<string, string | undefined> = {};
+  if (filterStatus) execParams.status = filterStatus;
+  if (filterAgentId) execParams.agent_id = filterAgentId;
 
-  const fetchExecutions = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const params: Record<string, string | undefined> = {};
-      if (filterStatus) params.status = filterStatus;
-      if (filterAgentId) params.agent_id = filterAgentId;
-      const res = await listExecutions(params);
-      let list = Array.isArray(res.data) ? res.data : [];
+  // ── Queries ──────────────────────────────────────────────────────────
+  const { data: executionsData, isLoading, error, refetch: refetchExecutions } = useQuery({
+    queryKey: ["executions", execParams],
+    queryFn: () => listExecutions(execParams),
+  });
 
-      // Client-side date filtering
-      if (filterDateFrom) {
-        const from = new Date(filterDateFrom).getTime();
-        list = list.filter((e) => new Date(e.created_at).getTime() >= from);
-      }
-      if (filterDateTo) {
-        const to = new Date(filterDateTo).getTime() + 86400000; // end of day
-        list = list.filter((e) => new Date(e.created_at).getTime() <= to);
-      }
-
-      setExecutions(list);
-    } catch {
-      setError("Failed to load executions.");
-    } finally {
-      setLoading(false);
+  const rawExecutions = Array.isArray(executionsData?.data) ? executionsData.data : [];
+  const executions = rawExecutions.filter((e) => {
+    if (filterDateFrom) {
+      const from = new Date(filterDateFrom).getTime();
+      if (new Date(e.created_at).getTime() < from) return false;
     }
-  }, [filterStatus, filterAgentId, filterDateFrom, filterDateTo]);
-
-  const fetchAgents = useCallback(async () => {
-    try {
-      const res = await listAgents(100, 0);
-      const list = Array.isArray(res.data) ? res.data : [];
-      const summaries: AgentSummary[] = list.map((a: { id: string; name: string }) => ({ id: a.id, name: a.name }));
-      setAgents(summaries);
-      const map: Record<string, string> = {};
-      for (const a of summaries) map[a.id] = a.name;
-      setAgentMap(map);
-    } catch {
-      // Non-critical
+    if (filterDateTo) {
+      const to = new Date(filterDateTo).getTime() + 86400000;
+      if (new Date(e.created_at).getTime() > to) return false;
     }
-  }, []);
+    return true;
+  });
 
-  useEffect(() => { void fetchAgents(); }, [fetchAgents]);
-  useEffect(() => { void fetchExecutions(); }, [fetchExecutions]);
+  const { data: agentsData } = useQuery({
+    queryKey: ["agents-list"],
+    queryFn: () => listAgents(100, 0),
+  });
+  const agentsList = Array.isArray(agentsData?.data) ? agentsData.data : [];
+  const agents: AgentSummary[] = agentsList.map((a: { id: string; name: string }) => ({ id: a.id, name: a.name }));
+  const agentMap: Record<string, string> = {};
+  for (const a of agents) agentMap[a.id] = a.name;
 
-  // Auto-refresh when any execution is running
+  // ── Auto-refresh when any execution is running ───────────────────────
+  const hasRunning = executions.some((e) => e.status === "running" || e.status === "pending");
   useEffect(() => {
-    const hasRunning = executions.some((e) => e.status === "running" || e.status === "pending");
-    if (hasRunning) {
-      autoRefreshRef.current = setInterval(() => { void fetchExecutions(); }, 10000);
-    }
-    return () => {
-      if (autoRefreshRef.current) clearInterval(autoRefreshRef.current);
-    };
-  }, [executions, fetchExecutions]);
+    if (!hasRunning) return;
+    const id = setInterval(() => { void refetchExecutions(); }, 10000);
+    return () => clearInterval(id);
+  }, [hasRunning, refetchExecutions]);
 
   function toggleSelect(id: string) {
     setSelectedIds((prev) => {
@@ -369,14 +349,14 @@ export function ExecutionsPage() {
       try { await deleteExecution(id); } catch { /* ignore */ }
     }
     setSelectedIds(new Set());
-    void fetchExecutions();
+    void queryClient.invalidateQueries({ queryKey: ["executions"] });
   }
 
   function handleRunExecuted(executionId: string) {
     navigate(`/executions/${executionId}`);
   }
 
-  if (loading && executions.length === 0) {
+  if (isLoading && executions.length === 0) {
     return (
       <div className="flex h-64 items-center justify-center">
         <Loader2 className="animate-spin text-gray-400" />
@@ -387,7 +367,7 @@ export function ExecutionsPage() {
   if (error) {
     return (
       <div className="p-6">
-        <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-red-400">{error}</div>
+        <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-red-400">Failed to load executions.</div>
       </div>
     );
   }
@@ -401,7 +381,7 @@ export function ExecutionsPage() {
           <h1 className="text-2xl font-bold text-white">Executions</h1>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={() => void fetchExecutions()} className="text-gray-400 hover:text-white">
+          <Button variant="ghost" size="sm" onClick={() => void refetchExecutions()} className="text-gray-400 hover:text-white">
             <RefreshCw size={14} className="mr-1" /> Refresh
           </Button>
           {selectedIds.size > 0 && (

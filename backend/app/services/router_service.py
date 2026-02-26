@@ -6,13 +6,14 @@ import logging
 import time
 from collections import defaultdict
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Optional
 from uuid import UUID, uuid4
 
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
+from app.config import settings
 from app.interfaces.models.enterprise import AuthenticatedUser
 from app.interfaces.secrets_manager import SecretsManager
 from app.middleware.rbac import check_permission
@@ -24,6 +25,7 @@ from app.models.router import (
     PROVIDER_CREDENTIAL_SCHEMAS,
     ProviderHealth,
     ProviderHealthDetail,
+    ProviderHealthHistory,
     RoutingCondition,
     RoutingDecision,
     RoutingPolicy,
@@ -99,6 +101,148 @@ class _CircuitBreaker:
 _circuit_breaker = _CircuitBreaker()
 
 
+class RedisCircuitBreaker:
+    """Redis-backed circuit breaker for provider health management.
+
+    Tracks per-tenant, per-provider circuit state in Redis so that circuit
+    state is shared across all worker processes.  Falls back transparently
+    to an in-memory dict when Redis is unavailable.
+
+    State keys stored in a Redis hash at ``circuit:{tenant_id}:{provider_id}``:
+        state        – CLOSED | OPEN | HALF_OPEN
+        failures     – consecutive failure count (int)
+        last_failure – Unix timestamp of most-recent failure (float)
+    """
+
+    STATES = {"CLOSED", "OPEN", "HALF_OPEN"}
+    FAILURE_THRESHOLD = 5
+    RECOVERY_TIMEOUT = 60  # seconds
+
+    def __init__(self) -> None:
+        self._redis: Optional[Any] = None  # redis.asyncio.Redis
+        self._fallback: dict[str, dict[str, Any]] = {}  # in-memory fallback
+
+    async def _get_redis(self) -> Optional[Any]:
+        """Return a live Redis connection, or None if Redis is unreachable."""
+        if self._redis is None:
+            try:
+                import redis.asyncio as aioredis  # type: ignore[import]
+
+                self._redis = aioredis.from_url(
+                    str(settings.REDIS_URL),
+                    encoding="utf-8",
+                    decode_responses=True,
+                )
+                await self._redis.ping()
+            except Exception:
+                self._redis = None
+        return self._redis
+
+    async def get_state(self, tenant_id: str, provider_id: str) -> str:
+        """Return current circuit state for the given tenant/provider pair."""
+        key = f"circuit:{tenant_id}:{provider_id}"
+        r = await self._get_redis()
+        if r is not None:
+            try:
+                state = await r.hget(key, "state")
+                if state:
+                    return state
+            except Exception:
+                self._redis = None  # force reconnect next call
+        return self._fallback.get(key, {}).get("state", "CLOSED")
+
+    async def record_success(self, tenant_id: str, provider_id: str) -> None:
+        """Reset circuit to CLOSED on success."""
+        key = f"circuit:{tenant_id}:{provider_id}"
+        r = await self._get_redis()
+        if r is not None:
+            try:
+                await r.hset(key, mapping={"state": "CLOSED", "failures": 0})
+                return
+            except Exception:
+                self._redis = None
+        self._fallback[key] = {"state": "CLOSED", "failures": 0}
+
+    async def record_failure(self, tenant_id: str, provider_id: str) -> str:
+        """Record a failure and return the new state (CLOSED or OPEN)."""
+        import time as _time
+
+        key = f"circuit:{tenant_id}:{provider_id}"
+        r = await self._get_redis()
+        if r is not None:
+            try:
+                pipe = r.pipeline()
+                pipe.hincrby(key, "failures", 1)
+                pipe.hset(key, "last_failure", str(_time.time()))
+                results = await pipe.execute()
+                failures = results[0]
+                if failures >= self.FAILURE_THRESHOLD:
+                    await r.hset(key, "state", "OPEN")
+                    return "OPEN"
+                return "CLOSED"
+            except Exception:
+                self._redis = None
+
+        # In-memory fallback path
+        fb = self._fallback.setdefault(key, {"state": "CLOSED", "failures": 0})
+        fb["failures"] = fb.get("failures", 0) + 1
+        fb["last_failure"] = _time.time()
+        if fb["failures"] >= self.FAILURE_THRESHOLD:
+            fb["state"] = "OPEN"
+        return fb["state"]
+
+    async def is_open(self, tenant_id: str, provider_id: str) -> bool:
+        """Return True if the circuit is OPEN (i.e. provider should be skipped)."""
+        import time as _time
+
+        state = await self.get_state(tenant_id, provider_id)
+        if state != "OPEN":
+            return False
+
+        # Check whether recovery timeout has elapsed → transition to HALF_OPEN
+        key = f"circuit:{tenant_id}:{provider_id}"
+        last_failure: Optional[float] = None
+
+        r = await self._get_redis()
+        if r is not None:
+            try:
+                raw = await r.hget(key, "last_failure")
+                if raw:
+                    last_failure = float(raw)
+            except Exception:
+                self._redis = None
+
+        if last_failure is None:
+            fb = self._fallback.get(key, {})
+            last_failure = fb.get("last_failure")
+
+        if (
+            last_failure is not None
+            and (_time.time() - last_failure) > self.RECOVERY_TIMEOUT
+        ):
+            # Transition to HALF_OPEN
+            r2 = await self._get_redis()
+            if r2 is not None:
+                try:
+                    await r2.hset(key, "state", "HALF_OPEN")
+                except Exception:
+                    self._redis = None
+            else:
+                self._fallback.setdefault(key, {})["state"] = "HALF_OPEN"
+            return False
+
+        return True
+
+
+# Redis-backed circuit breaker singleton (tenant-aware)
+_redis_circuit_breaker = RedisCircuitBreaker()
+
+
+def get_circuit_breaker() -> RedisCircuitBreaker:
+    """Return the process-level RedisCircuitBreaker singleton."""
+    return _redis_circuit_breaker
+
+
 class ModelRouterService:
     """Enterprise intelligent model router with auth-aware routing.
 
@@ -133,7 +277,8 @@ class ModelRouterService:
         # 3. Filter by data classification
         req_rank = _CLASSIFICATION_RANK.get(request.data_classification, 0)
         candidates = [
-            m for m in candidates
+            m
+            for m in candidates
             if _CLASSIFICATION_RANK.get(m.data_classification, 0) >= req_rank
         ]
 
@@ -141,29 +286,28 @@ class ModelRouterService:
         if request.required_capabilities:
             required = set(request.required_capabilities)
             candidates = [
-                m for m in candidates
-                if required.issubset(set(m.capabilities or []))
+                m for m in candidates if required.issubset(set(m.capabilities or []))
             ]
 
         # 5. Filter by geo_residency if specified
         if request.geo_residency:
             candidates = [
-                m for m in candidates
+                m
+                for m in candidates
                 if m.config.get("geo_residency", "us") == request.geo_residency
             ]
 
         # 6. Filter by circuit breaker
-        candidates = [
-            m for m in candidates
-            if not _circuit_breaker.is_open(str(m.id))
-        ]
+        candidates = [m for m in candidates if not _circuit_breaker.is_open(str(m.id))]
 
         # 7. Filter by budget limit
         if request.budget_limit is not None:
             estimated_cost_factor = request.input_tokens_estimate / 1000.0
             candidates = [
-                m for m in candidates
-                if (m.cost_per_input_token * estimated_cost_factor) <= request.budget_limit
+                m
+                for m in candidates
+                if (m.cost_per_input_token * estimated_cost_factor)
+                <= request.budget_limit
             ]
 
         if not candidates:
@@ -253,7 +397,9 @@ class ModelRouterService:
             id=provider.id,
             name=provider.name,
             provider=provider.api_type,
-            model_id=",".join(provider.model_ids) if provider.model_ids else provider.name,
+            model_id=",".join(provider.model_ids)
+            if provider.model_ids
+            else provider.name,
             capabilities=provider.capabilities,
             cost_per_input_token=provider.cost_per_1k_tokens,
             cost_per_output_token=provider.cost_per_1k_tokens,
@@ -297,13 +443,11 @@ class ModelRouterService:
         check_permission(user, "router", "read")
 
         stmt = (
-            select(ModelRegistryEntry)
-            .where(ModelRegistryEntry.is_active == True)  # noqa: E712
+            select(ModelRegistryEntry).where(ModelRegistryEntry.is_active == True)  # noqa: E712
         )
         result = await session.exec(stmt)
         all_entries = [
-            e for e in result.all()
-            if e.config.get("tenant_id") == tenant_id
+            e for e in result.all() if e.config.get("tenant_id") == tenant_id
         ]
         total = len(all_entries)
 
@@ -338,14 +482,10 @@ class ModelRouterService:
 
         from app.models import AuditLog
 
-        stmt = (
-            select(AuditLog)
-            .where(AuditLog.action == "router.route")
-        )
+        stmt = select(AuditLog).where(AuditLog.action == "router.route")
         result = await session.exec(stmt)
         all_entries = [
-            e for e in result.all()
-            if (e.details or {}).get("tenant_id") == tenant_id
+            e for e in result.all() if (e.details or {}).get("tenant_id") == tenant_id
         ]
         total = len(all_entries)
         page = all_entries[offset : offset + limit]
@@ -477,8 +617,7 @@ class ModelRouterService:
         stmt = select(AuditLog).where(AuditLog.action == "router.route")
         result = await session.exec(stmt)
         entries = [
-            e for e in result.all()
-            if (e.details or {}).get("tenant_id") == tenant_id
+            e for e in result.all() if (e.details or {}).get("tenant_id") == tenant_id
         ]
 
         total = len(entries)
@@ -566,7 +705,10 @@ class ModelRouterService:
             try:
                 await secrets.delete_secret(entry.vault_secret_path, tenant_id)
             except Exception:
-                logger.warning("Failed to delete Vault secret", extra={"path": entry.vault_secret_path})
+                logger.warning(
+                    "Failed to delete Vault secret",
+                    extra={"path": entry.vault_secret_path},
+                )
 
         await AuditLogService.create(
             session,
@@ -713,26 +855,28 @@ class ModelRouterService:
             if cb_status == "open":
                 status = "circuit_open"
 
-            results.append(ProviderHealthDetail(
-                provider_id=pid,
-                provider_name=model.name,
-                status=status,
-                metrics={
-                    "avg_latency_ms": round(model.avg_latency_ms, 1),
-                    "p95_latency_ms": round(model.avg_latency_ms * 1.8, 1),
-                    "p99_latency_ms": round(model.avg_latency_ms * 2.5, 1),
-                    "error_rate_percent": round(model.error_rate * 100, 2),
-                    "requests_last_hour": 0,
-                    "total_tokens_last_hour": 0,
-                    "total_cost_last_hour": 0.0,
-                },
-                circuit_breaker={
-                    "state": cb_status,
-                    "failure_count": failures,
-                    "threshold": _CircuitBreaker.FAILURE_THRESHOLD,
-                    "last_failure_at": None,
-                },
-            ))
+            results.append(
+                ProviderHealthDetail(
+                    provider_id=pid,
+                    provider_name=model.name,
+                    status=status,
+                    metrics={
+                        "avg_latency_ms": round(model.avg_latency_ms, 1),
+                        "p95_latency_ms": round(model.avg_latency_ms * 1.8, 1),
+                        "p99_latency_ms": round(model.avg_latency_ms * 2.5, 1),
+                        "error_rate_percent": round(model.error_rate * 100, 2),
+                        "requests_last_hour": 0,
+                        "total_tokens_last_hour": 0,
+                        "total_cost_last_hour": 0.0,
+                    },
+                    circuit_breaker={
+                        "state": cb_status,
+                        "failure_count": failures,
+                        "threshold": _CircuitBreaker.FAILURE_THRESHOLD,
+                        "last_failure_at": None,
+                    },
+                )
+            )
 
         return results
 
@@ -758,7 +902,8 @@ class ModelRouterService:
         )
         result = await session.exec(stmt)
         rules = [
-            r for r in result.all()
+            r
+            for r in result.all()
             if r.conditions.get("tenant_id") == tenant_id
             and "visual_conditions" in r.conditions
         ]
@@ -775,15 +920,16 @@ class ModelRouterService:
 
         # Evaluate rules in priority order
         for rule in sorted(rules, key=lambda r: r.priority, reverse=True):
-            visual_conditions: list[dict[str, Any]] = rule.conditions.get("visual_conditions", [])
+            visual_conditions: list[dict[str, Any]] = rule.conditions.get(
+                "visual_conditions", []
+            )
             target_model_id = rule.conditions.get("target_model_id", "")
 
             if _match_visual_conditions(visual_conditions, context):
                 target = _find_model_by_id(candidates, target_model_id)
                 if target:
                     condition_desc = " AND ".join(
-                        f"{c['field']}={c.get('value', '')}"
-                        for c in visual_conditions
+                        f"{c['field']}={c.get('value', '')}" for c in visual_conditions
                     )
                     alternatives = _build_alternatives(candidates, str(target.id))
 
@@ -869,7 +1015,8 @@ class ModelRouterService:
         stmt = select(RoutingRule).where(RoutingRule.is_active == True)  # noqa: E712
         result = await session.exec(stmt)
         existing = [
-            r for r in result.all()
+            r
+            for r in result.all()
             if r.conditions.get("tenant_id") == tenant_id
             and "visual_conditions" in r.conditions
         ]
@@ -924,7 +1071,8 @@ class ModelRouterService:
         )
         result = await session.exec(stmt)
         rules = [
-            r for r in result.all()
+            r
+            for r in result.all()
             if r.conditions.get("tenant_id") == tenant_id
             and "visual_conditions" in r.conditions
         ]
@@ -958,7 +1106,9 @@ class ModelRouterService:
         check_permission(user, "router", "update")
 
         # Store as a special routing rule
-        stmt = select(RoutingRule).where(RoutingRule.name == f"tenant-{tenant_id}-fallback")
+        stmt = select(RoutingRule).where(
+            RoutingRule.name == f"tenant-{tenant_id}-fallback"
+        )
         result = await session.exec(stmt)
         existing = result.first()
 
@@ -997,13 +1147,61 @@ class ModelRouterService:
         """Get fallback chain for a tenant."""
         check_permission(user, "router", "read")
 
-        stmt = select(RoutingRule).where(RoutingRule.name == f"tenant-{tenant_id}-fallback")
+        stmt = select(RoutingRule).where(
+            RoutingRule.name == f"tenant-{tenant_id}-fallback"
+        )
         result = await session.exec(stmt)
         existing = result.first()
 
         if existing:
             return FallbackChainConfig(model_ids=existing.fallback_chain or [])
         return FallbackChainConfig()
+
+    # ── Health History ──────────────────────────────────────────────
+
+    @staticmethod
+    async def record_health_metric(
+        session: AsyncSession,
+        tenant_id: UUID,
+        provider_id: UUID,
+        is_healthy: bool,
+        latency_ms: int,
+        error_message: Optional[str] = None,
+        status_code: Optional[int] = None,
+    ) -> ProviderHealthHistory:
+        """Persist a provider health-check result and update circuit breaker state.
+
+        Records the outcome in ``provider_health_history`` and notifies the
+        Redis-backed circuit breaker so that cross-process state stays in sync.
+        """
+        entry = ProviderHealthHistory(
+            tenant_id=tenant_id,
+            provider_id=provider_id,
+            is_healthy=is_healthy,
+            latency_ms=latency_ms,
+            error_message=error_message,
+            status_code=status_code,
+        )
+        session.add(entry)
+        await session.commit()
+        await session.refresh(entry)
+
+        # Keep Redis circuit breaker in sync
+        tid = str(tenant_id)
+        pid = str(provider_id)
+        if is_healthy:
+            await _redis_circuit_breaker.record_success(tid, pid)
+        else:
+            await _redis_circuit_breaker.record_failure(tid, pid)
+
+        logger.info(
+            "provider_health_recorded",
+            tenant_id=tid,
+            provider_id=pid,
+            is_healthy=is_healthy,
+            latency_ms=latency_ms,
+        )
+        return entry
 
 
 # ── Internal helpers ─────────────────────────────────────────────────
@@ -1020,10 +1218,7 @@ async def _fetch_tenant_models(
         .where(ModelRegistryEntry.health_status != "unhealthy")
     )
     result = await session.exec(stmt)
-    return [
-        e for e in result.all()
-        if e.config.get("tenant_id") == tenant_id
-    ]
+    return [e for e in result.all() if e.config.get("tenant_id") == tenant_id]
 
 
 async def _load_routing_policy(
@@ -1065,36 +1260,42 @@ def _score_model(
     # Cost score: cheaper is better
     total_cost = model.cost_per_input_token + model.cost_per_output_token
     cost_score = max(0.0, 1.0 - (total_cost / 100.0))
-    factors.append(DecisionFactor(
-        factor="cost",
-        weight=policy.cost_weight,
-        score=round(cost_score, 4),
-        weighted_score=round(policy.cost_weight * cost_score, 4),
-        explanation=f"Cost ${total_cost:.4f}/1M tokens → score {cost_score:.2f}",
-    ))
+    factors.append(
+        DecisionFactor(
+            factor="cost",
+            weight=policy.cost_weight,
+            score=round(cost_score, 4),
+            weighted_score=round(policy.cost_weight * cost_score, 4),
+            explanation=f"Cost ${total_cost:.4f}/1M tokens → score {cost_score:.2f}",
+        )
+    )
 
     # Latency score: lower latency relative to requirement is better
     target = _LATENCY_TARGETS.get(request.latency_requirement, 2000.0)
     latency_score = max(0.0, 1.0 - (model.avg_latency_ms / (target * 2.5)))
-    factors.append(DecisionFactor(
-        factor="latency",
-        weight=policy.latency_weight,
-        score=round(latency_score, 4),
-        weighted_score=round(policy.latency_weight * latency_score, 4),
-        explanation=f"Avg {model.avg_latency_ms:.0f}ms vs target {target:.0f}ms → score {latency_score:.2f}",
-    ))
+    factors.append(
+        DecisionFactor(
+            factor="latency",
+            weight=policy.latency_weight,
+            score=round(latency_score, 4),
+            weighted_score=round(policy.latency_weight * latency_score, 4),
+            explanation=f"Avg {model.avg_latency_ms:.0f}ms vs target {target:.0f}ms → score {latency_score:.2f}",
+        )
+    )
 
     # Capability/quality score: more capabilities = better
     cap_count = len(model.capabilities) if model.capabilities else 0
     task_match = 1.0 if request.task_type in (model.capabilities or []) else 0.5
     quality_score = min(1.0, (cap_count / 5.0) * 0.6 + task_match * 0.4)
-    factors.append(DecisionFactor(
-        factor="quality",
-        weight=policy.quality_weight,
-        score=round(quality_score, 4),
-        weighted_score=round(policy.quality_weight * quality_score, 4),
-        explanation=f"{cap_count} capabilities, task_match={'yes' if task_match == 1.0 else 'partial'} → score {quality_score:.2f}",
-    ))
+    factors.append(
+        DecisionFactor(
+            factor="quality",
+            weight=policy.quality_weight,
+            score=round(quality_score, 4),
+            weighted_score=round(policy.quality_weight * quality_score, 4),
+            explanation=f"{cap_count} capabilities, task_match={'yes' if task_match == 1.0 else 'partial'} → score {quality_score:.2f}",
+        )
+    )
 
     # Data residency score
     model_geo = model.config.get("geo_residency", "us") if model.config else "us"
@@ -1108,13 +1309,15 @@ def _score_model(
     req_class_rank = _CLASSIFICATION_RANK.get(request.data_classification, 0)
     if model_class_rank >= req_class_rank:
         residency_score = min(1.0, residency_score + 0.1)
-    factors.append(DecisionFactor(
-        factor="data_residency",
-        weight=policy.data_residency_weight,
-        score=round(residency_score, 4),
-        weighted_score=round(policy.data_residency_weight * residency_score, 4),
-        explanation=f"Geo={model_geo}, classification={model.data_classification} → score {residency_score:.2f}",
-    ))
+    factors.append(
+        DecisionFactor(
+            factor="data_residency",
+            weight=policy.data_residency_weight,
+            score=round(residency_score, 4),
+            weighted_score=round(policy.data_residency_weight * residency_score, 4),
+            explanation=f"Geo={model_geo}, classification={model.data_classification} → score {residency_score:.2f}",
+        )
+    )
 
     # Health penalty
     health_mult = 1.0
@@ -1170,10 +1373,18 @@ def _eval_operator(ctx_val: Any, operator: str, value: Any) -> bool:
         except (ValueError, TypeError):
             return False
     if operator == "in":
-        vals = value if isinstance(value, list) else [str(v).strip() for v in str(value).split(",")]
+        vals = (
+            value
+            if isinstance(value, list)
+            else [str(v).strip() for v in str(value).split(",")]
+        )
         return str(ctx_val) in vals
     if operator == "not_in":
-        vals = value if isinstance(value, list) else [str(v).strip() for v in str(value).split(",")]
+        vals = (
+            value
+            if isinstance(value, list)
+            else [str(v).strip() for v in str(value).split(",")]
+        )
         return str(ctx_val) not in vals
     return False
 
@@ -1214,6 +1425,7 @@ async def _test_provider_connection(
             base_url = credentials.get("base_url", "http://localhost:11434")
             try:
                 import httpx
+
                 async with httpx.AsyncClient(timeout=10.0) as client:
                     resp = await client.get(f"{base_url}/api/tags")
                     if resp.status_code == 200:
@@ -1242,8 +1454,20 @@ async def _test_provider_connection(
                     message=f"Could not connect to Ollama at {base_url}.",
                 )
 
-        if provider_type in ("openai", "anthropic", "google", "azure_openai", "huggingface", "aws_bedrock", "custom"):
-            has_key = bool(credentials.get("api_key") or credentials.get("api_token") or credentials.get("access_key_id"))
+        if provider_type in (
+            "openai",
+            "anthropic",
+            "google",
+            "azure_openai",
+            "huggingface",
+            "aws_bedrock",
+            "custom",
+        ):
+            has_key = bool(
+                credentials.get("api_key")
+                or credentials.get("api_token")
+                or credentials.get("access_key_id")
+            )
             if has_key:
                 return TestConnectionResult(
                     success=True,
@@ -1273,4 +1497,6 @@ async def _test_provider_connection(
 
 __all__ = [
     "ModelRouterService",
+    "RedisCircuitBreaker",
+    "get_circuit_breaker",
 ]

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import {
   GitFork,
   Plus,
@@ -30,6 +30,7 @@ import {
   saveFallbackChain as saveFallbackChainApi,
   type VisualRoutingRule,
 } from "@/api/router";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 /* ─── Types ─────────────────────────────────────────────────────────── */
 
@@ -185,18 +186,10 @@ const selectCls = inputCls;
 /* ─── Main Component ────────────────────────────────────────────────── */
 
 export function ModelRouterPage() {
-  const [models, setModels] = useState<ModelEntry[]>([]);
-  const [rules, setRules] = useState<RoutingRule[]>([]);
-  const [providers, setProviders] = useState<Provider[]>([]);
-  const [providerHealth, setProviderHealth] = useState<ProviderHealth[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
   const [showModelForm, setShowModelForm] = useState(false);
   const [showRuleForm, setShowRuleForm] = useState(false);
   const [showProviderForm, setShowProviderForm] = useState(false);
-  const [creatingModel, setCreatingModel] = useState(false);
-  const [creatingRule, setCreatingRule] = useState(false);
-  const [creatingProvider, setCreatingProvider] = useState(false);
 
   // Provider form
   const [providerForm, setProviderForm] = useState({
@@ -205,8 +198,6 @@ export function ModelRouterPage() {
     api_key: "",
   });
   const [apiKeySaved, setApiKeySaved] = useState<Record<string, boolean>>({});
-
-  // Test connection state removed (handled by TestConnectionButton component)
 
   // Model form
   const [modelForm, setModelForm] = useState({
@@ -223,127 +214,157 @@ export function ModelRouterPage() {
     { field: "capability", operator: "equals", value: "" },
   ]);
 
-  // Visual rules (new)
+  // Local visual rules state (seeded from query, edited locally)
   const [visualRules, setVisualRules] = useState<VisualRoutingRule[]>([]);
-  const [savingVisualRules, setSavingVisualRules] = useState(false);
 
-  // Fallback chain
+  // Local fallback chain state (seeded from query, edited locally)
   const [fallbackChain, setFallbackChain] = useState<string[]>([]);
-  const [savingFallback, setSavingFallback] = useState(false);
 
   // Expanded provider for credential form
   const [expandedProviderId, setExpandedProviderId] = useState<string | null>(null);
 
-  const fetchAll = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [modelsRes, rulesRes, providersRes, healthRes, visualRulesRes, fallbackRes] = await Promise.allSettled([
-        apiGet<ModelEntry[]>("/router/models"),
-        apiGet<RoutingRule[]>("/router/rules"),
-        apiGet<Provider[]>("/router/providers"),
-        apiGet<ProviderHealth[]>("/router/providers/health"),
-        getVisualRules(),
-        getFallbackChain(),
-      ]);
-      if (modelsRes.status === "fulfilled") setModels(Array.isArray(modelsRes.value.data) ? modelsRes.value.data : []);
-      if (rulesRes.status === "fulfilled") setRules(Array.isArray(rulesRes.value.data) ? rulesRes.value.data : []);
-      if (providersRes.status === "fulfilled") setProviders(Array.isArray(providersRes.value.data) ? providersRes.value.data : []);
-      if (healthRes.status === "fulfilled") setProviderHealth(Array.isArray(healthRes.value.data) ? healthRes.value.data : []);
-      if (visualRulesRes.status === "fulfilled") setVisualRules(Array.isArray(visualRulesRes.value.data) ? visualRulesRes.value.data : []);
-      if (fallbackRes.status === "fulfilled" && fallbackRes.value.data) setFallbackChain(fallbackRes.value.data.model_ids ?? []);
-    } catch {
-      setError("Failed to load router data.");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // ── Queries ──────────────────────────────────────────────────────────
+  const { data: modelsData, isLoading: loadingModels } = useQuery({
+    queryKey: ["router-models"],
+    queryFn: () => apiGet<ModelEntry[]>("/router/models"),
+  });
+  const models: ModelEntry[] = Array.isArray(modelsData?.data) ? modelsData.data : [];
 
-  useEffect(() => { void fetchAll(); }, [fetchAll]);
+  const { data: rulesData, isLoading: loadingRules } = useQuery({
+    queryKey: ["router-rules"],
+    queryFn: () => apiGet<RoutingRule[]>("/router/rules"),
+  });
+  const [rules, setRules] = useState<RoutingRule[]>([]);
+  useEffect(() => {
+    const fetched = Array.isArray(rulesData?.data) ? rulesData.data : [];
+    setRules(fetched);
+  }, [rulesData]);
 
-  /* ── Handlers ──────────────────────────────────────────────────────── */
+  const { data: providersData, isLoading: loadingProviders } = useQuery({
+    queryKey: ["router-providers"],
+    queryFn: () => apiGet<Provider[]>("/router/providers"),
+  });
+  const providers: Provider[] = Array.isArray(providersData?.data) ? providersData.data : [];
 
-  async function handleCreateModel(e: React.FormEvent) {
-    e.preventDefault();
-    if (!modelForm.name || !modelForm.provider || !modelForm.model_id) return;
-    setCreatingModel(true);
-    try {
-      await apiPost("/router/models", {
-        name: modelForm.name,
-        provider: modelForm.provider,
-        model_id: modelForm.model_id,
-        capabilities: modelForm.capabilities.split(",").map((c) => c.trim()).filter(Boolean),
-        context_window: parseInt(modelForm.context_window, 10) || 128000,
-        cost_per_input_token: parseFloat(modelForm.cost_per_input_token) || 0,
-        cost_per_output_token: parseFloat(modelForm.cost_per_output_token) || 0,
-        speed_tier: modelForm.speed_tier,
-        is_active: true,
-      });
-      setModelForm({ name: "", provider: "", model_id: "", capabilities: "", context_window: "128000", cost_per_input_token: "", cost_per_output_token: "", speed_tier: "standard" });
-      setShowModelForm(false);
-      await fetchAll();
-    } catch {
-      setError("Failed to create model.");
-    } finally {
-      setCreatingModel(false);
-    }
-  }
+  const { data: healthData } = useQuery({
+    queryKey: ["router-provider-health"],
+    queryFn: () => apiGet<ProviderHealth[]>("/router/providers/health"),
+    retry: false,
+  });
+  const providerHealth: ProviderHealth[] = Array.isArray(healthData?.data) ? healthData.data : [];
 
-  async function handleCreateRule(e: React.FormEvent) {
-    e.preventDefault();
-    if (!ruleFormName || !ruleFormTarget) return;
-    setCreatingRule(true);
-    try {
-      const conditions = rowsToConditions(ruleConditions);
-      await apiPost("/router/rules", {
-        name: ruleFormName,
-        conditions,
-        target_model_id: ruleFormTarget,
-        priority: parseInt(ruleFormPriority, 10) || 1,
-        is_active: true,
-      });
-      setRuleFormName("");
-      setRuleFormTarget("");
-      setRuleFormPriority("1");
-      setRuleConditions([{ field: "capability", operator: "equals", value: "" }]);
-      setShowRuleForm(false);
-      await fetchAll();
-    } catch {
-      setError("Failed to create rule.");
-    } finally {
-      setCreatingRule(false);
-    }
-  }
+  const { data: visualRulesData } = useQuery({
+    queryKey: ["router-visual-rules"],
+    queryFn: () => getVisualRules(),
+    retry: false,
+  });
+  useEffect(() => {
+    const fetched = Array.isArray(visualRulesData?.data) ? visualRulesData.data : [];
+    setVisualRules(fetched);
+  }, [visualRulesData]);
 
-  async function handleCreateProvider(e: React.FormEvent) {
-    e.preventDefault();
-    if (!providerForm.name || !providerForm.api_type) return;
-    setCreatingProvider(true);
-    try {
-      const res = await apiPost<Provider>("/router/providers", {
-        name: providerForm.name,
-        api_type: providerForm.api_type,
-        model_ids: providerForm.model_ids.split(",").map((s) => s.trim()).filter(Boolean),
-        capabilities: providerForm.capabilities.split(",").map((s) => s.trim()).filter(Boolean),
-        cost_per_1k_tokens: parseFloat(providerForm.cost_per_1k_tokens) || 0,
-        avg_latency_ms: parseFloat(providerForm.avg_latency_ms) || 500,
-        is_active: true,
-      });
-      // Save API key if provided
+  const { data: fallbackData } = useQuery({
+    queryKey: ["router-fallback"],
+    queryFn: () => getFallbackChain(),
+    retry: false,
+  });
+  useEffect(() => {
+    if (fallbackData?.data) setFallbackChain(fallbackData.data.model_ids ?? []);
+  }, [fallbackData]);
+
+  const loading = loadingModels || loadingRules || loadingProviders;
+
+  // ── Mutations ────────────────────────────────────────────────────────
+  const [mutationError, setMutationError] = useState<string | null>(null);
+
+  const createModelMutation = useMutation({
+    mutationFn: (payload: Record<string, unknown>) => apiPost("/router/models", payload),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["router-models"] }),
+    onError: () => setMutationError("Failed to create model."),
+  });
+
+  const createRuleMutation = useMutation({
+    mutationFn: (payload: Record<string, unknown>) => apiPost("/router/rules", payload),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["router-rules"] }),
+    onError: () => setMutationError("Failed to create rule."),
+  });
+
+  const createProviderMutation = useMutation({
+    mutationFn: (payload: Record<string, unknown>) => apiPost<Provider>("/router/providers", payload),
+    onSuccess: async (res) => {
       if (providerForm.api_key && res.data?.id) {
         try {
           await apiPost(`/router/providers/${res.data.id}/api-key`, { api_key: providerForm.api_key });
           setApiKeySaved((prev) => ({ ...prev, [res.data!.id]: true }));
         } catch { /* key save failed silently */ }
       }
-      setProviderForm({ name: "", api_type: "openai", model_ids: "", capabilities: "", cost_per_1k_tokens: "", avg_latency_ms: "500", api_key: "" });
-      setShowProviderForm(false);
-      await fetchAll();
-    } catch {
-      setError("Failed to create provider.");
-    } finally {
-      setCreatingProvider(false);
-    }
+      void queryClient.invalidateQueries({ queryKey: ["router-providers"] });
+    },
+    onError: () => setMutationError("Failed to create provider."),
+  });
+
+  const saveVisualRulesMutation = useMutation({
+    mutationFn: (rules: VisualRoutingRule[]) => saveVisualRules(rules),
+    onSuccess: (res) => { setVisualRules(res.data); },
+    onError: () => setMutationError("Failed to save routing rules."),
+  });
+
+  const saveFallbackMutation = useMutation({
+    mutationFn: (chain: string[]) => saveFallbackChainApi({ model_ids: chain }),
+    onError: () => setMutationError("Failed to save fallback chain."),
+  });
+
+  /* ── Handlers ──────────────────────────────────────────────────────── */
+
+  function handleCreateModel(e: React.FormEvent) {
+    e.preventDefault();
+    if (!modelForm.name || !modelForm.provider || !modelForm.model_id) return;
+    createModelMutation.mutate({
+      name: modelForm.name,
+      provider: modelForm.provider,
+      model_id: modelForm.model_id,
+      capabilities: modelForm.capabilities.split(",").map((c) => c.trim()).filter(Boolean),
+      context_window: parseInt(modelForm.context_window, 10) || 128000,
+      cost_per_input_token: parseFloat(modelForm.cost_per_input_token) || 0,
+      cost_per_output_token: parseFloat(modelForm.cost_per_output_token) || 0,
+      speed_tier: modelForm.speed_tier,
+      is_active: true,
+    });
+    setModelForm({ name: "", provider: "", model_id: "", capabilities: "", context_window: "128000", cost_per_input_token: "", cost_per_output_token: "", speed_tier: "standard" });
+    setShowModelForm(false);
+  }
+
+  function handleCreateRule(e: React.FormEvent) {
+    e.preventDefault();
+    if (!ruleFormName || !ruleFormTarget) return;
+    createRuleMutation.mutate({
+      name: ruleFormName,
+      conditions: rowsToConditions(ruleConditions),
+      target_model_id: ruleFormTarget,
+      priority: parseInt(ruleFormPriority, 10) || 1,
+      is_active: true,
+    });
+    setRuleFormName("");
+    setRuleFormTarget("");
+    setRuleFormPriority("1");
+    setRuleConditions([{ field: "capability", operator: "equals", value: "" }]);
+    setShowRuleForm(false);
+  }
+
+  function handleCreateProvider(e: React.FormEvent) {
+    e.preventDefault();
+    if (!providerForm.name || !providerForm.api_type) return;
+    createProviderMutation.mutate({
+      name: providerForm.name,
+      api_type: providerForm.api_type,
+      model_ids: providerForm.model_ids.split(",").map((s) => s.trim()).filter(Boolean),
+      capabilities: providerForm.capabilities.split(",").map((s) => s.trim()).filter(Boolean),
+      cost_per_1k_tokens: parseFloat(providerForm.cost_per_1k_tokens) || 0,
+      avg_latency_ms: parseFloat(providerForm.avg_latency_ms) || 500,
+      is_active: true,
+    });
+    setProviderForm({ name: "", api_type: "openai", model_ids: "", capabilities: "", cost_per_1k_tokens: "", avg_latency_ms: "500", api_key: "" });
+    setShowProviderForm(false);
   }
 
   async function handleSaveApiKey(providerId: string, key: string) {
@@ -351,33 +372,18 @@ export function ModelRouterPage() {
       await apiPost(`/router/providers/${providerId}/api-key`, { api_key: key });
       setApiKeySaved((prev) => ({ ...prev, [providerId]: true }));
     } catch {
-      setError("Failed to save API key.");
+      setMutationError("Failed to save API key.");
     }
   }
 
-  async function handleSaveFallbackChain() {
+  function handleSaveFallbackChain() {
     const chain = fallbackChain.filter(Boolean);
     if (chain.length === 0) return;
-    setSavingFallback(true);
-    try {
-      await saveFallbackChainApi({ model_ids: chain });
-    } catch {
-      setError("Failed to save fallback chain.");
-    } finally {
-      setSavingFallback(false);
-    }
+    saveFallbackMutation.mutate(chain);
   }
 
-  async function handleSaveVisualRules() {
-    setSavingVisualRules(true);
-    try {
-      const res = await saveVisualRules(visualRules);
-      setVisualRules(res.data);
-    } catch {
-      setError("Failed to save routing rules.");
-    } finally {
-      setSavingVisualRules(false);
-    }
+  function handleSaveVisualRules() {
+    saveVisualRulesMutation.mutate(visualRules);
   }
 
   // Condition row helpers
@@ -415,17 +421,25 @@ export function ModelRouterPage() {
     );
   }
 
-  if (error) {
+  if (mutationError) {
     return (
       <div className="p-6">
-        <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-red-400">{error}</div>
-        <Button size="sm" className="mt-3" onClick={() => { setError(null); void fetchAll(); }}>Retry</Button>
+        <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-red-400">{mutationError}</div>
+        <Button size="sm" className="mt-3" onClick={() => setMutationError(null)}>Dismiss</Button>
       </div>
     );
   }
 
   return (
     <div className="p-6">
+      {/* Error banner */}
+      {mutationError && (
+        <div className="mb-4 flex items-center justify-between rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400">
+          {mutationError}
+          <button onClick={() => setMutationError(null)} className="ml-4 text-red-300 hover:text-red-100"><X size={14} /></button>
+        </div>
+      )}
+
       <div className="mb-6 flex items-center gap-3">
         <GitFork size={24} className="text-purple-400" />
         <div>
@@ -529,8 +543,8 @@ export function ModelRouterPage() {
                 />
               </div>
               <div className="flex items-end">
-                <Button type="submit" size="sm" className="w-full bg-purple-600 hover:bg-purple-700" disabled={creatingProvider}>
-                  {creatingProvider ? "Adding…" : "Add Provider"}
+                <Button type="submit" size="sm" className="w-full bg-purple-600 hover:bg-purple-700" disabled={createProviderMutation.isPending}>
+                  {createProviderMutation.isPending ? "Adding…" : "Add Provider"}
                 </Button>
               </div>
             </div>
@@ -682,8 +696,8 @@ export function ModelRouterPage() {
                 <input type="number" step="0.0001" className={inputCls} placeholder="0.01" value={modelForm.cost_per_output_token} onChange={(e) => setModelForm({ ...modelForm, cost_per_output_token: e.target.value })} />
               </div>
               <div className="flex items-end">
-                <Button type="submit" size="sm" className="w-full bg-purple-600 hover:bg-purple-700" disabled={creatingModel}>
-                  {creatingModel ? "Registering…" : "Register"}
+                <Button type="submit" size="sm" className="w-full bg-purple-600 hover:bg-purple-700" disabled={createModelMutation.isPending}>
+                  {createModelMutation.isPending ? "Registering…" : "Register"}
                 </Button>
               </div>
             </div>
@@ -741,10 +755,10 @@ export function ModelRouterPage() {
             size="sm"
             className="bg-purple-600 hover:bg-purple-700 gap-1"
             onClick={handleSaveVisualRules}
-            disabled={savingVisualRules}
+            disabled={saveVisualRulesMutation.isPending}
           >
             <Save size={14} />
-            {savingVisualRules ? "Saving…" : "Save Rules"}
+            {saveVisualRulesMutation.isPending ? "Saving…" : "Save Rules"}
           </Button>
         </div>
         <div className="p-4">
@@ -818,8 +832,8 @@ export function ModelRouterPage() {
               </Button>
             </div>
 
-            <Button type="submit" size="sm" className="bg-purple-600 hover:bg-purple-700" disabled={creatingRule}>
-              {creatingRule ? "Creating…" : "Create Rule"}
+            <Button type="submit" size="sm" className="bg-purple-600 hover:bg-purple-700" disabled={createRuleMutation.isPending}>
+              {createRuleMutation.isPending ? "Creating…" : "Create Rule"}
             </Button>
           </form>
         )}
@@ -902,10 +916,10 @@ export function ModelRouterPage() {
             size="sm"
             className="bg-purple-600 hover:bg-purple-700 gap-1"
             onClick={handleSaveFallbackChain}
-            disabled={savingFallback}
+            disabled={saveFallbackMutation.isPending}
           >
             <Save size={14} />
-            {savingFallback ? "Saving…" : "Save Chain"}
+            {saveFallbackMutation.isPending ? "Saving…" : "Save Chain"}
           </Button>
         </div>
         <div className="p-4">

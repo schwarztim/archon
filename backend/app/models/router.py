@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import uuid as _uuid_module
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Optional
 from uuid import UUID, uuid4
 
 from sqlalchemy import Column
@@ -24,8 +25,12 @@ class RoutingRule(SQLModel, table=True):
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     name: str = Field(index=True)
-    description: str | None = Field(default=None, sa_column=Column(SAText, nullable=True))
-    strategy: str = Field(default="balanced")  # cost_optimized | performance_optimized | balanced | sensitive | custom
+    description: str | None = Field(
+        default=None, sa_column=Column(SAText, nullable=True)
+    )
+    strategy: str = Field(
+        default="balanced"
+    )  # cost_optimized | performance_optimized | balanced | sensitive | custom
     priority: int = Field(default=0)  # Higher = evaluated first
     is_active: bool = Field(default=True)
 
@@ -60,7 +65,9 @@ class ModelRegistryEntry(SQLModel, table=True):
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     name: str = Field(index=True)
-    provider: str = Field(index=True)  # openai | anthropic | google | mistral | cohere | local
+    provider: str = Field(
+        index=True
+    )  # openai | anthropic | google | mistral | cohere | local
     model_id: str  # Provider-specific model identifier, e.g. "gpt-4o"
 
     # Capabilities
@@ -79,7 +86,9 @@ class ModelRegistryEntry(SQLModel, table=True):
     avg_latency_ms: float = Field(default=500.0)
 
     # Data classification
-    data_classification: str = Field(default="general")  # general | internal | restricted
+    data_classification: str = Field(
+        default="general"
+    )  # general | internal | restricted
     is_on_prem: bool = Field(default=False)
 
     # Health / availability
@@ -101,19 +110,46 @@ class ModelRegistryEntry(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=_utcnow)
 
 
+class ProviderHealthHistory(SQLModel, table=True):
+    """Persisted record of a single provider health-check result."""
+
+    __tablename__ = "provider_health_history"
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    tenant_id: UUID = Field(index=True)
+    provider_id: UUID = Field(foreign_key="model_registry.id", index=True)
+    checked_at: datetime = Field(default_factory=_utcnow, index=True)
+    is_healthy: bool
+    latency_ms: int
+    error_message: Optional[str] = Field(
+        default=None, sa_column=Column(SAText, nullable=True)
+    )
+    status_code: Optional[int] = Field(default=None)
+
+
 # ── Enterprise Pydantic schemas (non-table) ────────────────────────
 
 
 class RoutingRequest(SQLModel):
     """Incoming request to be routed to an optimal model provider."""
 
-    task_type: str = Field(description="Type of task: chat, code, vision, embedding, etc.")
+    task_type: str = Field(
+        description="Type of task: chat, code, vision, embedding, etc."
+    )
     input_tokens_estimate: int = Field(default=500, ge=0)
-    data_classification: str = Field(default="general", description="general | internal | restricted")
-    latency_requirement: str = Field(default="medium", description="fast | medium | slow")
-    budget_limit: float | None = Field(default=None, ge=0.0, description="Max cost in USD for this request")
+    data_classification: str = Field(
+        default="general", description="general | internal | restricted"
+    )
+    latency_requirement: str = Field(
+        default="medium", description="fast | medium | slow"
+    )
+    budget_limit: float | None = Field(
+        default=None, ge=0.0, description="Max cost in USD for this request"
+    )
     required_capabilities: list[str] = Field(default_factory=list)
-    geo_residency: str | None = Field(default=None, description="Required data residency region")
+    geo_residency: str | None = Field(
+        default=None, description="Required data residency region"
+    )
 
 
 class DecisionFactor(SQLModel):
@@ -144,12 +180,16 @@ class ModelProvider(SQLModel):
 
     id: UUID | None = Field(default=None)
     name: str
-    api_type: str = Field(description="openai | anthropic | google | mistral | cohere | local")
+    api_type: str = Field(
+        description="openai | anthropic | google | mistral | cohere | local"
+    )
     model_ids: list[str] = Field(default_factory=list)
     capabilities: list[str] = Field(default_factory=list)
     cost_per_1k_tokens: float = Field(default=0.0, ge=0.0)
     avg_latency_ms: float = Field(default=500.0, ge=0.0)
-    data_classification_level: str = Field(default="general", description="general | internal | restricted")
+    data_classification_level: str = Field(
+        default="general", description="general | internal | restricted"
+    )
     geo_residency: str = Field(default="us", description="Data residency region")
     is_active: bool = True
 
@@ -172,7 +212,9 @@ class ProviderHealth(SQLModel):
     latency_p50: float = 0.0
     latency_p99: float = 0.0
     error_rate: float = Field(default=0.0, ge=0.0, le=1.0)
-    circuit_breaker_status: str = Field(default="closed", description="closed | open | half_open")
+    circuit_breaker_status: str = Field(
+        default="closed", description="closed | open | half_open"
+    )
     consecutive_failures: int = 0
 
 
@@ -192,8 +234,12 @@ class RoutingStats(SQLModel):
 class RoutingCondition(SQLModel):
     """A single condition in a visual routing rule."""
 
-    field: str = Field(description="capability | max_cost | min_context | sensitivity_level | tenant_tier | time_of_day | model_preference")
-    operator: str = Field(description="equals | not_equals | contains | greater_than | less_than | in | not_in")
+    field: str = Field(
+        description="capability | max_cost | min_context | sensitivity_level | tenant_tier | time_of_day | model_preference"
+    )
+    operator: str = Field(
+        description="equals | not_equals | contains | greater_than | less_than | in | not_in"
+    )
     value: str | float | list[str] = Field(description="Condition value")
 
 
@@ -212,12 +258,25 @@ class VisualRoutingRule(SQLModel):
 class VisualRouteRequest(SQLModel):
     """Request payload for the visual routing decision endpoint."""
 
-    capability: str | None = Field(default=None, description="chat | completion | embedding | vision | function_calling")
-    sensitivity_level: str | None = Field(default=None, description="low | medium | high | critical")
-    max_cost: float | None = Field(default=None, ge=0.0, description="Max cost per 1K tokens")
-    min_context: int | None = Field(default=None, ge=0, description="Min context window size")
-    tenant_tier: str | None = Field(default=None, description="free | standard | premium | enterprise")
-    preferred_model: str | None = Field(default=None, description="Preferred model family")
+    capability: str | None = Field(
+        default=None,
+        description="chat | completion | embedding | vision | function_calling",
+    )
+    sensitivity_level: str | None = Field(
+        default=None, description="low | medium | high | critical"
+    )
+    max_cost: float | None = Field(
+        default=None, ge=0.0, description="Max cost per 1K tokens"
+    )
+    min_context: int | None = Field(
+        default=None, ge=0, description="Min context window size"
+    )
+    tenant_tier: str | None = Field(
+        default=None, description="free | standard | premium | enterprise"
+    )
+    preferred_model: str | None = Field(
+        default=None, description="Preferred model family"
+    )
 
 
 class VisualRouteDecision(SQLModel):
@@ -245,7 +304,9 @@ class CredentialField(SQLModel):
 
     name: str
     label: str
-    field_type: str = Field(default="password", description="password | text | url | select")
+    field_type: str = Field(
+        default="password", description="password | text | url | select"
+    )
     required: bool = True
     placeholder: str = ""
     description: str = ""
@@ -291,23 +352,43 @@ PROVIDER_CREDENTIAL_SCHEMAS: dict[str, ProviderCredentialSchema] = {
     "anthropic": ProviderCredentialSchema(
         provider_type="anthropic",
         label="Anthropic",
-        fields=[CredentialField(name="api_key", label="API Key", placeholder="sk-ant-...")],
+        fields=[
+            CredentialField(name="api_key", label="API Key", placeholder="sk-ant-...")
+        ],
     ),
     "azure_openai": ProviderCredentialSchema(
         provider_type="azure_openai",
         label="Azure OpenAI",
         fields=[
             CredentialField(name="api_key", label="API Key"),
-            CredentialField(name="endpoint_url", label="Endpoint URL", field_type="url", placeholder="https://your-resource.openai.azure.com/"),
-            CredentialField(name="deployment_name", label="Deployment Name", field_type="text"),
-            CredentialField(name="api_version", label="API Version", field_type="text", placeholder="2024-02-01"),
+            CredentialField(
+                name="endpoint_url",
+                label="Endpoint URL",
+                field_type="url",
+                placeholder="https://your-resource.openai.azure.com/",
+            ),
+            CredentialField(
+                name="deployment_name", label="Deployment Name", field_type="text"
+            ),
+            CredentialField(
+                name="api_version",
+                label="API Version",
+                field_type="text",
+                placeholder="2024-02-01",
+            ),
         ],
     ),
     "ollama": ProviderCredentialSchema(
         provider_type="ollama",
         label="Ollama",
         fields=[
-            CredentialField(name="base_url", label="Base URL", field_type="url", required=True, placeholder="http://localhost:11434"),
+            CredentialField(
+                name="base_url",
+                label="Base URL",
+                field_type="url",
+                required=True,
+                placeholder="http://localhost:11434",
+            ),
         ],
     ),
     "huggingface": ProviderCredentialSchema(
@@ -315,7 +396,12 @@ PROVIDER_CREDENTIAL_SCHEMAS: dict[str, ProviderCredentialSchema] = {
         label="HuggingFace",
         fields=[
             CredentialField(name="api_token", label="API Token"),
-            CredentialField(name="endpoint_url", label="Endpoint URL", field_type="url", required=False),
+            CredentialField(
+                name="endpoint_url",
+                label="Endpoint URL",
+                field_type="url",
+                required=False,
+            ),
         ],
     ),
     "google": ProviderCredentialSchema(
@@ -323,16 +409,25 @@ PROVIDER_CREDENTIAL_SCHEMAS: dict[str, ProviderCredentialSchema] = {
         label="Google AI",
         fields=[
             CredentialField(name="api_key", label="API Key"),
-            CredentialField(name="project_id", label="Project ID", field_type="text", required=False),
+            CredentialField(
+                name="project_id", label="Project ID", field_type="text", required=False
+            ),
         ],
     ),
     "aws_bedrock": ProviderCredentialSchema(
         provider_type="aws_bedrock",
         label="AWS Bedrock",
         fields=[
-            CredentialField(name="access_key_id", label="Access Key ID", field_type="text"),
+            CredentialField(
+                name="access_key_id", label="Access Key ID", field_type="text"
+            ),
             CredentialField(name="secret_access_key", label="Secret Access Key"),
-            CredentialField(name="region", label="Region", field_type="text", placeholder="us-east-1"),
+            CredentialField(
+                name="region",
+                label="Region",
+                field_type="text",
+                placeholder="us-east-1",
+            ),
         ],
     ),
     "custom": ProviderCredentialSchema(
@@ -340,7 +435,12 @@ PROVIDER_CREDENTIAL_SCHEMAS: dict[str, ProviderCredentialSchema] = {
         label="Custom / OpenAI-Compatible",
         fields=[
             CredentialField(name="api_key", label="API Key", required=False),
-            CredentialField(name="base_url", label="Base URL", field_type="url", placeholder="https://api.example.com/v1"),
+            CredentialField(
+                name="base_url",
+                label="Base URL",
+                field_type="url",
+                placeholder="https://api.example.com/v1",
+            ),
         ],
     ),
 }
@@ -356,6 +456,7 @@ __all__ = [
     "ProviderCredentialSchema",
     "ProviderHealth",
     "ProviderHealthDetail",
+    "ProviderHealthHistory",
     "RoutingCondition",
     "RoutingDecision",
     "RoutingPolicy",
