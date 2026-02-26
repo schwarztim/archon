@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
+from decimal import Decimal
 from enum import Enum
 from typing import Any
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field as PField
-from sqlalchemy import Column
+from sqlalchemy import Column, Numeric
 from sqlalchemy import Text as SAText
 from sqlalchemy.types import JSON
 from sqlmodel import Field, SQLModel
@@ -29,7 +30,9 @@ class TokenLedger(SQLModel, table=True):
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     tenant_id: str = Field(index=True)
-    execution_id: UUID | None = Field(default=None, index=True, foreign_key="executions.id")
+    execution_id: UUID | None = Field(
+        default=None, index=True, foreign_key="executions.id"
+    )
     agent_id: UUID | None = Field(default=None, index=True, foreign_key="agents.id")
     user_id: UUID | None = Field(default=None, index=True, foreign_key="users.id")
     department_id: UUID | None = Field(default=None, index=True)
@@ -54,7 +57,8 @@ class TokenLedger(SQLModel, table=True):
 
     # Attribution chain stored as JSON
     attribution_chain: dict[str, Any] = Field(
-        default_factory=dict, sa_column=Column("attribution_chain", JSON, nullable=False)
+        default_factory=dict,
+        sa_column=Column("attribution_chain", JSON, nullable=False),
     )
 
     # Extra context
@@ -78,7 +82,7 @@ class ProviderPricing(SQLModel, table=True):
     model_id: str = Field(index=True)  # e.g. "gpt-4o"
     display_name: str = Field(default="")
 
-    cost_per_input_token: float = Field(default=0.0)   # USD per 1M input tokens
+    cost_per_input_token: float = Field(default=0.0)  # USD per 1M input tokens
     cost_per_output_token: float = Field(default=0.0)  # USD per 1M output tokens
 
     is_active: bool = Field(default=True)
@@ -98,7 +102,9 @@ class Budget(SQLModel, table=True):
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     tenant_id: str = Field(index=True)
     name: str = Field(index=True)
-    scope: str = Field(default="department")  # tenant | department | workspace | user | agent | global
+    scope: str = Field(
+        default="department"
+    )  # tenant | department | workspace | user | agent | global
 
     # Scope target — exactly one should be set depending on scope
     department_id: UUID | None = Field(default=None, index=True)
@@ -156,6 +162,40 @@ class CostAlert(SQLModel, table=True):
     acknowledged_by: UUID | None = Field(default=None, foreign_key="users.id")
 
     created_at: datetime = Field(default_factory=_utcnow)
+
+
+class DepartmentBudget(SQLModel, table=True):
+    """Per-department spending budget with warn/block thresholds.
+
+    Tracks monthly or quarterly budget for a department with automatic
+    threshold enforcement via warn_threshold_pct and block_threshold_pct.
+    """
+
+    __tablename__ = "department_budgets"
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    tenant_id: str = Field(index=True)
+    department_id: UUID = Field(index=True)
+
+    budget_usd: Decimal = Field(
+        default=Decimal("0"), sa_column=Column(Numeric(10, 6), nullable=False)
+    )
+    period: str = Field(default="monthly")  # monthly | quarterly
+
+    warn_threshold_pct: int = Field(default=80)
+    block_threshold_pct: int = Field(default=100)
+
+    current_spend_usd: Decimal = Field(
+        default=Decimal("0"),
+        sa_column=Column("current_spend_usd", Numeric(10, 6), nullable=False),
+    )
+
+    period_start: date = Field(default_factory=date.today)
+    period_end: date = Field(default_factory=date.today)
+
+    is_active: bool = Field(default=True)
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
 
 
 # ── Pydantic API schemas ───────────────────────────────────────────
@@ -252,7 +292,9 @@ class TokenLedgerEntry(BaseModel):
             output_cost=entry.output_cost,
             total_cost=entry.total_cost,
             latency_ms=entry.latency_ms,
-            attribution_chain=AttributionChain(**chain_data) if chain_data else AttributionChain(),
+            attribution_chain=AttributionChain(**chain_data)
+            if chain_data
+            else AttributionChain(),
             timestamp=entry.created_at,
         )
 
@@ -379,6 +421,20 @@ class ReconciliationResult(BaseModel):
     status: str = "matched"  # matched | discrepancy | unreconciled
 
 
+class CostDashboardData(BaseModel):
+    """Full dashboard payload returned by get_dashboard_data()."""
+
+    total_spend: float
+    period: str = ""
+    trend: list[dict[str, Any]] = PField(default_factory=list)
+    by_provider: list[dict[str, Any]] = PField(default_factory=list)
+    by_model: list[dict[str, Any]] = PField(default_factory=list)
+    by_department: list[dict[str, Any]] = PField(default_factory=list)
+    by_agent: list[dict[str, Any]] = PField(default_factory=list)
+    anomalies: list[dict[str, Any]] = PField(default_factory=list)
+    forecast: dict[str, Any] = PField(default_factory=dict)
+
+
 __all__ = [
     "AttributionChain",
     "Budget",
@@ -390,9 +446,11 @@ __all__ = [
     "ChargebackLineItem",
     "ChargebackReport",
     "CostAlert",
+    "CostDashboardData",
     "CostForecast",
     "CostSummary",
     "DailyProjection",
+    "DepartmentBudget",
     "ProviderPricing",
     "Recommendation",
     "ReconciliationLineItem",

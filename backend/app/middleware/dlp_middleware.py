@@ -19,6 +19,7 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 from starlette.responses import JSONResponse, Response
 
 from app.services.dlp_service import DLPService
+from app.services.guardrail_service import get_guardrail_service
 
 logger = logging.getLogger(__name__)
 
@@ -28,9 +29,7 @@ _EXECUTION_PATTERNS = re.compile(
 )
 
 # Paths to skip entirely
-_SKIP_PATTERNS = re.compile(
-    r"^/(healthz|readyz|livez|docs|redoc|openapi\.json|static)"
-)
+_SKIP_PATTERNS = re.compile(r"^/(healthz|readyz|livez|docs|redoc|openapi\.json|static)")
 
 # Only scan mutating methods
 _SCAN_METHODS = {"POST", "PUT", "PATCH"}
@@ -39,7 +38,13 @@ _SCAN_METHODS = {"POST", "PUT", "PATCH"}
 class DLPScanResult:
     """Lightweight result object for middleware-level DLP scans."""
 
-    __slots__ = ("has_findings", "risk_level", "action", "findings_count", "scan_time_ms")
+    __slots__ = (
+        "has_findings",
+        "risk_level",
+        "action",
+        "findings_count",
+        "scan_time_ms",
+    )
 
     def __init__(
         self,
@@ -206,6 +211,42 @@ class DLPMiddleware(BaseHTTPMiddleware):
             input_text = _extract_text_content(body)
 
             if input_text:
+                # Guardrail check: prompt injection / toxicity before DLP
+                try:
+                    guardrail_svc = get_guardrail_service()
+                    gr_result = guardrail_svc.check_input(
+                        input_text, tenant_id=tenant_id
+                    )
+                    if not gr_result.passed:
+                        violation_types = [v.type for v in gr_result.violations]
+                        logger.warning(
+                            "Guardrail blocked request",
+                            extra={
+                                "request_id": request_id,
+                                "violations": violation_types,
+                                "confidence": gr_result.confidence,
+                            },
+                        )
+                        return JSONResponse(
+                            status_code=400,
+                            content={
+                                "data": None,
+                                "meta": {
+                                    "request_id": request_id,
+                                    "error": "Request blocked by content guardrails",
+                                    "violations": violation_types,
+                                },
+                            },
+                        )
+                except Exception as g_exc:
+                    logger.warning(
+                        "Guardrail check failed — request will proceed unguarded",
+                        extra={
+                            "request_id": request_id,
+                            "error_type": type(g_exc).__name__,
+                        },
+                    )
+
                 input_result = _scan_text(input_text, tenant_id, "input")
 
                 if input_result.has_findings:

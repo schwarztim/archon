@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any, TypeVar
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 
 from app.interfaces.models.enterprise import AuthenticatedUser, TenantContext
 from app.middleware.auth import get_current_user
@@ -18,6 +18,26 @@ logger = logging.getLogger(__name__)
 _tenant_cache: dict[str, TenantContext] = {}
 
 T = TypeVar("T")
+
+
+# ---------------------------------------------------------------------------
+# Simple tenant_id extractor (no full context resolution required)
+# ---------------------------------------------------------------------------
+
+
+async def get_tenant_id(request: Request) -> str:
+    """Extract ``tenant_id`` from request state set by ``TenantMiddleware``.
+
+    Falls back to ``'default-tenant'`` when no tenant has been resolved
+    (e.g. unauthenticated health-check routes).
+
+    Usage::
+
+        @router.get("/items")
+        async def list_items(tenant_id: str = Depends(get_tenant_id)):
+            ...
+    """
+    return getattr(request.state, "tenant_id", "default-tenant")
 
 
 # ---------------------------------------------------------------------------
@@ -91,9 +111,7 @@ class TenantFilter:
         Raises ``AttributeError`` if the model lacks a ``tenant_id`` column.
         """
         if not hasattr(model, "tenant_id"):
-            raise AttributeError(
-                f"{model.__name__} does not have a tenant_id column"
-            )
+            raise AttributeError(f"{model.__name__} does not have a tenant_id column")
         return model.tenant_id == self.tenant_id  # type: ignore[return-value]
 
     def __repr__(self) -> str:

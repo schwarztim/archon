@@ -78,6 +78,10 @@ class ConnectorInstance(BaseModel):
     status: ConnectorStatus = ConnectorStatus.INACTIVE
     auth_method: AuthMethod = AuthMethod.OAUTH2
     scopes: list[str] = Field(default_factory=list)
+    custom_config: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Type-specific configuration (host, port, bucket, etc.)",
+    )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(tz=timezone.utc),
     )

@@ -1,12 +1,11 @@
 """WebSocket route for streaming execution updates."""
 
-import json
 import logging
 from typing import Any
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 
-from app.websocket import manager
+from app.websocket.execution_stream import execution_stream
 from app.websocket.manager import authenticate_websocket
 
 logger = logging.getLogger(__name__)
@@ -16,76 +15,19 @@ router = APIRouter()
 _WS_CLOSE_AUTH_FAILED = 4001
 
 
-async def _resolve_token(websocket: WebSocket) -> tuple[str | None, dict[str, Any] | None]:
-    """Resolve a JWT from query param or first auth message.
-
-    Checks ``?token=...`` query parameter first.  If absent, reads the
-    first WebSocket message expecting ``{"type": "auth", "token": "..."}``.
-
-    Returns:
-        A tuple of (token, payload) on success or (None, None) on failure.
-    """
-    # 1. Try query parameter
-    token: str | None = websocket.query_params.get("token")
-    if token:
-        payload = await authenticate_websocket(websocket, token)
-        return (token, payload) if payload else (None, None)
-
-    # 2. Try first message
-    try:
-        raw = await websocket.receive_text()
-        msg = json.loads(raw)
-        if isinstance(msg, dict) and msg.get("type") == "auth":
-            token = msg.get("token", "")
-            if token:
-                payload = await authenticate_websocket(websocket, token)
-                return (token, payload) if payload else (None, None)
-    except Exception:
-        pass
-
-    return None, None
-
-
-async def _resolve_token_dev(websocket: WebSocket) -> tuple[str | None, dict[str, Any] | None]:
-    """Resolve token with dev-mode HS256 fallback for WebSocket auth."""
-    # 1. Try query parameter
-    token: str | None = websocket.query_params.get("token")
-    if token:
-        # Try standard auth first
-        payload = await authenticate_websocket(websocket, token)
-        if payload:
-            return token, payload
-        # Try HS256 dev-mode fallback
-        payload = _try_hs256_decode(token)
-        if payload:
-            return token, payload
-
-    # 2. Try first message
-    try:
-        raw = await websocket.receive_text()
-        msg = json.loads(raw)
-        if isinstance(msg, dict) and msg.get("type") == "auth":
-            token = msg.get("token", "")
-            if token:
-                payload = await authenticate_websocket(websocket, token)
-                if payload:
-                    return token, payload
-                payload = _try_hs256_decode(token)
-                if payload:
-                    return token, payload
-    except Exception:
-        pass
-
-    return None, None
+# ── Auth helpers ─────────────────────────────────────────────────────────────
 
 
 def _try_hs256_decode(token: str) -> dict[str, Any] | None:
     """Attempt HS256 dev-mode JWT decode."""
     try:
-        from jose import jwt as jose_jwt, JWTError
+        from jose import jwt as jose_jwt  # type: ignore[import]
         from app.config import settings
+
         payload: dict[str, Any] = jose_jwt.decode(
-            token, settings.JWT_SECRET, algorithms=["HS256"],
+            token,
+            settings.JWT_SECRET,
+            algorithms=["HS256"],
             options={"verify_exp": True, "verify_iss": False, "verify_aud": False},
         )
         if payload.get("sub") and payload.get("email"):
@@ -95,35 +37,81 @@ def _try_hs256_decode(token: str) -> dict[str, Any] | None:
     return None
 
 
+async def _resolve_token(
+    websocket: WebSocket,
+) -> tuple[str | None, dict[str, Any] | None]:
+    """Resolve a JWT from the ``?token=`` query parameter only.
+
+    Returns:
+        ``(None, None)`` when no token is supplied — connection is allowed
+        in dev/test mode with an empty context.
+        ``(token, payload)`` on successful validation.
+        ``(token, None)`` when a token is supplied but invalid.
+    """
+    token: str | None = websocket.query_params.get("token")
+    if not token:
+        # No token — allow with empty context (dev/test mode)
+        return None, None
+
+    # Try JWKS validation first, then HS256 dev-mode fallback
+    payload = await authenticate_websocket(websocket, token)
+    if payload:
+        return token, payload
+    payload = _try_hs256_decode(token)
+    if payload:
+        return token, payload
+    # Token provided but invalid
+    return token, None
+
+
+# ── WebSocket endpoint ───────────────────────────────────────────────────────
+
+
 @router.websocket("/ws/executions/{execution_id}")
-async def execution_ws(websocket: WebSocket, execution_id: str) -> None:
+async def execution_ws(
+    websocket: WebSocket,
+    execution_id: str,
+    last_event_id: str | None = Query(None, alias="last_event_id"),
+) -> None:
     """Stream real-time events for a running execution.
 
-    Authenticates via ``?token=`` query parameter or a first-message auth
-    handshake.  Unauthenticated connections are rejected with close code
-    4001.  Authenticated connections are scoped to the user's tenant.
+    Authenticates via ``?token=`` query parameter.  Unauthenticated
+    connections are allowed in dev/test mode.  Invalid tokens are rejected
+    with close code 4001.
 
-    Events streamed:
-    - execution.started — execution begins processing
-    - step.started — a step begins
-    - step.completed — a step finishes with metrics
-    - step.failed — a step encounters an error
-    - tool.called — a tool invocation occurs
-    - llm.response — LLM response received
-    - execution.completed — execution finishes successfully
-    - execution.failed — execution finishes with error
+    Query parameters
+    ----------------
+    last_event_id : str, optional
+        The ``event_id`` of the last event the client successfully received.
+        When provided, all missed events are replayed from the Redis stream
+        (durable) or in-memory buffer before live streaming resumes.
+
+    Events streamed
+    ---------------
+    - ``llm_stream_token`` — incremental LLM token
+    - ``tool_call``        — tool invocation started
+    - ``tool_result``      — tool invocation completed
+    - ``agent_start``      — agent begins a step
+    - ``agent_complete``   — agent completes a step
+    - ``error``            — execution-level error
+    - ``cost_update``      — token/cost accounting update
+    - ``ping``             — server heartbeat (every 30 s); client must reply ``pong``
     """
-    await websocket.accept()
+    token, payload = await _resolve_token(websocket)
 
-    # Authenticate (with dev-mode fallback)
-    token, payload = await _resolve_token_dev(websocket)
-    if payload is None:
+    if payload is None and token is not None:
+        # Token provided but invalid — accept then reject
         logger.warning(
             "websocket.auth_failed",
             extra={"execution_id": execution_id},
         )
+        await websocket.accept()
         await websocket.close(code=_WS_CLOSE_AUTH_FAILED)
         return
+
+    # No token provided — allow with empty context (dev/test mode)
+    if payload is None:
+        payload = {}
 
     # Extract tenant context
     tenant_id: str = payload.get("tenant_id", "")
@@ -135,23 +123,43 @@ async def execution_ws(websocket: WebSocket, execution_id: str) -> None:
     user_id: str = payload.get("sub", "")
 
     logger.info(
-        "websocket.authenticated",
+        "websocket.connecting",
         extra={
             "execution_id": execution_id,
             "tenant_id": tenant_id,
             "user_id": user_id,
+            "last_event_id": last_event_id,
         },
     )
 
-    # Register with tenant-scoped room (skip accept — already accepted above)
-    manager._connections.setdefault(execution_id, []).append(websocket)
-    if tenant_id:
-        manager._tenant_rooms.setdefault(tenant_id, set()).add(execution_id)
-        manager._connection_tenants[id(websocket)] = tenant_id
+    # ExecutionStreamManager.connect() accepts the socket, starts heartbeat,
+    # and replays missed events from in-memory buffer / Redis stream
+    await execution_stream.connect(
+        websocket,
+        execution_id,
+        tenant_id=tenant_id or None,
+        last_event_id=last_event_id,
+    )
 
     try:
         while True:
-            # Keep-alive: receive and discard client messages
-            await websocket.receive_text()
+            try:
+                raw = await websocket.receive_text()
+            except RuntimeError:
+                # WebSocket already disconnected (state transition error)
+                break
+            # Delegate to manager: handles pong acknowledgement and
+            # reconnect-replay requests
+            await execution_stream.handle_client_message(websocket, execution_id, raw)
     except WebSocketDisconnect:
-        manager.disconnect(websocket, execution_id)
+        pass
+    finally:
+        await execution_stream.disconnect(websocket, execution_id)
+        logger.info(
+            "websocket.disconnected",
+            extra={
+                "execution_id": execution_id,
+                "tenant_id": tenant_id,
+                "user_id": user_id,
+            },
+        )

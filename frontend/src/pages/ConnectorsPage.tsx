@@ -1,12 +1,14 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
 import {
   Plug, Plus, ArrowLeft, Loader2, Globe,
   Database, Cloud, MessageSquare, Server, Cpu, Bot,
   Github, Webhook, Key,
 } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { apiGet, apiPost } from "@/api/client";
+import { apiPost } from "@/api/client";
+import { listConnectors, listConnectorTypes, createConnector } from "@/api/connectors";
 import { ConnectorCatalog } from "@/components/connectors/ConnectorCatalog";
 import { HealthBadge } from "@/components/connectors/HealthBadge";
 import { TestConnectionButton } from "@/components/connectors/TestConnectionButton";
@@ -16,16 +18,6 @@ import { SlackForm } from "@/components/connectors/forms/SlackForm";
 import { S3Form } from "@/components/connectors/forms/S3Form";
 import { GenericRESTForm } from "@/components/connectors/forms/GenericRESTForm";
 import type { ConnectorTypeSchema, CredentialField } from "@/api/connectors";
-
-interface Connector {
-  id: string;
-  name: string;
-  type: string;
-  config: Record<string, unknown>;
-  status: string;
-  created_at: string;
-  last_health_check?: string | null;
-}
 
 /* ─── Fallback catalog (used if backend catalog fails to load) ─── */
 const FALLBACK_CATALOG: ConnectorTypeSchema[] = [
@@ -113,39 +105,42 @@ function SchemaFormFields({ fields, config, onChange }: {
 }
 
 export function ConnectorsPage() {
-  const [connectors, setConnectors] = useState<Connector[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
   const [selectedType, setSelectedType] = useState<ConnectorTypeSchema | null>(null);
-  const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
   const [cfg, setCfg] = useState<Record<string, string>>({});
-  const [catalogTypes, setCatalogTypes] = useState<ConnectorTypeSchema[]>(FALLBACK_CATALOG);
+  const [error, setError] = useState<string | null>(null);
 
-  const fetchConnectors = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await apiGet<Connector[]>("/connectors/");
-      setConnectors(Array.isArray(res.data) ? res.data : []);
-    } catch {
-      setError("Failed to load connectors.");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // ── Queries ─────────────────────────────────────────────────────────
+  const { data: connectorsData, isLoading } = useQuery({
+    queryKey: ["connectors"],
+    queryFn: () => listConnectors(),
+  });
+  const connectors = Array.isArray(connectorsData?.data) ? connectorsData.data : [];
 
-  useEffect(() => {
-    void fetchConnectors();
-    // Try to load catalog from backend
-    apiGet<ConnectorTypeSchema[]>("/connectors/catalog/types")
-      .then((res) => {
-        if (Array.isArray(res.data) && res.data.length > 0) {
-          setCatalogTypes(res.data);
-        }
-      })
-      .catch(() => { /* use fallback catalog */ });
-  }, [fetchConnectors]);
+  const { data: catalogData } = useQuery({
+    queryKey: ["connector-types"],
+    queryFn: () => listConnectorTypes(),
+    // Fall back gracefully — errors don't break the page
+    retry: false,
+  });
+  const catalogTypes: ConnectorTypeSchema[] =
+    Array.isArray(catalogData?.data) && catalogData.data.length > 0
+      ? catalogData.data
+      : FALLBACK_CATALOG;
+
+  // ── Mutations ────────────────────────────────────────────────────────
+  const createMutation = useMutation({
+    mutationFn: ({ connectorName, type, config }: { connectorName: string; type: string; config: Record<string, unknown> }) =>
+      createConnector({ name: connectorName, type, config }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["connectors"] });
+      setSelectedType(null);
+      setName("");
+      setCfg({});
+    },
+    onError: () => setError("Failed to create connector."),
+  });
 
   function buildConfig(): Record<string, unknown> {
     const out: Record<string, unknown> = {};
@@ -155,20 +150,9 @@ export function ConnectorsPage() {
     return out;
   }
 
-  async function handleCreate() {
+  function handleCreate() {
     if (!name || !selectedType) return;
-    setCreating(true);
-    try {
-      await apiPost("/connectors/", { name, type: selectedType.name, config: buildConfig(), status: "pending" });
-      setSelectedType(null);
-      setName("");
-      setCfg({});
-      await fetchConnectors();
-    } catch {
-      setError("Failed to create connector.");
-    } finally {
-      setCreating(false);
-    }
+    createMutation.mutate({ connectorName: name, type: selectedType.name, config: buildConfig() });
   }
 
   async function handleTestConnection(): Promise<{ success: boolean; message: string }> {
@@ -187,7 +171,7 @@ export function ConnectorsPage() {
     window.open(url, "oauth", "width=600,height=700,popup=yes");
   }
 
-  if (loading) {
+  if (isLoading) {
     return <div className="flex h-64 items-center justify-center"><Loader2 className="animate-spin text-gray-400" size={24} /></div>;
   }
 
@@ -245,8 +229,8 @@ export function ConnectorsPage() {
 
           <div className="mt-6 flex items-start gap-3">
             <TestConnectionButton onTest={handleTestConnection} />
-            <Button size="sm" className="bg-purple-600 hover:bg-purple-700 text-white" onClick={handleCreate} disabled={creating || !name}>
-              {creating ? <Loader2 size={14} className="mr-1.5 animate-spin" /> : <Plus size={14} className="mr-1.5" />}
+            <Button size="sm" className="bg-purple-600 hover:bg-purple-700 text-white" onClick={handleCreate} disabled={createMutation.isPending || !name}>
+              {createMutation.isPending ? <Loader2 size={14} className="mr-1.5 animate-spin" /> : <Plus size={14} className="mr-1.5" />}
               Save Connector
             </Button>
           </div>

@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
+import type { ReactNode } from "react";
 import {
   ShieldAlert,
   Search,
@@ -11,8 +12,10 @@ import {
   List,
   FlaskConical,
 } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/Button";
-import { apiGet, apiPost, apiDelete } from "@/api/client";
+import { apiPost, apiDelete } from "@/api/client";
+import { listPolicies, listDetectorTypes } from "@/api/dlp";
 import { DetectorPicker, FALLBACK_DETECTORS } from "@/components/dlp/DetectorPicker";
 import { PolicyTestPanel } from "@/components/dlp/PolicyTestPanel";
 import { MetricsDashboard } from "@/components/dlp/MetricsDashboard";
@@ -35,7 +38,7 @@ interface DLPPolicy {
 
 type TabId = "dashboard" | "policies" | "test" | "detections";
 
-const TABS: Array<{ id: TabId; label: string; icon: React.ReactNode }> = [
+const TABS: Array<{ id: TabId; label: string; icon: ReactNode }> = [
   { id: "dashboard", label: "Dashboard", icon: <LayoutDashboard size={14} /> },
   { id: "policies", label: "Policies", icon: <Shield size={14} /> },
   { id: "test", label: "Test Scanner", icon: <FlaskConical size={14} /> },
@@ -60,10 +63,8 @@ function actionBadge(action: string) {
 }
 
 export function DLPPage() {
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<TabId>("dashboard");
-  const [policies, setPolicies] = useState<DLPPolicy[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [formName, setFormName] = useState("");
@@ -73,75 +74,55 @@ export function DLPPage() {
   const [formTypes, setFormTypes] = useState<string[]>([]);
   const [formActive, setFormActive] = useState(true);
   const [formCustomPatterns, setFormCustomPatterns] = useState<Record<string, string>>({});
-  const [creating, setCreating] = useState(false);
-  const [deleting, setDeleting] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  // Detector types from API
-  const [detectorTypes, setDetectorTypes] = useState<DetectorInfo[]>(FALLBACK_DETECTORS);
+  // ── Queries ──────────────────────────────────────────────────────────
+  const { data: policiesData, isLoading } = useQuery({
+    queryKey: ["dlp-policies"],
+    queryFn: () => listPolicies(),
+  });
+  const policies: DLPPolicy[] = Array.isArray(policiesData?.data) ? (policiesData.data as unknown as DLPPolicy[]) : [];
 
-  const fetchPolicies = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await apiGet<DLPPolicy[]>("/api/v1/dlp/policies");
-      setPolicies(Array.isArray(res.data) ? res.data : []);
-    } catch {
-      setError("Failed to load DLP policies.");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const { data: detectorsData } = useQuery({
+    queryKey: ["dlp-detectors"],
+    queryFn: () => listDetectorTypes(),
+    retry: false,
+  });
+  const detectorTypes: DetectorInfo[] =
+    Array.isArray(detectorsData?.data) && detectorsData.data.length > 0
+      ? (detectorsData.data as DetectorInfo[])
+      : FALLBACK_DETECTORS;
 
-  const fetchDetectorTypes = useCallback(async () => {
-    try {
-      const res = await apiGet<DetectorInfo[]>("/api/v1/dlp/detectors");
-      if (Array.isArray(res.data) && res.data.length > 0) {
-        setDetectorTypes(res.data);
-      }
-    } catch {
-      // Use fallback detectors silently
-    }
-  }, []);
-
-  useEffect(() => {
-    void fetchPolicies();
-    void fetchDetectorTypes();
-  }, [fetchPolicies, fetchDetectorTypes]);
-
-  async function handleCreatePolicy() {
-    if (!formName.trim() || formTypes.length === 0) return;
-    setCreating(true);
-    try {
-      await apiPost("/api/v1/dlp/policies/create", {
-        name: formName,
-        description: formDesc || null,
-        is_active: formActive,
-        detector_types: formTypes,
-        custom_patterns: formCustomPatterns,
-        action: formAction,
-        sensitivity: formSensitivity,
-      });
+  // ── Mutations ────────────────────────────────────────────────────────
+  const createMutation = useMutation({
+    mutationFn: (payload: Record<string, unknown>) =>
+      apiPost("/api/v1/dlp/policies/create", payload),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["dlp-policies"] });
       setShowCreateForm(false);
       setFormName(""); setFormDesc(""); setFormAction("redact"); setFormTypes([]);
       setFormActive(true); setFormCustomPatterns({});
-      await fetchPolicies();
-    } catch {
-      setError("Failed to create policy.");
-    } finally {
-      setCreating(false);
-    }
-  }
+    },
+    onError: () => setError("Failed to create policy."),
+  });
 
-  async function handleDelete(id: string) {
-    setDeleting(id);
-    try {
-      await apiDelete(`/api/v1/dlp/policies/${id}`);
-      await fetchPolicies();
-    } catch {
-      setError("Failed to delete policy.");
-    } finally {
-      setDeleting(null);
-    }
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => apiDelete(`/api/v1/dlp/policies/${id}`),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["dlp-policies"] }),
+    onError: () => setError("Failed to delete policy."),
+  });
+
+  function handleCreatePolicy() {
+    if (!formName.trim() || formTypes.length === 0) return;
+    createMutation.mutate({
+      name: formName,
+      description: formDesc || null,
+      is_active: formActive,
+      detector_types: formTypes,
+      custom_patterns: formCustomPatterns,
+      action: formAction,
+      sensitivity: formSensitivity,
+    } as Record<string, unknown>);
   }
 
   function handleAddCustomPattern(name: string, pattern: string) {
@@ -150,7 +131,7 @@ export function DLPPage() {
 
   const activeCount = policies.filter((p) => p.is_active).length;
 
-  if (loading) {
+  if (isLoading) {
     return <div className="flex h-64 items-center justify-center"><Loader2 size={24} className="animate-spin text-gray-500" /></div>;
   }
 
@@ -285,8 +266,8 @@ export function DLPPage() {
                       <input type="checkbox" checked={formActive} onChange={(e) => setFormActive(e.target.checked)} className="rounded border-[#2a2d37]" />
                       Active
                     </label>
-                    <Button size="sm" onClick={handleCreatePolicy} disabled={creating || !formName.trim() || formTypes.length === 0}>
-                      {creating ? <Loader2 size={14} className="mr-1.5 animate-spin" /> : null}
+                    <Button size="sm" onClick={handleCreatePolicy} disabled={createMutation.isPending || !formName.trim() || formTypes.length === 0}>
+                      {createMutation.isPending ? <Loader2 size={14} className="mr-1.5 animate-spin" /> : null}
                       Save Policy
                     </Button>
                   </div>
@@ -350,8 +331,8 @@ export function DLPPage() {
                           {new Date(p.created_at).toLocaleDateString()}
                         </td>
                         <td className="px-4 py-2 text-right">
-                          <Button variant="ghost" size="sm" onClick={() => handleDelete(p.id)} disabled={deleting === p.id}>
-                            {deleting === p.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} className="text-red-400" />}
+                          <Button variant="ghost" size="sm" onClick={() => deleteMutation.mutate(p.id)} disabled={deleteMutation.isPending && deleteMutation.variables === p.id}>
+                            {deleteMutation.isPending && deleteMutation.variables === p.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} className="text-red-400" />}
                           </Button>
                         </td>
                       </tr>

@@ -101,6 +101,11 @@ def _vault_path(tenant_id: str, connector_type: str) -> str:
     return f"archon/{tenant_id}/connectors/{connector_type}"
 
 
+def _vault_path_by_id(tenant_id: str, connector_id: str) -> str:
+    """Build the canonical Vault secret path scoped by connector instance ID."""
+    return f"secret/tenants/{tenant_id}/connectors/{connector_id}"
+
+
 def _audit_details(user: AuthenticatedUser, **extra: Any) -> dict[str, Any]:
     """Build a structured audit-details dict (secret values excluded)."""
     return {
@@ -173,7 +178,9 @@ class ConnectorService:
         return list(result.all()), total
 
     @staticmethod
-    async def update(session: Any, connector_id: UUID, data: dict[str, Any]) -> Any | None:
+    async def update(
+        session: Any, connector_id: UUID, data: dict[str, Any]
+    ) -> Any | None:
         """Apply partial updates to an ORM connector (legacy route compat)."""
         from app.models import Connector as _C
 
@@ -260,7 +267,9 @@ class ConnectorService:
 
         provider = _OAUTH_PROVIDERS.get(instance.type)
         if provider is None:
-            raise ValueError(f"OAuth not configured for connector type: {instance.type}")
+            raise ValueError(
+                f"OAuth not configured for connector type: {instance.type}"
+            )
 
         state = secrets.token_urlsafe(32)
         code_verifier = secrets.token_urlsafe(64)
@@ -275,13 +284,15 @@ class ConnectorService:
             "connector_type": instance.type,
         }
 
-        params = urlencode({
-            "response_type": "code",
-            "client_id": f"{{vault:{_vault_path(tenant_id, instance.type)}:client_id}}",
-            "redirect_uri": redirect_uri,
-            "scope": " ".join(instance.scopes),
-            "state": state,
-        })
+        params = urlencode(
+            {
+                "response_type": "code",
+                "client_id": f"{{vault:{_vault_path(tenant_id, instance.type)}:client_id}}",
+                "redirect_uri": redirect_uri,
+                "scope": " ".join(instance.scopes),
+                "state": state,
+            }
+        )
         authorization_url = f"{provider['authorize_url']}?{params}"
 
         logger.info(
@@ -319,6 +330,8 @@ class ConnectorService:
         connector_id = UUID(pending["connector_id"])
         connector_type = pending["connector_type"]
         vault_path = _vault_path(tenant_id, connector_type)
+        # Canonical per-instance path (spec: secret/tenants/{tenant_id}/connectors/{connector_id})
+        canonical_vault_path = _vault_path_by_id(tenant_id, str(connector_id))
 
         # In production: exchange code via HTTP POST to token_url.
         # Here we store the code as a placeholder demonstrating
@@ -330,7 +343,15 @@ class ConnectorService:
             "expires_in": 3600,
         }
 
+        # Store at both the type-scoped path and the canonical per-instance path
         await secrets_mgr.put_secret(vault_path, token_data, tenant_id)
+        try:
+            await secrets_mgr.put_secret(canonical_vault_path, token_data, tenant_id)
+        except Exception as exc:
+            logger.warning(
+                "connector.oauth_completed: could not write canonical vault path: %s",
+                exc,
+            )
 
         expires_at = datetime.now(tz=timezone.utc)
 
@@ -360,9 +381,7 @@ class ConnectorService:
     @staticmethod
     async def list_connectors(tenant_id: str) -> list[ConnectorInstance]:
         """Return all connector instances for a tenant."""
-        return [
-            c for c in _connectors.values() if c.tenant_id == tenant_id
-        ]
+        return [c for c in _connectors.values() if c.tenant_id == tenant_id]
 
     @staticmethod
     async def get_connector(

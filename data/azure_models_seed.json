@@ -1,0 +1,551 @@
+{
+  "models": [
+  {
+    "name": "model-router",
+    "provider": "azure_openai",
+    "model_id": "model-router",
+    "capabilities": ["chat", "routing"],
+    "context_window": 128000,
+    "supports_streaming": true,
+    "cost_per_input_token": 0.0,
+    "cost_per_output_token": 0.0,
+    "speed_tier": "fast",
+    "avg_latency_ms": 150.0,
+    "data_classification": "internal",
+    "is_on_prem": false,
+    "is_active": true,
+    "health_status": "healthy",
+    "config": {
+      "deployment_name": "model-router",
+      "api_version": "2025-01-01-preview",
+      "endpoint": "https://openai-qrg-sandbox-experiment.cognitiveservices.azure.com"
+    }
+  },
+  {
+    "name": "modelrouter",
+    "provider": "azure_openai",
+    "model_id": "modelrouter",
+    "capabilities": ["chat", "routing"],
+    "context_window": 128000,
+    "supports_streaming": true,
+    "cost_per_input_token": 0.0,
+    "cost_per_output_token": 0.0,
+    "speed_tier": "fast",
+    "avg_latency_ms": 150.0,
+    "data_classification": "internal",
+    "is_on_prem": false,
+    "is_active": true,
+    "health_status": "healthy",
+    "config": {
+      "deployment_name": "modelrouter",
+      "api_version": "2025-01-01-preview",
+      "endpoint": "https://openai-qrg-sandbox-experiment.cognitiveservices.azure.com"
+    }
+  },
+  {
+    "name": "gpt-5.2",
+    "provider": "azure_openai",
+    "model_id": "gpt-5.2",
+    "capabilities": ["chat", "code", "vision", "function_calling"],
+    "context_window": 128000,
+    "supports_streaming": true,
+    "cost_per_input_token": 0.005,
+    "cost_per_output_token": 0.015,
+    "speed_tier": "fast",
+    "avg_latency_ms": 180.0,
+    "data_classification": "internal",
+    "is_on_prem": false,
+    "is_active": true,
+    "health_status": "healthy",
+    "config": {
+      "deployment_name": "gpt-5.2",
+      "api_version": "2025-01-01-preview",
+      "endpoint": "https://openai-qrg-sandbox-experiment.cognitiveservices.azure.com"
+    }
+  },
+  {
+    "name": "gpt-5.2-chat",
+    "provider": "azure_openai",
+    "model_id": "gpt-5.2-chat",
+    "capabilities": ["chat"],
+    "context_window": 128000,
+    "supports_streaming": true,
+    "cost_per_input_token": 0.005,
+    "cost_per_output_token": 0.015,
+    "speed_tier": "fast",
+    "avg_latency_ms": 180.0,
+    "data_classification": "internal",
+    "is_on_prem": false,
+    "is_active": true,
+    "health_status": "healthy",
+    "config": {
+      "deployment_name": "gpt-5.2-chat",
+      "api_version": "2025-01-01-preview",
+      "endpoint": "https://openai-qrg-sandbox-experiment.cognitiveservices.azure.com"
+    }
+  },
+  {
+    "name": "gpt-5-mini",
+    "provider": "azure_openai",
+    "model_id": "gpt-5-mini",
+    "capabilities": ["chat", "code", "function_calling"],
+    "context_window": 128000,
+    "supports_streaming": true,
+    "cost_per_input_token": 0.0015,
+    "cost_per_output_token": 0.006,
+    "speed_tier": "fast",
+    "avg_latency_ms": 120.0,
+    "data_classification": "internal",
+    "is_on_prem": false,
+    "is_active": true,
+    "health_status": "healthy",
+    "config": {
+      "deployment_name": "gpt-5-mini",
+      "api_version": "2025-01-01-preview",
+      "endpoint": "https://openai-qrg-sandbox-experiment.cognitiveservices.azure.com"
+    }
+  },
+  {
+    "name": "gpt-5-chat",
+    "provider": "azure_openai",
+    "model_id": "gpt-5-chat",
+    "capabilities": ["chat"],
+    "context_window": 128000,
+    "supports_streaming": true,
+    "cost_per_input_token": 0.005,
+    "cost_per_output_token": 0.015,
+    "speed_tier": "fast",
+    "avg_latency_ms": 160.0,
+    "data_classification": "internal",
+    "is_on_prem": false,
+    "is_active": true,
+    "health_status": "healthy",
+    "config": {
+      "deployment_name": "gpt-5-chat",
+      "api_version": "2025-01-01-preview",
+      "endpoint": "https://openai-qrg-sandbox-experiment.cognitiveservices.azure.com"
+    }
+  },
+  {
+    "name": "qrg-gpt-4.1",
+    "provider": "azure_openai",
+    "model_id": "qrg-gpt-4.1",
+    "capabilities": ["chat", "code", "vision", "function_calling"],
+    "context_window": 1048576,
+    "supports_streaming": true,
+    "cost_per_input_token": 0.002,
+    "cost_per_output_token": 0.008,
+    "speed_tier": "fast",
+    "avg_latency_ms": 170.0,
+    "data_classification": "internal",
+    "is_on_prem": false,
+    "is_active": true,
+    "health_status": "healthy",
+    "config": {
+      "deployment_name": "qrg-gpt-4.1",
+      "api_version": "2025-01-01-preview",
+      "endpoint": "https://openai-qrg-sandbox-experiment.cognitiveservices.azure.com"
+    }
+  },
+  {
+    "name": "qrg-gpt-4.1-mini",
+    "provider": "azure_openai",
+    "model_id": "qrg-gpt-4.1-mini",
+    "capabilities": ["chat", "code", "function_calling"],
+    "context_window": 1048576,
+    "supports_streaming": true,
+    "cost_per_input_token": 0.0004,
+    "cost_per_output_token": 0.0016,
+    "speed_tier": "fast",
+    "avg_latency_ms": 130.0,
+    "data_classification": "internal",
+    "is_on_prem": false,
+    "is_active": true,
+    "health_status": "healthy",
+    "config": {
+      "deployment_name": "qrg-gpt-4.1-mini",
+      "api_version": "2025-01-01-preview",
+      "endpoint": "https://openai-qrg-sandbox-experiment.cognitiveservices.azure.com"
+    }
+  },
+  {
+    "name": "gpt-4",
+    "provider": "azure_openai",
+    "model_id": "gpt-4",
+    "capabilities": ["chat", "vision", "function_calling"],
+    "context_window": 8192,
+    "supports_streaming": true,
+    "cost_per_input_token": 0.03,
+    "cost_per_output_token": 0.06,
+    "speed_tier": "medium",
+    "avg_latency_ms": 300.0,
+    "data_classification": "internal",
+    "is_on_prem": false,
+    "is_active": true,
+    "health_status": "healthy",
+    "config": {
+      "deployment_name": "gpt-4",
+      "api_version": "2025-01-01-preview",
+      "endpoint": "https://openai-qrg-sandbox-experiment.cognitiveservices.azure.com"
+    }
+  },
+  {
+    "name": "gpt-4o-mini",
+    "provider": "azure_openai",
+    "model_id": "gpt-4o-mini",
+    "capabilities": ["chat", "function_calling"],
+    "context_window": 128000,
+    "supports_streaming": true,
+    "cost_per_input_token": 0.00015,
+    "cost_per_output_token": 0.0006,
+    "speed_tier": "fast",
+    "avg_latency_ms": 100.0,
+    "data_classification": "internal",
+    "is_on_prem": false,
+    "is_active": true,
+    "health_status": "healthy",
+    "config": {
+      "deployment_name": "gpt-4o-mini",
+      "api_version": "2025-01-01-preview",
+      "endpoint": "https://openai-qrg-sandbox-experiment.cognitiveservices.azure.com"
+    }
+  },
+  {
+    "name": "gpt-5.2-codex",
+    "provider": "azure_openai",
+    "model_id": "gpt-5.2-codex",
+    "capabilities": ["code", "chat", "function_calling"],
+    "context_window": 200000,
+    "supports_streaming": true,
+    "cost_per_input_token": 0.015,
+    "cost_per_output_token": 0.06,
+    "speed_tier": "fast",
+    "avg_latency_ms": 200.0,
+    "data_classification": "internal",
+    "is_on_prem": false,
+    "is_active": true,
+    "health_status": "healthy",
+    "config": {
+      "deployment_name": "gpt-5.2-codex",
+      "api_version": "2025-01-01-preview",
+      "endpoint": "https://openai-qrg-sandbox-experiment.cognitiveservices.azure.com"
+    }
+  },
+  {
+    "name": "gpt-5.1-codex-max",
+    "provider": "azure_openai",
+    "model_id": "gpt-5.1-codex-max",
+    "capabilities": ["code", "chat", "function_calling"],
+    "context_window": 200000,
+    "supports_streaming": true,
+    "cost_per_input_token": 0.02,
+    "cost_per_output_token": 0.08,
+    "speed_tier": "medium",
+    "avg_latency_ms": 350.0,
+    "data_classification": "internal",
+    "is_on_prem": false,
+    "is_active": true,
+    "health_status": "healthy",
+    "config": {
+      "deployment_name": "gpt-5.1-codex-max",
+      "api_version": "2025-01-01-preview",
+      "endpoint": "https://openai-qrg-sandbox-experiment.cognitiveservices.azure.com"
+    }
+  },
+  {
+    "name": "gpt-5.1-codex-mini",
+    "provider": "azure_openai",
+    "model_id": "gpt-5.1-codex-mini",
+    "capabilities": ["code", "chat"],
+    "context_window": 200000,
+    "supports_streaming": true,
+    "cost_per_input_token": 0.005,
+    "cost_per_output_token": 0.02,
+    "speed_tier": "fast",
+    "avg_latency_ms": 180.0,
+    "data_classification": "internal",
+    "is_on_prem": false,
+    "is_active": true,
+    "health_status": "healthy",
+    "config": {
+      "deployment_name": "gpt-5.1-codex-mini",
+      "api_version": "2025-01-01-preview",
+      "endpoint": "https://openai-qrg-sandbox-experiment.cognitiveservices.azure.com"
+    }
+  },
+  {
+    "name": "o1-experiment",
+    "provider": "azure_openai",
+    "model_id": "o1-experiment",
+    "capabilities": ["reasoning", "chat"],
+    "context_window": 200000,
+    "supports_streaming": true,
+    "cost_per_input_token": 0.015,
+    "cost_per_output_token": 0.06,
+    "speed_tier": "slow",
+    "avg_latency_ms": 800.0,
+    "data_classification": "internal",
+    "is_on_prem": false,
+    "is_active": true,
+    "health_status": "healthy",
+    "config": {
+      "deployment_name": "o1-experiment",
+      "api_version": "2025-01-01-preview",
+      "endpoint": "https://openai-qrg-sandbox-experiment.cognitiveservices.azure.com"
+    }
+  },
+  {
+    "name": "qrg-o3-mini",
+    "provider": "azure_openai",
+    "model_id": "qrg-o3-mini",
+    "capabilities": ["reasoning", "chat"],
+    "context_window": 200000,
+    "supports_streaming": true,
+    "cost_per_input_token": 0.0011,
+    "cost_per_output_token": 0.0044,
+    "speed_tier": "medium",
+    "avg_latency_ms": 400.0,
+    "data_classification": "internal",
+    "is_on_prem": false,
+    "is_active": true,
+    "health_status": "healthy",
+    "config": {
+      "deployment_name": "qrg-o3-mini",
+      "api_version": "2025-01-01-preview",
+      "endpoint": "https://openai-qrg-sandbox-experiment.cognitiveservices.azure.com"
+    }
+  },
+  {
+    "name": "o1-mini",
+    "provider": "azure_openai",
+    "model_id": "o1-mini",
+    "capabilities": ["reasoning", "chat"],
+    "context_window": 128000,
+    "supports_streaming": true,
+    "cost_per_input_token": 0.003,
+    "cost_per_output_token": 0.012,
+    "speed_tier": "medium",
+    "avg_latency_ms": 450.0,
+    "data_classification": "internal",
+    "is_on_prem": false,
+    "is_active": true,
+    "health_status": "healthy",
+    "config": {
+      "deployment_name": "o1-mini",
+      "api_version": "2025-01-01-preview",
+      "endpoint": "https://openai-qrg-sandbox-experiment.cognitiveservices.azure.com"
+    }
+  },
+  {
+    "name": "text-embedding-3-small-sandbox",
+    "provider": "azure_openai",
+    "model_id": "text-embedding-3-small-sandbox",
+    "capabilities": ["embedding"],
+    "context_window": 8192,
+    "supports_streaming": false,
+    "cost_per_input_token": 0.00002,
+    "cost_per_output_token": 0.0,
+    "speed_tier": "fast",
+    "avg_latency_ms": 50.0,
+    "data_classification": "internal",
+    "is_on_prem": false,
+    "is_active": true,
+    "health_status": "healthy",
+    "config": {
+      "deployment_name": "text-embedding-3-small-sandbox",
+      "api_version": "2025-01-01-preview",
+      "endpoint": "https://openai-qrg-sandbox-experiment.cognitiveservices.azure.com"
+    }
+  },
+  {
+    "name": "text-embedding-3-large-sandbox",
+    "provider": "azure_openai",
+    "model_id": "text-embedding-3-large-sandbox",
+    "capabilities": ["embedding"],
+    "context_window": 8192,
+    "supports_streaming": false,
+    "cost_per_input_token": 0.00013,
+    "cost_per_output_token": 0.0,
+    "speed_tier": "fast",
+    "avg_latency_ms": 60.0,
+    "data_classification": "internal",
+    "is_on_prem": false,
+    "is_active": true,
+    "health_status": "healthy",
+    "config": {
+      "deployment_name": "text-embedding-3-large-sandbox",
+      "api_version": "2025-01-01-preview",
+      "endpoint": "https://openai-qrg-sandbox-experiment.cognitiveservices.azure.com"
+    }
+  },
+  {
+    "name": "qrg-embedding-experimental",
+    "provider": "azure_openai",
+    "model_id": "qrg-embedding-experimental",
+    "capabilities": ["embedding"],
+    "context_window": 8192,
+    "supports_streaming": false,
+    "cost_per_input_token": 0.0001,
+    "cost_per_output_token": 0.0,
+    "speed_tier": "fast",
+    "avg_latency_ms": 55.0,
+    "data_classification": "internal",
+    "is_on_prem": false,
+    "is_active": true,
+    "health_status": "healthy",
+    "config": {
+      "deployment_name": "qrg-embedding-experimental",
+      "api_version": "2025-01-01-preview",
+      "endpoint": "https://openai-qrg-sandbox-experiment.cognitiveservices.azure.com"
+    }
+  },
+  {
+    "name": "gpt-realtime",
+    "provider": "azure_openai",
+    "model_id": "gpt-realtime",
+    "capabilities": ["realtime", "streaming"],
+    "context_window": 128000,
+    "supports_streaming": true,
+    "cost_per_input_token": 0.005,
+    "cost_per_output_token": 0.02,
+    "speed_tier": "fast",
+    "avg_latency_ms": 100.0,
+    "data_classification": "internal",
+    "is_on_prem": false,
+    "is_active": true,
+    "health_status": "healthy",
+    "config": {
+      "deployment_name": "gpt-realtime",
+      "api_version": "2025-01-01-preview",
+      "endpoint": "https://openai-qrg-sandbox-experiment.cognitiveservices.azure.com"
+    }
+  },
+  {
+    "name": "gpt-4o-mini-realtime-preview",
+    "provider": "azure_openai",
+    "model_id": "gpt-4o-mini-realtime-preview",
+    "capabilities": ["realtime", "streaming"],
+    "context_window": 128000,
+    "supports_streaming": true,
+    "cost_per_input_token": 0.0006,
+    "cost_per_output_token": 0.0024,
+    "speed_tier": "fast",
+    "avg_latency_ms": 90.0,
+    "data_classification": "internal",
+    "is_on_prem": false,
+    "is_active": true,
+    "health_status": "healthy",
+    "config": {
+      "deployment_name": "gpt-4o-mini-realtime-preview",
+      "api_version": "2025-01-01-preview",
+      "endpoint": "https://openai-qrg-sandbox-experiment.cognitiveservices.azure.com"
+    }
+  },
+  {
+    "name": "whisper-sandbox",
+    "provider": "azure_openai",
+    "model_id": "whisper-sandbox",
+    "capabilities": ["speech-to-text"],
+    "context_window": 25000000,
+    "supports_streaming": false,
+    "cost_per_input_token": 0.006,
+    "cost_per_output_token": 0.0,
+    "speed_tier": "medium",
+    "avg_latency_ms": 500.0,
+    "data_classification": "internal",
+    "is_on_prem": false,
+    "is_active": true,
+    "health_status": "healthy",
+    "config": {
+      "deployment_name": "whisper-sandbox",
+      "api_version": "2025-01-01-preview",
+      "endpoint": "https://openai-qrg-sandbox-experiment.cognitiveservices.azure.com"
+    }
+  },
+  {
+    "name": "qrg-gpt35turbo16k-experimental",
+    "provider": "azure_openai",
+    "model_id": "qrg-gpt35turbo16k-experimental",
+    "capabilities": ["chat"],
+    "context_window": 16384,
+    "supports_streaming": true,
+    "cost_per_input_token": 0.003,
+    "cost_per_output_token": 0.004,
+    "speed_tier": "fast",
+    "avg_latency_ms": 120.0,
+    "data_classification": "internal",
+    "is_on_prem": false,
+    "is_active": true,
+    "health_status": "healthy",
+    "config": {
+      "deployment_name": "qrg-gpt35turbo16k-experimental",
+      "api_version": "2025-01-01-preview",
+      "endpoint": "https://openai-qrg-sandbox-experiment.cognitiveservices.azure.com"
+    }
+  },
+  {
+    "name": "qrg-gpt35turbo4k-experimental",
+    "provider": "azure_openai",
+    "model_id": "qrg-gpt35turbo4k-experimental",
+    "capabilities": ["chat"],
+    "context_window": 4096,
+    "supports_streaming": true,
+    "cost_per_input_token": 0.0015,
+    "cost_per_output_token": 0.002,
+    "speed_tier": "fast",
+    "avg_latency_ms": 100.0,
+    "data_classification": "internal",
+    "is_on_prem": false,
+    "is_active": true,
+    "health_status": "healthy",
+    "config": {
+      "deployment_name": "qrg-gpt35turbo4k-experimental",
+      "api_version": "2025-01-01-preview",
+      "endpoint": "https://openai-qrg-sandbox-experiment.cognitiveservices.azure.com"
+    }
+  },
+  {
+    "name": "qrg-gpt4turbo-experimental",
+    "provider": "azure_openai",
+    "model_id": "qrg-gpt4turbo-experimental",
+    "capabilities": ["chat", "vision", "function_calling"],
+    "context_window": 128000,
+    "supports_streaming": true,
+    "cost_per_input_token": 0.01,
+    "cost_per_output_token": 0.03,
+    "speed_tier": "medium",
+    "avg_latency_ms": 280.0,
+    "data_classification": "internal",
+    "is_on_prem": false,
+    "is_active": true,
+    "health_status": "healthy",
+    "config": {
+      "deployment_name": "qrg-gpt4turbo-experimental",
+      "api_version": "2025-01-01-preview",
+      "endpoint": "https://openai-qrg-sandbox-experiment.cognitiveservices.azure.com"
+    }
+  },
+  {
+    "name": "qrg-gpt4o-experimental",
+    "provider": "azure_openai",
+    "model_id": "qrg-gpt4o-experimental",
+    "capabilities": ["chat", "vision", "function_calling"],
+    "context_window": 128000,
+    "supports_streaming": true,
+    "cost_per_input_token": 0.005,
+    "cost_per_output_token": 0.015,
+    "speed_tier": "fast",
+    "avg_latency_ms": 160.0,
+    "data_classification": "internal",
+    "is_on_prem": false,
+    "is_active": true,
+    "health_status": "healthy",
+    "config": {
+      "deployment_name": "qrg-gpt4o-experimental",
+      "api_version": "2025-01-01-preview",
+      "endpoint": "https://openai-qrg-sandbox-experiment.cognitiveservices.azure.com"
+    }
+  }
+  ],
+  "routing_rules": []
+}

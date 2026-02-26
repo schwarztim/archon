@@ -17,13 +17,14 @@ from app.middleware.auth import require_auth
 from app.middleware.rbac import require_permission
 from app.models import Connector
 from app.models.connector import (
+    ActionResult,
+    ConnectionTestResult,
     ConnectorConfig,
     ConnectorInstance,
-    ConnectionTestResult,
+    ConnectorStatus,
     ConnectorType,
     OAuthCredential,
     OAuthFlowStart,
-    ActionResult,
 )
 from app.secrets.manager import VaultSecretsManager, get_secrets_manager
 from app.services import ConnectorService
@@ -479,17 +480,19 @@ async def oauth_type_callback(
     body: OAuthCallbackRequest,
     user: AuthenticatedUser = Depends(require_auth),
     secrets: VaultSecretsManager = Depends(get_secrets_manager),
+    session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     """Complete OAuth callback for a specific provider type.
 
     Exchanges authorization code for tokens and stores them in Vault.
     """
-    pending = OAuthProviderRegistry.pop_pending_state(body.state)
+    pending = await OAuthProviderRegistry.pop_pending_state(body.state, session=session)
     if pending is None or pending["tenant_id"] != user.tenant_id:
         raise HTTPException(status_code=400, detail="Invalid or expired OAuth state")
 
     connector_id = pending["connector_id"]
-    vault_path = f"archon/connectors/{connector_id}/oauth_tokens"
+    # Use canonical per-instance Vault path: secret/tenants/{tenant_id}/connectors/{connector_id}
+    vault_path = f"secret/tenants/{user.tenant_id}/connectors/{connector_id}"
 
     result = await OAuthProviderRegistry.exchange_code_for_tokens(
         provider_type,
@@ -531,7 +534,35 @@ async def test_connector_connection(
     except ValueError:
         raise HTTPException(status_code=404, detail="Connector not found")
 
-    config = instance.model_dump(mode="json").get("scopes", {})
+    from app.services.connectors import get_connector
+
+    vault_path = f"archon/connectors/{connector_id}/credentials"
+    try:
+        credentials = await secrets.get_secret(vault_path, user.tenant_id)
+    except Exception:
+        credentials = {}
+
+    config: dict[str, Any] = getattr(instance, "custom_config", {}) or {}
+    connector_impl = get_connector(instance.type, config, credentials)
+
+    if connector_impl is not None:
+        async with connector_impl:
+            real_result = await connector_impl.test_connection()
+        logger.info(
+            "connector.test_connection",
+            extra={
+                "tenant_id": user.tenant_id,
+                "connector_id": str(connector_id),
+                "action": "connector.test_connection",
+                "success": real_result.get("success", False),
+            },
+        )
+        return {
+            "data": real_result,
+            "meta": _meta(),
+        }
+
+    # Fallback: config-level validation
     result = await ConnectionTester.test(
         instance.type,
         config,
@@ -556,6 +587,61 @@ async def test_connector_connection(
     }
 
 
+class StoreCredentialsRequest(BaseModel):
+    """Payload for storing non-OAuth credentials (API key, basic auth, etc.)."""
+
+    credentials: dict[str, Any] = PField(
+        ...,
+        description="Key/value credential pairs to store in Vault.",
+    )
+
+
+@enterprise.post("/{connector_id}/credentials", status_code=status.HTTP_204_NO_CONTENT)
+async def store_credentials(
+    connector_id: UUID,
+    body: StoreCredentialsRequest,
+    user: AuthenticatedUser = Depends(require_permission("connectors", "create")),
+    secrets: VaultSecretsManager = Depends(get_secrets_manager),
+) -> None:
+    """Store credentials for a connector that uses API-key or basic auth.
+
+    Writes credentials exclusively to Vault using the canonical per-instance
+    path: ``secret/tenants/{tenant_id}/connectors/{connector_id}``.
+    The connector status is updated to ACTIVE on success.
+    """
+    try:
+        instance = await ConnectorService.get_connector(user.tenant_id, connector_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Connector not found")
+
+    vault_path = f"secret/tenants/{user.tenant_id}/connectors/{connector_id}"
+    try:
+        await secrets.put_secret(vault_path, body.credentials, user.tenant_id)
+    except Exception as exc:
+        logger.error(
+            "connector.store_credentials_failed",
+            extra={
+                "tenant_id": user.tenant_id,
+                "connector_id": str(connector_id),
+                "error": str(exc),
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Failed to store credentials in Vault",
+        )
+
+    instance.status = ConnectorStatus.ACTIVE
+    logger.info(
+        "connector.credentials_stored",
+        extra={
+            "tenant_id": user.tenant_id,
+            "connector_id": str(connector_id),
+            "action": "connector.credentials_stored",
+        },
+    )
+
+
 @enterprise.get("/{connector_id}/health")
 async def connector_health(
     connector_id: UUID,
@@ -571,11 +657,31 @@ async def connector_health(
     except ValueError:
         raise HTTPException(status_code=404, detail="Connector not found")
 
-    config = instance.model_dump(mode="json")
+    from app.services.connectors import get_connector
+
+    vault_path = f"archon/connectors/{connector_id}/credentials"
+    try:
+        credentials = await secrets.get_secret(vault_path, user.tenant_id)
+    except Exception:
+        credentials = {}
+
+    config: dict[str, Any] = getattr(instance, "custom_config", {}) or {}
+    connector_impl = get_connector(instance.type, config, credentials)
+
+    if connector_impl is not None:
+        async with connector_impl:
+            health_data = await connector_impl.health_check()
+        return {
+            "data": health_data,
+            "meta": _meta(),
+        }
+
+    # Fallback: credential-presence health check
+    instance_config = instance.model_dump(mode="json")
     result = await HealthChecker.check(
         str(connector_id),
         instance.type,
-        config,
+        instance_config,
         secrets_mgr=secrets,
         tenant_id=user.tenant_id,
     )
