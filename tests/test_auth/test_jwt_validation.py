@@ -17,12 +17,15 @@ from app.middleware.auth import get_current_user, require_mfa
 
 def _patch_jwks(jwks: dict):
     """Patch ``_fetch_jwks`` to return *jwks* without hitting Keycloak."""
-    return patch("app.middleware.auth._fetch_jwks", new_callable=AsyncMock, return_value=jwks)
+    return patch(
+        "app.middleware.auth._fetch_jwks", new_callable=AsyncMock, return_value=jwks
+    )
 
 
 def _mock_request():
     """Create a minimal mock Request with empty cookies."""
     from unittest.mock import MagicMock
+
     req = MagicMock()
     req.cookies = {}
     return req
@@ -68,7 +71,9 @@ async def test_expired_jwt_returns_401(mock_jwt_token, mock_keycloak_jwks) -> No
 
 
 @pytest.mark.asyncio
-async def test_invalid_signature_returns_401(mock_jwt_token, mock_keycloak_jwks) -> None:
+async def test_invalid_signature_returns_401(
+    mock_jwt_token, mock_keycloak_jwks
+) -> None:
     """A JWT signed with a different key must be rejected with 401."""
     from cryptography.hazmat.primitives.asymmetric import rsa as rsa_mod
     from cryptography.hazmat.primitives import serialization
@@ -92,14 +97,25 @@ async def test_invalid_signature_returns_401(mock_jwt_token, mock_keycloak_jwks)
 async def test_missing_token_returns_401(mock_keycloak_jwks) -> None:
     """Calling ``get_current_user`` with an empty/unparseable token → 401."""
     with _patch_jwks(mock_keycloak_jwks):
-        with pytest.raises(HTTPException) as exc_info:
-            await get_current_user(request=_mock_request(), token="")
+        with patch("app.middleware.auth.settings") as mock_settings:
+            from app.config import settings as real_settings
+
+            # Copy all real settings but override AUTH_DEV_MODE
+            for attr in dir(real_settings):
+                if not attr.startswith("_") and attr.isupper():
+                    setattr(mock_settings, attr, getattr(real_settings, attr))
+            mock_settings.AUTH_DEV_MODE = False
+
+            with pytest.raises(HTTPException) as exc_info:
+                await get_current_user(request=_mock_request(), token="")
 
     assert exc_info.value.status_code == 401
 
 
 @pytest.mark.asyncio
-async def test_tenant_id_extracted_from_claims(mock_jwt_token, mock_keycloak_jwks) -> None:
+async def test_tenant_id_extracted_from_claims(
+    mock_jwt_token, mock_keycloak_jwks
+) -> None:
     """The tenant_id claim in the JWT should be forwarded to AuthenticatedUser."""
     token = mock_jwt_token(tenant_id="org-99")
 

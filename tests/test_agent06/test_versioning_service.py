@@ -163,7 +163,9 @@ async def test_create_version_success() -> None:
     session.exec = AsyncMock(return_value=exec_result)
 
     # Mock _latest_version → None (first version)
-    with patch("app.services.versioning_service._latest_version", new_callable=AsyncMock) as mock_latest:
+    with patch(
+        "app.services.versioning_service._latest_version", new_callable=AsyncMock
+    ) as mock_latest:
         mock_latest.return_value = None
         version = await VersioningService.create_version(
             tenant_id="tenant-1",
@@ -236,7 +238,9 @@ async def test_create_version_increments() -> None:
     latest_mock = MagicMock()
     latest_mock.version = "1.0.0"
 
-    with patch("app.services.versioning_service._latest_version", new_callable=AsyncMock) as mock_latest:
+    with patch(
+        "app.services.versioning_service._latest_version", new_callable=AsyncMock
+    ) as mock_latest:
         mock_latest.return_value = latest_mock
         version = await VersioningService.create_version(
             tenant_id="tenant-1",
@@ -295,7 +299,10 @@ async def test_diff_versions_secrets_aware() -> None:
     session.get = AsyncMock(side_effect=lambda cls, vid: va if vid == va.id else vb)
 
     diff = await VersioningService.diff_versions(
-        "tenant-1", va.id, vb.id, session=session,
+        "tenant-1",
+        va.id,
+        vb.id,
+        session=session,
     )
     assert "vault/new" in diff.secrets_paths_added
     assert "vault/old" in diff.secrets_paths_removed
@@ -309,7 +316,10 @@ async def test_diff_versions_not_found() -> None:
 
     with pytest.raises(ValueError, match="not found"):
         await VersioningService.diff_versions(
-            "tenant-1", uuid4(), uuid4(), session=session,
+            "tenant-1",
+            uuid4(),
+            uuid4(),
+            session=session,
         )
 
 
@@ -323,7 +333,10 @@ async def test_diff_versions_different_agents() -> None:
 
     with pytest.raises(ValueError, match="different agents"):
         await VersioningService.diff_versions(
-            "tenant-1", va.id, vb.id, session=session,
+            "tenant-1",
+            va.id,
+            vb.id,
+            session=session,
         )
 
 
@@ -344,7 +357,9 @@ async def test_rollback_success() -> None:
     latest_mock = MagicMock()
     latest_mock.version = "1.0.2"
 
-    with patch("app.services.versioning_service._latest_version", new_callable=AsyncMock) as mock_latest:
+    with patch(
+        "app.services.versioning_service._latest_version", new_callable=AsyncMock
+    ) as mock_latest:
         mock_latest.return_value = latest_mock
         result = await VersioningService.rollback(
             tenant_id="tenant-1",
@@ -375,7 +390,9 @@ async def test_rollback_incompatible_secrets() -> None:
 
     session.get = AsyncMock(return_value=target)
 
-    with patch("app.services.versioning_service._latest_version", new_callable=AsyncMock) as mock_latest:
+    with patch(
+        "app.services.versioning_service._latest_version", new_callable=AsyncMock
+    ) as mock_latest:
         mock_latest.return_value = None
         result = await VersioningService.rollback(
             tenant_id="tenant-1",
@@ -480,7 +497,11 @@ async def test_promote_invalid_env() -> None:
 
     with pytest.raises(ValueError, match="Invalid environment"):
         await VersioningService.promote(
-            "tenant-1", user, uuid4(), "canary", session=session,
+            "tenant-1",
+            user,
+            uuid4(),
+            "canary",
+            session=session,
         )
 
 
@@ -496,7 +517,11 @@ async def test_promote_skip_env_rejected() -> None:
 
     with pytest.raises(ValueError, match="Cannot promote"):
         await VersioningService.promote(
-            "tenant-1", user, version_db.id, "production", session=session,
+            "tenant-1",
+            user,
+            version_db.id,
+            "production",
+            session=session,
         )
 
 
@@ -514,7 +539,11 @@ async def test_promote_production_requires_changelog() -> None:
 
     with pytest.raises(ValueError, match="Change reason required"):
         await VersioningService.promote(
-            "tenant-1", user, version_db.id, "production", session=session,
+            "tenant-1",
+            user,
+            version_db.id,
+            "production",
+            session=session,
         )
 
 
@@ -526,7 +555,11 @@ async def test_promote_rbac_denied() -> None:
 
     with pytest.raises(PermissionError, match="Insufficient permissions"):
         await VersioningService.promote(
-            "tenant-1", viewer, uuid4(), "staging", session=session,
+            "tenant-1",
+            viewer,
+            uuid4(),
+            "staging",
+            session=session,
         )
 
 
@@ -539,6 +572,13 @@ async def test_verify_signature_valid() -> None:
     version_db = _make_agent_version_db()
     session = _mock_session()
     secrets = _mock_secrets()
+
+    # Compute and inject the correct signature into the mock definition
+    canonical = _canonical_json(version_db.definition)
+    content_hash = _compute_hash(canonical)
+    signing_key = "test-signing-key"  # matches _mock_secrets()
+    version_db.definition["_signature"] = _sign(content_hash, signing_key)
+
     session.get = AsyncMock(return_value=version_db)
 
     result = await VersioningService.verify_signature(
@@ -583,7 +623,9 @@ async def test_tenant_isolation_create_version() -> None:
     exec_result.first.return_value = agent_db
     session.exec = AsyncMock(return_value=exec_result)
 
-    with patch("app.services.versioning_service._latest_version", new_callable=AsyncMock) as mock_latest:
+    with patch(
+        "app.services.versioning_service._latest_version", new_callable=AsyncMock
+    ) as mock_latest:
         mock_latest.return_value = None
         version = await VersioningService.create_version(
             tenant_id="t1",
@@ -612,7 +654,9 @@ async def test_signing_key_fallback() -> None:
     exec_result.first.return_value = agent_db
     session.exec = AsyncMock(return_value=exec_result)
 
-    with patch("app.services.versioning_service._latest_version", new_callable=AsyncMock) as mock_latest:
+    with patch(
+        "app.services.versioning_service._latest_version", new_callable=AsyncMock
+    ) as mock_latest:
         mock_latest.return_value = None
         version = await VersioningService.create_version(
             tenant_id="tenant-1",

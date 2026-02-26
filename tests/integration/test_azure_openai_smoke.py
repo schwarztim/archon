@@ -28,7 +28,7 @@ class TestAzureOpenAISmoke:
         payload = {
             "model": "gpt-5.2-codex",
             "input": "Say OK",
-            "max_output_tokens": 10,
+            "max_output_tokens": 16,
         }
 
         resp = httpx.post(url, headers=headers, json=payload, timeout=30.0)
