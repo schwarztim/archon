@@ -281,7 +281,7 @@ def test_delete_connector_not_found(client: TestClient) -> None:
 def test_list_audit_logs_by_resource(client: TestClient) -> None:
     """GET /api/v1/audit-logs/ with resource filter returns envelope."""
     with patch(
-        "app.routes.audit_logs.AuditLogService.list_by_resource",
+        "app.routes.audit_logs.AuditLogService.list_filtered",
         new_callable=AsyncMock,
         return_value=([_sample_audit_log()], 1),
     ):
@@ -298,7 +298,7 @@ def test_list_audit_logs_by_resource(client: TestClient) -> None:
 def test_list_audit_logs_by_actor(client: TestClient) -> None:
     """GET /api/v1/audit-logs/ with actor_id filter returns envelope."""
     with patch(
-        "app.routes.audit_logs.AuditLogService.list_by_actor",
+        "app.routes.audit_logs.AuditLogService.list_filtered",
         new_callable=AsyncMock,
         return_value=([_sample_audit_log()], 1),
     ):

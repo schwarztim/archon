@@ -10,7 +10,11 @@ from app.middleware.audit_middleware import AuditMiddleware
 from app.middleware.dlp_middleware import DLPMiddleware
 from app.middleware.metrics_middleware import MetricsMiddleware
 from app.middleware.rate_limit import RateLimitMiddleware
-from app.middleware.rbac import check_permission, require_permission
+from app.middleware.rbac import (
+    check_permission,
+    check_permission_db,
+    require_permission,
+)
 from app.middleware.tenant import get_tenant_context, require_tenant
 
 __all__ = [
@@ -19,6 +23,7 @@ __all__ = [
     "MetricsMiddleware",
     "RateLimitMiddleware",
     "check_permission",
+    "check_permission_db",
     "get_current_user",
     "get_tenant_context",
     "oauth2_scheme",

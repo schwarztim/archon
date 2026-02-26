@@ -86,6 +86,7 @@ from app.routes.mcp_interactive import router as mcp_interactive_router
 from app.routes.security_proxy import router as security_proxy_router
 from app.routes.admin import router as admin_router
 from app.routes.settings import router as settings_router
+from app.routes.rbac import router as rbac_router
 
 # Metrics
 from app.metrics import router as metrics_router
@@ -176,9 +177,7 @@ def create_app() -> FastAPI:
     application.include_router(router_api_router, prefix=settings.API_PREFIX)
     application.include_router(sandbox_router, prefix=settings.API_PREFIX)
     application.include_router(templates_router, prefix=settings.API_PREFIX)
-    application.include_router(
-        versioning_router, prefix=settings.API_PREFIX + "/versioning"
-    )
+    application.include_router(versioning_router, prefix=settings.API_PREFIX)
     application.include_router(wizard_router, prefix=settings.API_PREFIX)
     application.include_router(ws_router)
 
@@ -246,6 +245,9 @@ def create_app() -> FastAPI:
 
     # -- Settings Platform -------------------------------------------
     application.include_router(settings_router, prefix=settings.API_PREFIX)
+
+    # -- RBAC CRUD (custom roles + group mappings) -------------------
+    application.include_router(rbac_router, prefix=settings.API_PREFIX)
 
     # -- Metrics (Prometheus-compatible) ------------------------------
     application.include_router(metrics_router)

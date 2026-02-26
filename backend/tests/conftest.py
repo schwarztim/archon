@@ -83,9 +83,12 @@ def sample_execution() -> Execution:
 def mock_session() -> AsyncMock:
     """AsyncMock standing in for an AsyncSession."""
     session = AsyncMock()
-    # Ensure session.exec() returns a result with a usable .first() method
+    # Configure exec() to return a MagicMock so that .first() and .all()
+    # work synchronously (avoiding 'coroutine has no attribute' errors).
     exec_result = MagicMock()
     exec_result.first.return_value = None
+    exec_result.all.return_value = []
+    exec_result.one.return_value = 0
     session.exec = AsyncMock(return_value=exec_result)
     return session
 

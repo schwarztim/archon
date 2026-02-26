@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID, uuid4
 
+from sqlmodel.ext.asyncio.session import AsyncSession
+
 from app.models.lifecycle import (
     Anomaly,
     ApprovalGate,
@@ -16,11 +18,13 @@ from app.models.lifecycle import (
     CronSchedule,
     Deployment,
     DeploymentHistoryEntry,
+    DeploymentRecord,
     DeploymentStrategy,
     DeploymentStrategyType,
     EnvironmentInfo,
     HealthMetrics,
     HealthScore,
+    LifecycleEvent,
     LifecycleTransition,
     PipelineStageInfo,
     ScheduledJob,
@@ -74,6 +78,183 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
+# ---------------------------------------------------------------------------
+# DB-backed helpers for _agent_states, _deployments, _deployment_history
+# ---------------------------------------------------------------------------
+
+
+async def _get_agent_state(
+    tenant_id: str,
+    agent_id: UUID,
+    session: AsyncSession | None,
+) -> str:
+    """Return the current lifecycle state for an agent.
+
+    Queries ``agents.status`` when a session is available; falls back to the
+    in-memory ``_agent_states`` dict otherwise.
+    """
+    if session is not None:
+        try:
+            from sqlmodel import select
+
+            from app.models import Agent
+
+            result = await session.exec(select(Agent).where(Agent.id == agent_id))
+            agent = result.first()
+            if agent is not None:
+                return agent.status
+        except Exception:
+            logger.debug("_get_agent_state: DB lookup failed", exc_info=True)
+
+    return _agent_states.get(f"{tenant_id}:{agent_id}", "draft")
+
+
+async def _set_agent_state(
+    tenant_id: str,
+    agent_id: UUID,
+    state: str,
+    session: AsyncSession | None,
+) -> None:
+    """Persist the lifecycle state for an agent.
+
+    Updates ``agents.status`` when a session is available and also keeps the
+    in-memory dict in sync for backward compatibility.
+    """
+    _agent_states[f"{tenant_id}:{agent_id}"] = state
+
+    if session is not None:
+        try:
+            from sqlmodel import select
+
+            from app.models import Agent
+
+            result = await session.exec(select(Agent).where(Agent.id == agent_id))
+            agent = result.first()
+            if agent is not None:
+                agent.status = state
+                agent.updated_at = _utcnow()
+                session.add(agent)
+                await session.commit()
+        except Exception:
+            logger.debug("_set_agent_state: DB update failed", exc_info=True)
+
+
+async def _get_deployment(
+    tenant_id: str,
+    deployment_id: UUID,
+    session: AsyncSession | None,
+) -> Deployment | None:
+    """Retrieve a deployment by ID.
+
+    Queries ``DeploymentRecord`` when a session is available; falls back to the
+    in-memory ``_deployments`` dict otherwise.
+    """
+    if session is not None:
+        try:
+            from sqlmodel import select
+
+            result = await session.exec(
+                select(DeploymentRecord).where(DeploymentRecord.id == deployment_id)
+            )
+            record = result.first()
+            if record is not None:
+                return _record_to_deployment(record)
+        except Exception:
+            logger.debug("_get_deployment: DB lookup failed", exc_info=True)
+
+    return _deployments.get(f"{tenant_id}:{deployment_id}")
+
+
+async def _save_deployment(
+    tenant_id: str,
+    deployment: Deployment,
+    session: AsyncSession | None,
+) -> None:
+    """Persist a deployment (upsert into DeploymentRecord).
+
+    Also keeps the in-memory dict in sync.
+    """
+    _deployments[f"{tenant_id}:{deployment.id}"] = deployment
+
+    if session is not None:
+        try:
+            from sqlmodel import select
+
+            result = await session.exec(
+                select(DeploymentRecord).where(DeploymentRecord.id == deployment.id)
+            )
+            record = result.first()
+            if record is None:
+                record = DeploymentRecord(
+                    id=deployment.id,
+                    agent_id=deployment.agent_id,
+                    version_id=deployment.version_id,
+                    environment=deployment.environment,
+                    strategy=deployment.strategy.type.value,
+                    status=deployment.status,
+                    config={},
+                )
+            else:
+                record.status = deployment.status
+                record.environment = deployment.environment
+                record.strategy = deployment.strategy.type.value
+                record.updated_at = _utcnow()
+                if deployment.completed_at:
+                    record.retired_at = deployment.completed_at
+            session.add(record)
+            await session.commit()
+        except Exception:
+            logger.debug("_save_deployment: DB upsert failed", exc_info=True)
+
+
+async def _append_deployment_history(
+    tenant_id: str,
+    agent_id: UUID,
+    deployment_id: UUID,
+    event_type: str,
+    from_state: str | None,
+    to_state: str | None,
+    actor_id: UUID | None,
+    message: str | None,
+    session: AsyncSession | None,
+) -> None:
+    """Append a LifecycleEvent row for an agent deployment event."""
+    if session is not None:
+        try:
+            event = LifecycleEvent(
+                deployment_id=deployment_id,
+                agent_id=agent_id,
+                event_type=event_type,
+                from_state=from_state,
+                to_state=to_state,
+                message=message,
+                actor_id=actor_id,
+            )
+            session.add(event)
+            await session.commit()
+        except Exception:
+            logger.debug("_append_deployment_history: DB insert failed", exc_info=True)
+
+
+def _record_to_deployment(record: DeploymentRecord) -> Deployment:
+    """Convert a DeploymentRecord DB row to the Deployment Pydantic model."""
+    strategy_type = (
+        DeploymentStrategyType(record.strategy)
+        if record.strategy
+        else DeploymentStrategyType.ROLLING
+    )
+    return Deployment(
+        id=record.id,
+        agent_id=record.agent_id,
+        version_id=record.version_id,
+        environment=record.environment,
+        strategy=DeploymentStrategy(type=strategy_type),
+        status=record.status,
+        started_at=record.deployed_at,
+        completed_at=record.retired_at,
+    )
+
+
 class LifecycleService:
     """Enterprise lifecycle orchestration for agents.
 
@@ -90,6 +271,7 @@ class LifecycleService:
         target_state: str,
         *,
         reason: str | None = None,
+        session: AsyncSession | None = None,
     ) -> LifecycleTransition:
         """Transition an agent through the lifecycle state machine.
 
@@ -99,8 +281,7 @@ class LifecycleService:
         _validate_tenant(tenant_id)
         _check_rbac(user, target_state)
 
-        key = f"{tenant_id}:{agent_id}"
-        current_state = _agent_states.get(key, "draft")
+        current_state = await _get_agent_state(tenant_id, agent_id, session)
 
         allowed = _VALID_TRANSITIONS.get(current_state, [])
         if target_state not in allowed:
@@ -109,7 +290,7 @@ class LifecycleService:
                 f"Allowed targets: {allowed}"
             )
 
-        _agent_states[key] = target_state
+        await _set_agent_state(tenant_id, agent_id, target_state, session)
 
         transition = LifecycleTransition(
             agent_id=agent_id,
@@ -143,6 +324,7 @@ class LifecycleService:
         target_env: str,
         *,
         version_id: UUID | None = None,
+        session: AsyncSession | None = None,
     ) -> Deployment:
         """Deploy an agent using the specified strategy.
 
@@ -168,8 +350,25 @@ class LifecycleService:
             started_at=_utcnow(),
         )
 
-        key = f"{tenant_id}:{deployment_id}"
-        _deployments[key] = deployment
+        await _save_deployment(tenant_id, deployment, session)
+
+        # Record a deployment event in history
+        actor_id: UUID | None = None
+        try:
+            actor_id = UUID(user.get("id", ""))
+        except (ValueError, AttributeError):
+            pass
+        await _append_deployment_history(
+            tenant_id=tenant_id,
+            agent_id=agent_id,
+            deployment_id=deployment_id,
+            event_type="created",
+            from_state=None,
+            to_state=status,
+            actor_id=actor_id,
+            message=f"Deployment started via {strategy.type.value}",
+            session=session,
+        )
 
         logger.info(
             "Deployment started",
@@ -193,13 +392,13 @@ class LifecycleService:
         deployment_id: UUID,
         *,
         reason: str = "manual rollback",
+        session: AsyncSession | None = None,
     ) -> Deployment:
         """Roll back a deployment to its previous version."""
         _validate_tenant(tenant_id)
         _check_rbac(user, "published")
 
-        key = f"{tenant_id}:{deployment_id}"
-        deployment = _deployments.get(key)
+        deployment = await _get_deployment(tenant_id, deployment_id, session)
         if deployment is None:
             raise ValueError(
                 f"Deployment {deployment_id} not found for tenant {tenant_id}"
@@ -207,6 +406,25 @@ class LifecycleService:
 
         deployment.status = "rolled_back"
         deployment.completed_at = _utcnow()
+
+        await _save_deployment(tenant_id, deployment, session)
+
+        actor_id: UUID | None = None
+        try:
+            actor_id = UUID(user.get("id", ""))
+        except (ValueError, AttributeError):
+            pass
+        await _append_deployment_history(
+            tenant_id=tenant_id,
+            agent_id=deployment.agent_id,
+            deployment_id=deployment_id,
+            event_type="rolled_back",
+            from_state="deploying",
+            to_state="rolled_back",
+            actor_id=actor_id,
+            message=reason,
+            session=session,
+        )
 
         logger.info(
             "Deployment rolled back",
@@ -457,6 +675,7 @@ class LifecycleService:
     @staticmethod
     async def get_pipeline(
         tenant_id: str,
+        session: AsyncSession | None = None,
     ) -> list[PipelineStageInfo]:
         """Return all pipeline stages with their deployed versions.
 
@@ -467,12 +686,26 @@ class LifecycleService:
         gates = _approval_gates.get(tenant_id, [])
         gate_map: dict[str, ApprovalGate] = {g.from_stage: g for g in gates}
 
+        # Collect deployments: prefer DB when session available
+        all_deployments: list[Deployment] = []
+        if session is not None:
+            try:
+                from sqlmodel import select
+
+                result = await session.exec(select(DeploymentRecord))
+                all_deployments = [_record_to_deployment(r) for r in result.all()]
+            except Exception:
+                logger.debug("get_pipeline: DB query failed", exc_info=True)
+                all_deployments = list(_deployments.values())
+        else:
+            all_deployments = list(_deployments.values())
+
         stages: list[PipelineStageInfo] = []
         for stage_def in _PIPELINE_STAGES:
             stage_key = stage_def["stage"]
             stage_deployments = [
                 d.model_dump(mode="json")
-                for d in _deployments.values()
+                for d in all_deployments
                 if d.environment == stage_key
             ]
             stages.append(
@@ -492,6 +725,7 @@ class LifecycleService:
         tenant_id: str,
         user: dict[str, Any],
         deployment_id: UUID,
+        session: AsyncSession | None = None,
     ) -> Deployment:
         """Promote a deployment to the next pipeline stage.
 
@@ -501,8 +735,7 @@ class LifecycleService:
         _validate_tenant(tenant_id)
         _check_rbac(user, "published")
 
-        key = f"{tenant_id}:{deployment_id}"
-        deployment = _deployments.get(key)
+        deployment = await _get_deployment(tenant_id, deployment_id, session)
         if deployment is None:
             raise ValueError(
                 f"Deployment {deployment_id} not found for tenant {tenant_id}"
@@ -521,6 +754,8 @@ class LifecycleService:
         new_env = _STAGE_ORDER[current_idx + 1]
         deployment.environment = new_env
 
+        await _save_deployment(tenant_id, deployment, session)
+
         logger.info(
             "Deployment promoted",
             extra={
@@ -538,6 +773,7 @@ class LifecycleService:
         tenant_id: str,
         user: dict[str, Any],
         deployment_id: UUID,
+        session: AsyncSession | None = None,
     ) -> Deployment:
         """Demote a deployment to the previous pipeline stage.
 
@@ -547,8 +783,7 @@ class LifecycleService:
         _validate_tenant(tenant_id)
         _check_rbac(user, "published")
 
-        key = f"{tenant_id}:{deployment_id}"
-        deployment = _deployments.get(key)
+        deployment = await _get_deployment(tenant_id, deployment_id, session)
         if deployment is None:
             raise ValueError(
                 f"Deployment {deployment_id} not found for tenant {tenant_id}"
@@ -567,6 +802,8 @@ class LifecycleService:
         new_env = _STAGE_ORDER[current_idx - 1]
         deployment.environment = new_env
 
+        await _save_deployment(tenant_id, deployment, session)
+
         logger.info(
             "Deployment demoted",
             extra={
@@ -584,6 +821,7 @@ class LifecycleService:
     @staticmethod
     async def list_environments(
         tenant_id: str,
+        session: AsyncSession | None = None,
     ) -> list[EnvironmentInfo]:
         """Return all environments with health and deployment info.
 
@@ -594,13 +832,25 @@ class LifecycleService:
         custom = _environments.get(tenant_id, [])
         custom_names = {e.name for e in custom}
 
+        # Collect deployments: prefer DB when session available
+        all_deployments: list[Deployment] = []
+        if session is not None:
+            try:
+                from sqlmodel import select
+
+                result = await session.exec(select(DeploymentRecord))
+                all_deployments = [_record_to_deployment(r) for r in result.all()]
+            except Exception:
+                logger.debug("list_environments: DB query failed", exc_info=True)
+                all_deployments = list(_deployments.values())
+        else:
+            all_deployments = list(_deployments.values())
+
         defaults: list[EnvironmentInfo] = []
         for stage_def in _PIPELINE_STAGES:
             if stage_def["stage"] not in custom_names:
                 stage_deployments = [
-                    d
-                    for d in _deployments.values()
-                    if d.environment == stage_def["stage"]
+                    d for d in all_deployments if d.environment == stage_def["stage"]
                 ]
                 active = next(
                     (
@@ -630,6 +880,7 @@ class LifecycleService:
         tenant_id: str,
         source_env: str,
         target_env: str,
+        session: AsyncSession | None = None,
     ) -> ConfigDiff:
         """Compare configurations between two environments.
 
@@ -637,12 +888,22 @@ class LifecycleService:
         """
         _validate_tenant(tenant_id)
 
-        source_deployments = [
-            d for d in _deployments.values() if d.environment == source_env
-        ]
-        target_deployments = [
-            d for d in _deployments.values() if d.environment == target_env
-        ]
+        # Collect deployments: prefer DB when session available
+        all_deployments: list[Deployment] = []
+        if session is not None:
+            try:
+                from sqlmodel import select
+
+                result = await session.exec(select(DeploymentRecord))
+                all_deployments = [_record_to_deployment(r) for r in result.all()]
+            except Exception:
+                logger.debug("get_config_diff: DB query failed", exc_info=True)
+                all_deployments = list(_deployments.values())
+        else:
+            all_deployments = list(_deployments.values())
+
+        source_deployments = [d for d in all_deployments if d.environment == source_env]
+        target_deployments = [d for d in all_deployments if d.environment == target_env]
 
         source_active = next(
             (d for d in source_deployments if d.status in ("deploying", "active")), None
@@ -703,11 +964,46 @@ class LifecycleService:
     async def get_deployment_history(
         tenant_id: str,
         environment: str,
+        session: AsyncSession | None = None,
     ) -> list[DeploymentHistoryEntry]:
         """Return deployment history timeline for an environment."""
         _validate_tenant(tenant_id)
 
-        entries: list[DeploymentHistoryEntry] = []
+        # Prefer DB when session is available
+        if session is not None:
+            try:
+                from sqlmodel import select
+
+                result = await session.exec(select(DeploymentRecord))
+                records = result.all()
+                entries: list[DeploymentHistoryEntry] = []
+                for record in records:
+                    if record.environment != environment:
+                        continue
+                    duration = None
+                    if record.deployed_at and record.retired_at:
+                        duration = (
+                            record.retired_at - record.deployed_at
+                        ).total_seconds()
+                    entries.append(
+                        DeploymentHistoryEntry(
+                            id=record.id,
+                            agent_id=record.agent_id,
+                            version_id=str(record.version_id),
+                            environment=record.environment,
+                            strategy=record.strategy,
+                            status=record.status,
+                            started_at=record.deployed_at,
+                            completed_at=record.retired_at,
+                            duration_seconds=duration,
+                        )
+                    )
+                return entries
+            except Exception:
+                logger.debug("get_deployment_history: DB query failed", exc_info=True)
+
+        # Fall back to in-memory dict
+        entries = []
         for key, d in _deployments.items():
             if not key.startswith(f"{tenant_id}:"):
                 continue
@@ -763,6 +1059,7 @@ class LifecycleService:
     async def get_deployment_health(
         tenant_id: str,
         deployment_id: UUID,
+        session: AsyncSession | None = None,
     ) -> HealthMetrics:
         """Return detailed post-deployment health metrics.
 
@@ -775,7 +1072,7 @@ class LifecycleService:
         if key in _health_metrics:
             return _health_metrics[key]
 
-        deployment = _deployments.get(key)
+        deployment = await _get_deployment(tenant_id, deployment_id, session)
         if deployment is None:
             raise ValueError(
                 f"Deployment {deployment_id} not found for tenant {tenant_id}"

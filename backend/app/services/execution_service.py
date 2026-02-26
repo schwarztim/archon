@@ -76,17 +76,19 @@ def _generate_mock_steps() -> list[dict[str, Any]]:
         duration = random.randint(50, 800)
         tokens = random.randint(20, 500) if step_type == "llm_call" else 0
         cost = round(tokens * 0.00003, 6) if tokens else 0.0
-        steps.append({
-            "step_name": name,
-            "step_type": step_type,
-            "status": "completed",
-            "duration_ms": duration,
-            "token_usage": tokens,
-            "cost": cost,
-            "input": {"data": f"input for {name}"},
-            "output": {"result": f"output from {name}"},
-            "error": None,
-        })
+        steps.append(
+            {
+                "step_name": name,
+                "step_type": step_type,
+                "status": "completed",
+                "duration_ms": duration,
+                "token_usage": tokens,
+                "cost": cost,
+                "input": {"data": f"input for {name}"},
+                "output": {"result": f"output from {name}"},
+                "error": None,
+            }
+        )
     return steps
 
 
@@ -137,10 +139,13 @@ class ExecutionService:
 
         # Inject credentials from SecretsManager (never from request body)
         from app.secrets.manager import get_secrets_manager
+
         secrets_mgr = await get_secrets_manager()
         creds_path = f"agents/{agent_id}/credentials"
         try:
-            cred_data = await secrets_mgr.get_secret(creds_path, tenant_id=str(tenant_id))
+            cred_data = await secrets_mgr.get_secret(
+                creds_path, tenant_id=str(tenant_id)
+            )
         except Exception:
             cred_data = {}
 
@@ -155,7 +160,10 @@ class ExecutionService:
         )
         session.add(execution)
         await _audit(
-            session, user, "execution.started", execution.id,
+            session,
+            user,
+            "execution.started",
+            execution.id,
             {"agent_id": str(agent_id), "has_credentials": bool(cred_data)},
         )
         await session.commit()
@@ -196,10 +204,12 @@ class ExecutionService:
 
         # Inject credentials
         from app.secrets.manager import get_secrets_manager
+
         secrets_mgr = await get_secrets_manager()
         try:
             cred_data = await secrets_mgr.get_secret(
-                f"agents/{agent_id}/credentials", tenant_id=str(tenant_id),
+                f"agents/{agent_id}/credentials",
+                tenant_id=str(tenant_id),
             )
         except Exception:
             cred_data = {}
@@ -215,7 +225,10 @@ class ExecutionService:
         )
         session.add(execution)
         await _audit(
-            session, user, "execution.created", execution.id,
+            session,
+            user,
+            "execution.created",
+            execution.id,
             {"agent_id": str(agent_id), "has_credentials": bool(cred_data)},
         )
         await session.commit()
@@ -230,11 +243,14 @@ class ExecutionService:
 
         # Send WS event if callback provided
         if ws_callback:
-            await ws_callback("execution.started", {
-                "execution_id": str(execution.id),
-                "agent_id": str(agent_id),
-                "status": "running",
-            })
+            await ws_callback(
+                "execution.started",
+                {
+                    "execution_id": str(execution.id),
+                    "agent_id": str(agent_id),
+                    "status": "running",
+                },
+            )
 
         # Simulate step execution
         simulate_failure = random.random() < 0.1  # 10% chance of failure
@@ -243,49 +259,68 @@ class ExecutionService:
         recorded_steps: list[dict[str, Any]] = []
         for step in steps:
             if ws_callback:
-                await ws_callback("step.started", {
-                    "execution_id": str(execution.id),
-                    "step_name": step["step_name"],
-                    "step_type": step["step_type"],
-                })
+                await ws_callback(
+                    "step.started",
+                    {
+                        "execution_id": str(execution.id),
+                        "step_name": step["step_name"],
+                        "step_type": step["step_type"],
+                    },
+                )
 
             recorded_steps.append(step)
 
             if step["status"] == "failed":
                 if ws_callback:
-                    await ws_callback("step.failed", {
-                        "execution_id": str(execution.id),
-                        "step_name": step["step_name"],
-                        "error": step["error"],
-                    })
+                    await ws_callback(
+                        "step.failed",
+                        {
+                            "execution_id": str(execution.id),
+                            "step_name": step["step_name"],
+                            "error": step["error"],
+                        },
+                    )
                 break
 
             if step["step_type"] == "tool_call" and ws_callback:
-                await ws_callback("tool.called", {
-                    "execution_id": str(execution.id),
-                    "step_name": step["step_name"],
-                    "tool_output": step["output"],
-                })
+                await ws_callback(
+                    "tool.called",
+                    {
+                        "execution_id": str(execution.id),
+                        "step_name": step["step_name"],
+                        "tool_output": step["output"],
+                    },
+                )
 
             if step["step_type"] == "llm_call" and ws_callback:
-                await ws_callback("llm.response", {
-                    "execution_id": str(execution.id),
-                    "step_name": step["step_name"],
-                    "tokens": step["token_usage"],
-                })
+                await ws_callback(
+                    "llm.response",
+                    {
+                        "execution_id": str(execution.id),
+                        "step_name": step["step_name"],
+                        "tokens": step["token_usage"],
+                    },
+                )
 
             if ws_callback:
-                await ws_callback("step.completed", {
-                    "execution_id": str(execution.id),
-                    "step_name": step["step_name"],
-                    "duration_ms": step["duration_ms"],
-                    "tokens": step["token_usage"],
-                    "cost": step["cost"],
-                })
+                await ws_callback(
+                    "step.completed",
+                    {
+                        "execution_id": str(execution.id),
+                        "step_name": step["step_name"],
+                        "duration_ms": step["duration_ms"],
+                        "tokens": step["token_usage"],
+                        "cost": step["cost"],
+                    },
+                )
 
         # Calculate overall metrics
-        total_duration = sum(s["duration_ms"] for s in recorded_steps if s.get("duration_ms"))
-        total_tokens = sum(s["token_usage"] for s in recorded_steps if s.get("token_usage"))
+        total_duration = sum(
+            s["duration_ms"] for s in recorded_steps if s.get("duration_ms")
+        )
+        total_tokens = sum(
+            s["token_usage"] for s in recorded_steps if s.get("token_usage")
+        )
         total_cost = round(sum(s["cost"] for s in recorded_steps if s.get("cost")), 6)
 
         # Set final status
@@ -315,7 +350,10 @@ class ExecutionService:
 
         final_event = "execution.completed" if not has_failure else "execution.failed"
         await _audit(
-            session, user, final_event, execution.id,
+            session,
+            user,
+            final_event,
+            execution.id,
             {
                 "agent_id": str(agent_id),
                 "status": execution.status,
@@ -328,11 +366,14 @@ class ExecutionService:
         await session.refresh(execution)
 
         if ws_callback:
-            await ws_callback(final_event, {
-                "execution_id": str(execution.id),
-                "status": execution.status,
-                "metrics": execution.metrics,
-            })
+            await ws_callback(
+                final_event,
+                {
+                    "execution_id": str(execution.id),
+                    "status": execution.status,
+                    "metrics": execution.metrics,
+                },
+            )
 
         return execution
 
@@ -360,10 +401,7 @@ class ExecutionService:
         tenant_id: UUID,
     ) -> dict[str, Any] | None:
         """Return execution with expanded agent name and metrics summary."""
-        stmt = (
-            _tenant_execution_query(tenant_id)
-            .where(Execution.id == execution_id)
-        )
+        stmt = _tenant_execution_query(tenant_id).where(Execution.id == execution_id)
         result = await session.exec(stmt)
         execution = result.first()
         if execution is None:
@@ -378,8 +416,12 @@ class ExecutionService:
         data["agent_name"] = agent.name if agent else "Unknown"
         data["metrics_summary"] = {
             "total_steps": len(execution.steps) if execution.steps else 0,
-            "completed_steps": len([s for s in (execution.steps or []) if s.get("status") == "completed"]),
-            "failed_steps": len([s for s in (execution.steps or []) if s.get("status") == "failed"]),
+            "completed_steps": len(
+                [s for s in (execution.steps or []) if s.get("status") == "completed"]
+            ),
+            "failed_steps": len(
+                [s for s in (execution.steps or []) if s.get("status") == "failed"]
+            ),
         }
         return data
 
@@ -405,7 +447,9 @@ class ExecutionService:
         count_result = await session.exec(base)
         total = len(count_result.all())
 
-        stmt = base.offset(offset).limit(limit).order_by(col(Execution.created_at).desc())
+        stmt = (
+            base.offset(offset).limit(limit).order_by(col(Execution.created_at).desc())
+        )
         result = await session.exec(stmt)
         executions = list(result.all())
         return executions, total
@@ -423,7 +467,9 @@ class ExecutionService:
         """Cancel a running execution with RBAC and audit logging."""
         check_permission(user, "executions", "execute")
         execution = await ExecutionService.get_execution(
-            session, execution_id, tenant_id=tenant_id,
+            session,
+            execution_id,
+            tenant_id=tenant_id,
         )
         if execution is None:
             return None
@@ -434,7 +480,10 @@ class ExecutionService:
         execution.updated_at = _utcnow()
         session.add(execution)
         await _audit(
-            session, user, "execution.cancelled", execution.id,
+            session,
+            user,
+            "execution.cancelled",
+            execution.id,
             {"agent_id": str(execution.agent_id)},
         )
         await session.commit()
@@ -460,12 +509,16 @@ class ExecutionService:
         and creates a new execution run.
         """
         original = await ExecutionService.get_execution(
-            session, execution_id, tenant_id=tenant_id,
+            session,
+            execution_id,
+            tenant_id=tenant_id,
         )
         if original is None:
             raise ValueError(f"Execution {execution_id} not found")
 
-        replay_input = input_override if input_override is not None else original.input_data
+        replay_input = (
+            input_override if input_override is not None else original.input_data
+        )
         return await ExecutionService.run_execution(
             session,
             original.agent_id,
@@ -492,7 +545,9 @@ class ExecutionService:
         """
         # Verify tenant access first
         execution = await ExecutionService.get_execution(
-            session, execution_id, tenant_id=tenant_id,
+            session,
+            execution_id,
+            tenant_id=tenant_id,
         )
         if execution is None:
             return []
@@ -532,7 +587,9 @@ class ExecutionService:
     ) -> Execution | None:
         """Mark an execution as completed with output and optional cost tracking."""
         execution = await ExecutionService.get_execution(
-            session, execution_id, tenant_id=tenant_id,
+            session,
+            execution_id,
+            tenant_id=tenant_id,
         )
         if execution is None:
             return None
@@ -561,7 +618,9 @@ class ExecutionService:
     ) -> Execution | None:
         """Mark an execution as failed with error and optional cost tracking."""
         execution = await ExecutionService.get_execution(
-            session, execution_id, tenant_id=tenant_id,
+            session,
+            execution_id,
+            tenant_id=tenant_id,
         )
         if execution is None:
             return None
@@ -578,8 +637,63 @@ class ExecutionService:
         await session.refresh(execution)
         return execution
 
+    # ── Backward-compatible simple class methods ─────────────────────
+
+    @staticmethod
+    async def create(
+        session: AsyncSession,
+        execution: "Execution",
+    ) -> "Execution":
+        """Create an execution with status='queued' (no tenant scoping)."""
+        return await create_execution(session, execution)
+
+    @staticmethod
+    async def get(
+        session: AsyncSession,
+        execution_id: UUID,
+    ) -> "Execution | None":
+        """Return a single execution by ID without tenant scoping."""
+        return await session.get(Execution, execution_id)
+
+    @staticmethod
+    async def list(
+        session: AsyncSession,
+        *,
+        agent_id: UUID | None = None,
+        status: str | None = None,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> "tuple[list[Execution], int]":
+        """Return paginated executions without tenant scoping."""
+        return await list_executions(
+            session,
+            agent_id=agent_id,
+            status=status,
+            limit=limit,
+            offset=offset,
+        )
+
+    @staticmethod
+    async def update(
+        session: AsyncSession,
+        execution_id: UUID,
+        data: dict[str, Any],
+    ) -> "Execution | None":
+        """Partial-update an execution without RBAC (simple API)."""
+        execution = await session.get(Execution, execution_id)
+        if execution is None:
+            return None
+        for key, value in data.items():
+            if hasattr(execution, key) and key not in ("id", "agent_id", "created_at"):
+                setattr(execution, key, value)
+        session.add(execution)
+        await session.commit()
+        await session.refresh(execution)
+        return execution
+
 
 # ── Backward-compatible module-level functions ──────────────────────
+
 
 async def create_execution(session: AsyncSession, execution: Execution) -> Execution:
     """Create an execution record with status='queued' (legacy compatibility)."""

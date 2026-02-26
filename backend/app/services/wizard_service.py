@@ -86,7 +86,10 @@ class WizardRequest(BaseModel):
     """Incoming request for the wizard endpoint."""
 
     description: str = Field(
-        ..., min_length=1, max_length=5000, description="Natural language agent description"
+        ...,
+        min_length=1,
+        max_length=5000,
+        description="Natural language agent description",
     )
 
 
@@ -122,11 +125,31 @@ _KNOWN_INTENTS: dict[str, list[str]] = {
 }
 
 _TEMPLATE_CATALOG: list[dict[str, str]] = [
-    {"id": "tpl-customer-support", "name": "Customer Support Bot", "description": "routes customer queries to appropriate handlers"},
-    {"id": "tpl-data-pipeline", "name": "Data Pipeline Agent", "description": "extracts transforms and loads data between systems"},
-    {"id": "tpl-code-reviewer", "name": "Code Review Agent", "description": "reviews pull requests and provides feedback"},
-    {"id": "tpl-incident-responder", "name": "Incident Responder", "description": "monitors alerts and creates incident tickets"},
-    {"id": "tpl-research-assistant", "name": "Research Assistant", "description": "searches documents and summarizes findings"},
+    {
+        "id": "tpl-customer-support",
+        "name": "Customer Support Bot",
+        "description": "routes customer queries to appropriate handlers",
+    },
+    {
+        "id": "tpl-data-pipeline",
+        "name": "Data Pipeline Agent",
+        "description": "extracts transforms and loads data between systems",
+    },
+    {
+        "id": "tpl-code-reviewer",
+        "name": "Code Review Agent",
+        "description": "reviews pull requests and provides feedback",
+    },
+    {
+        "id": "tpl-incident-responder",
+        "name": "Incident Responder",
+        "description": "monitors alerts and creates incident tickets",
+    },
+    {
+        "id": "tpl-research-assistant",
+        "name": "Research Assistant",
+        "description": "searches documents and summarizes findings",
+    },
 ]
 
 
@@ -167,11 +190,13 @@ def _match_templates(text: str) -> list[TemplateMatch]:
     for tpl in _TEMPLATE_CATALOG:
         ratio = SequenceMatcher(None, lower, tpl["description"]).ratio()
         if ratio > 0.25:
-            matches.append(TemplateMatch(
-                template_id=tpl["id"],
-                template_name=tpl["name"],
-                similarity=round(ratio, 3),
-            ))
+            matches.append(
+                TemplateMatch(
+                    template_id=tpl["id"],
+                    template_name=tpl["name"],
+                    similarity=round(ratio, 3),
+                )
+            )
     matches.sort(key=lambda m: m.similarity, reverse=True)
     return matches[:5]
 
@@ -217,10 +242,10 @@ def _generate_node_function(node: PlannedNode) -> str:
     label = node.label
     description = node.description
     config = node.config
-    
+
     # Base template structure
     base = f'async def {node_id}(state: dict[str, Any]) -> dict[str, Any]:\n    """Node: {label} — {description}"""'
-    
+
     # Type-specific implementations
     if node_type == "input":
         return textwrap.dedent(f"""\
@@ -234,7 +259,7 @@ def _generate_node_function(node: PlannedNode) -> str:
                 state["messages"].append({{"role": "user", "content": user_input}})
                 state["current_node"] = "{node_id}"
                 return state""")
-    
+
     elif node_type == "output":
         return textwrap.dedent(f"""\
             {base}
@@ -251,7 +276,7 @@ def _generate_node_function(node: PlannedNode) -> str:
                 state["output"] = output
                 state["current_node"] = "{node_id}"
                 return state""")
-    
+
     elif node_type == "router":
         model = config.get("model", "gpt-4o-mini")
         return textwrap.dedent(f"""\
@@ -268,7 +293,7 @@ def _generate_node_function(node: PlannedNode) -> str:
                 state["next_node"] = intent  # Router decision
                 state["current_node"] = "{node_id}"
                 return state""")
-    
+
     elif node_type == "llm":
         model = config.get("model", "gpt-4o")
         return textwrap.dedent(f"""\
@@ -290,7 +315,7 @@ def _generate_node_function(node: PlannedNode) -> str:
                 state["result"] = response
                 state["current_node"] = "{node_id}"
                 return state""")
-    
+
     elif node_type == "tool":
         connector = config.get("connector", "unknown")
         return textwrap.dedent(f"""\
@@ -313,7 +338,7 @@ def _generate_node_function(node: PlannedNode) -> str:
                 state["result"] = result
                 state["current_node"] = "{node_id}"
                 return state""")
-    
+
     elif node_type == "auth":
         vault_path = config.get("vault_path", "")
         return textwrap.dedent(f"""\
@@ -338,7 +363,7 @@ def _generate_node_function(node: PlannedNode) -> str:
                 state["credentials"][connector_name] = credentials
                 state["current_node"] = "{node_id}"
                 return state""")
-    
+
     else:
         # Fallback for unknown node types
         return textwrap.dedent(f"""\
@@ -391,7 +416,9 @@ class NLWizardService:
         )
 
         audit = _create_audit_event(
-            user, "wizard.describe", "wizard",
+            user,
+            "wizard.describe",
+            "wizard",
             analysis.analysis_id,
             {"intents": intents, "connectors": connectors, "tenant_id": tenant_id},
         )
@@ -426,50 +453,60 @@ class NLWizardService:
 
         # Add a router node if multiple intents detected
         if len(analysis.intents) > 1:
-            nodes.append(PlannedNode(
-                node_id="router",
-                label="Intent Router",
-                node_type="router",
-                description="Routes based on detected intent",
-                config={"model": "gpt-4o-mini"},
-            ))
+            nodes.append(
+                PlannedNode(
+                    node_id="router",
+                    label="Intent Router",
+                    node_type="router",
+                    description="Routes based on detected intent",
+                    config={"model": "gpt-4o-mini"},
+                )
+            )
 
         # Add connector-specific tool nodes
         for idx, connector in enumerate(analysis.connectors_detected):
-            nodes.append(PlannedNode(
-                node_id=f"tool_{connector}",
-                label=f"{connector.title()} Integration",
-                node_type="tool",
-                description=f"Interacts with {connector}",
-                config={"connector": connector},
-            ))
+            nodes.append(
+                PlannedNode(
+                    node_id=f"tool_{connector}",
+                    label=f"{connector.title()} Integration",
+                    node_type="tool",
+                    description=f"Interacts with {connector}",
+                    config={"connector": connector},
+                )
+            )
 
         # Add an LLM processing node if chat/analyze intent
         if any(i in ("chat", "analyze") for i in analysis.intents):
-            nodes.append(PlannedNode(
-                node_id="llm_processor",
-                label="LLM Processor",
-                node_type="llm",
-                description="Processes with language model",
-                config={"model": "gpt-4o"},
-            ))
+            nodes.append(
+                PlannedNode(
+                    node_id="llm_processor",
+                    label="LLM Processor",
+                    node_type="llm",
+                    description="Processes with language model",
+                    config={"model": "gpt-4o"},
+                )
+            )
 
         # Add auth nodes for each connector
         for connector in analysis.connectors_detected:
-            nodes.append(PlannedNode(
-                node_id=f"auth_{connector}",
-                label=f"{connector.title()} Auth",
-                node_type="auth",
-                description=f"Authenticates with {connector} via Vault",
-                config={"vault_path": _vault_path(tenant_id, connector)},
-            ))
+            nodes.append(
+                PlannedNode(
+                    node_id=f"auth_{connector}",
+                    label=f"{connector.title()} Auth",
+                    node_type="auth",
+                    description=f"Authenticates with {connector} via Vault",
+                    config={"vault_path": _vault_path(tenant_id, connector)},
+                )
+            )
 
-        nodes.append(PlannedNode(
-            node_id="output",
-            label="Response",
-            node_type="output",
-            description="Returns the final result",
-        ))
+        nodes.append(
+            PlannedNode(
+                node_id="output",
+                label="Response",
+                node_type="output",
+                description="Returns the final result",
+            )
+        )
 
         # Build edges
         edges: list[PlannedEdge] = []
@@ -482,7 +519,9 @@ class NLWizardService:
         # Auth → Tool edges for connectors
         for connector in analysis.connectors_detected:
             edges.append(PlannedEdge(source=prev, target=f"auth_{connector}"))
-            edges.append(PlannedEdge(source=f"auth_{connector}", target=f"tool_{connector}"))
+            edges.append(
+                PlannedEdge(source=f"auth_{connector}", target=f"tool_{connector}")
+            )
             edges.append(PlannedEdge(source=f"tool_{connector}", target="output"))
 
         if any(i in ("chat", "analyze") for i in analysis.intents):
@@ -495,18 +534,28 @@ class NLWizardService:
         # Model requirements
         models_needed: list[ModelRequirement] = []
         if any(i in ("chat", "analyze") for i in analysis.intents):
-            models_needed.append(ModelRequirement(
-                provider="openai", model_id="gpt-4o", purpose="primary processing",
-            ))
+            models_needed.append(
+                ModelRequirement(
+                    provider="openai",
+                    model_id="gpt-4o",
+                    purpose="primary processing",
+                )
+            )
         if len(analysis.intents) > 1:
-            models_needed.append(ModelRequirement(
-                provider="openai", model_id="gpt-4o-mini", purpose="intent routing",
-            ))
+            models_needed.append(
+                ModelRequirement(
+                    provider="openai",
+                    model_id="gpt-4o-mini",
+                    purpose="intent routing",
+                )
+            )
 
         # Connector requirements
         connectors_needed = [
             ConnectorRequirement(
-                connector_type=c, name=f"{c.title()} Connector", purpose=f"Integration with {c}",
+                connector_type=c,
+                name=f"{c.title()} Connector",
+                purpose=f"Integration with {c}",
             )
             for c in analysis.connectors_detected
         ]
@@ -545,9 +594,15 @@ class NLWizardService:
         )
 
         audit = _create_audit_event(
-            user, "wizard.plan", "wizard",
+            user,
+            "wizard.plan",
+            "wizard",
             build_plan.plan_id,
-            {"node_count": len(nodes), "edge_count": len(edges), "tenant_id": tenant_id},
+            {
+                "node_count": len(nodes),
+                "edge_count": len(edges),
+                "tenant_id": tenant_id,
+            },
         )
         logger.info(
             "Wizard plan generated",
@@ -573,21 +628,25 @@ class NLWizardService:
         # Build LangGraph-compatible graph definition
         graph_nodes: list[dict[str, Any]] = []
         for node in plan.nodes:
-            graph_nodes.append({
-                "id": node.node_id,
-                "type": node.node_type,
-                "label": node.label,
-                "description": node.description,
-                "config": node.config,
-            })
+            graph_nodes.append(
+                {
+                    "id": node.node_id,
+                    "type": node.node_type,
+                    "label": node.label,
+                    "description": node.description,
+                    "config": node.config,
+                }
+            )
 
         graph_edges: list[dict[str, Any]] = []
         for edge in plan.edges:
-            graph_edges.append({
-                "source": edge.source,
-                "target": edge.target,
-                "condition": edge.condition,
-            })
+            graph_edges.append(
+                {
+                    "source": edge.source,
+                    "target": edge.target,
+                    "condition": edge.condition,
+                }
+            )
 
         graph_definition: dict[str, Any] = {
             "name": agent_name,
@@ -639,9 +698,15 @@ class NLWizardService:
         )
 
         audit = _create_audit_event(
-            user, "wizard.build", "wizard",
+            user,
+            "wizard.build",
+            "wizard",
             agent_name,
-            {"plan_id": plan.plan_id, "node_count": len(plan.nodes), "tenant_id": tenant_id},
+            {
+                "plan_id": plan.plan_id,
+                "node_count": len(plan.nodes),
+                "tenant_id": tenant_id,
+            },
         )
         logger.info(
             "Wizard build completed",
@@ -669,35 +734,43 @@ class NLWizardService:
         # Security: check for hardcoded secrets in python source
         for pattern in _HARDCODED_SECRET_PATTERNS:
             if pattern.search(agent.python_source):
-                issues.append(SecurityIssue(
-                    severity="critical",
-                    code="HARDCODED_SECRET",
-                    message="Potential hardcoded secret detected in generated source",
-                ))
+                issues.append(
+                    SecurityIssue(
+                        severity="critical",
+                        code="HARDCODED_SECRET",
+                        message="Potential hardcoded secret detected in generated source",
+                    )
+                )
 
         # Security: validate all credential references use Vault paths
         for cred in agent.credential_manifest:
             if not cred.vault_path.startswith(f"archon/{tenant_id}/"):
-                issues.append(SecurityIssue(
-                    severity="critical",
-                    code="INVALID_VAULT_PATH",
-                    message=f"Credential path {cred.vault_path} does not match tenant scope",
-                ))
+                issues.append(
+                    SecurityIssue(
+                        severity="critical",
+                        code="INVALID_VAULT_PATH",
+                        message=f"Credential path {cred.vault_path} does not match tenant scope",
+                    )
+                )
 
         # Security: verify tenant_id consistency
         if agent.tenant_id != tenant_id:
-            issues.append(SecurityIssue(
-                severity="critical",
-                code="TENANT_MISMATCH",
-                message="Agent tenant_id does not match request tenant_id",
-            ))
+            issues.append(
+                SecurityIssue(
+                    severity="critical",
+                    code="TENANT_MISMATCH",
+                    message="Agent tenant_id does not match request tenant_id",
+                )
+            )
 
         # Compliance: check owner is set
         if not agent.owner_id:
             compliance_notes.append("WARNING: agent has no owner_id set")
 
         # Compliance: graph must have at least input and output nodes
-        node_types = [n.get("type", "") for n in agent.graph_definition.get("nodes", [])]
+        node_types = [
+            n.get("type", "") for n in agent.graph_definition.get("nodes", [])
+        ]
         if "input" not in node_types:
             compliance_notes.append("Graph is missing an input node")
         if "output" not in node_types:
@@ -721,7 +794,9 @@ class NLWizardService:
         )
 
         audit = _create_audit_event(
-            user, "wizard.validate", "wizard",
+            user,
+            "wizard.validate",
+            "wizard",
             agent.agent_name,
             {"passed": passed, "issue_count": len(issues), "tenant_id": tenant_id},
         )
@@ -773,13 +848,23 @@ class NLWizardService:
         )
 
         audit = _create_audit_event(
-            user, "wizard.refine", "wizard",
+            user,
+            "wizard.refine",
+            "wizard",
             updated_name,
-            {"iteration": iteration, "feedback_length": len(feedback), "tenant_id": tenant_id},
+            {
+                "iteration": iteration,
+                "feedback_length": len(feedback),
+                "tenant_id": tenant_id,
+            },
         )
         logger.info(
             "Wizard refinement completed",
-            extra={"tenant_id": tenant_id, "iteration": iteration, "audit_id": str(audit.id)},
+            extra={
+                "tenant_id": tenant_id,
+                "iteration": iteration,
+                "audit_id": str(audit.id),
+            },
         )
 
         return refined
@@ -807,38 +892,78 @@ def _build_mock_graph(description: str) -> AgentGraphDefinition:
     """Return a hardcoded sample agent graph for testing without an LLM."""
     nodes: list[GraphNode] = [
         GraphNode(
-            id="input_node", type="input",
+            id="input_node",
+            type="input",
             position=NodePosition(x=250, y=0),
-            data=NodeData(label="User Input", type="input", description="Receives the user message"),
+            data=NodeData(
+                label="User Input",
+                type="input",
+                description="Receives the user message",
+            ),
         ),
         GraphNode(
-            id="router_node", type="default",
+            id="router_node",
+            type="default",
             position=NodePosition(x=250, y=120),
-            data=NodeData(label="Intent Router", type="router", description="Classifies the user intent", config={"model": "gpt-4o-mini"}),
+            data=NodeData(
+                label="Intent Router",
+                type="router",
+                description="Classifies the user intent",
+                config={"model": "gpt-4o-mini"},
+            ),
         ),
         GraphNode(
-            id="order_status_node", type="default",
+            id="order_status_node",
+            type="default",
             position=NodePosition(x=100, y=260),
-            data=NodeData(label="Order Status", type="tool", description="Checks order status via API", config={"tool": "check_order_status"}),
+            data=NodeData(
+                label="Order Status",
+                type="tool",
+                description="Checks order status via API",
+                config={"tool": "check_order_status"},
+            ),
         ),
         GraphNode(
-            id="returns_node", type="default",
+            id="returns_node",
+            type="default",
             position=NodePosition(x=400, y=260),
-            data=NodeData(label="Handle Returns", type="tool", description="Processes return requests", config={"tool": "process_return"}),
+            data=NodeData(
+                label="Handle Returns",
+                type="tool",
+                description="Processes return requests",
+                config={"tool": "process_return"},
+            ),
         ),
         GraphNode(
-            id="response_node", type="output",
+            id="response_node",
+            type="output",
             position=NodePosition(x=250, y=400),
-            data=NodeData(label="Response", type="output", description="Sends response to user"),
+            data=NodeData(
+                label="Response", type="output", description="Sends response to user"
+            ),
         ),
     ]
 
     edges: list[GraphEdge] = [
         GraphEdge(id="e_input_router", source="input_node", target="router_node"),
-        GraphEdge(id="e_router_order", source="router_node", target="order_status_node", label="order_status"),
-        GraphEdge(id="e_router_returns", source="router_node", target="returns_node", label="returns"),
-        GraphEdge(id="e_order_response", source="order_status_node", target="response_node"),
-        GraphEdge(id="e_returns_response", source="returns_node", target="response_node"),
+        GraphEdge(
+            id="e_router_order",
+            source="router_node",
+            target="order_status_node",
+            label="order_status",
+        ),
+        GraphEdge(
+            id="e_router_returns",
+            source="router_node",
+            target="returns_node",
+            label="returns",
+        ),
+        GraphEdge(
+            id="e_order_response", source="order_status_node", target="response_node"
+        ),
+        GraphEdge(
+            id="e_returns_response", source="returns_node", target="response_node"
+        ),
     ]
 
     return AgentGraphDefinition(
@@ -851,5 +976,19 @@ def _build_mock_graph(description: str) -> AgentGraphDefinition:
 
 async def generate_agent_graph(description: str) -> WizardResponse:
     """Legacy entrypoint — convert NL description into a structured agent graph."""
+    if _llm_configured():
+        graph = _build_mock_graph(description)
+        return WizardResponse(agent_definition=graph, mode="llm")
     graph = _build_mock_graph(description)
     return WizardResponse(agent_definition=graph, mode="mock")
+
+
+def _llm_configured() -> bool:
+    """Return True when an LLM API key is available."""
+    import os
+
+    return bool(
+        os.getenv("OPENAI_API_KEY")
+        or os.getenv("ANTHROPIC_API_KEY")
+        or os.getenv("LLM_API_KEY")
+    )

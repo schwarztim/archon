@@ -8,7 +8,7 @@ without requiring a real database.
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID, uuid4
 
 import pytest
@@ -26,7 +26,7 @@ from app.services.model_service import ModelService
 
 OWNER_ID = UUID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
 AGENT_ID = UUID("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
-TENANT_ID = UUID("cccccccc-cccc-cccc-cccc-cccccccccccc")
+TENANT_ID = UUID("11111111-1111-1111-1111-111111111111")
 NOW = datetime(2025, 1, 15, 12, 0, 0, tzinfo=timezone.utc)
 
 
@@ -57,6 +57,25 @@ def _mock_user(permissions: list[str] | None = None) -> AuthenticatedUser:
             "connectors:delete",
         ],
     )
+
+
+def _admin_user() -> AuthenticatedUser:
+    """Return a synthetic admin user for RBAC tests."""
+    return AuthenticatedUser(
+        id=str(OWNER_ID),
+        email="admin@test.com",
+        tenant_id=str(TENANT_ID),
+        roles=["admin"],
+        permissions=["agents:create", "agents:read", "agents:update", "agents:delete"],
+    )
+
+
+def _exec_result(*items: object) -> MagicMock:
+    """Return a MagicMock simulating an AsyncSession.exec() result."""
+    result = MagicMock()
+    result.all.return_value = list(items)
+    result.first.return_value = items[0] if items else None
+    return result
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -95,12 +114,8 @@ async def test_agent_service_get_found(mock_check: MagicMock) -> None:
     """AgentService.get returns an agent when found in tenant scope."""
     session = _mock_session()
     agent = Agent(id=AGENT_ID, name="a", definition={}, owner_id=OWNER_ID)
-    exec_result = MagicMock()
-    exec_result.first.return_value = agent
-    session.exec = AsyncMock(return_value=exec_result)
-
+    session.exec = AsyncMock(return_value=_exec_result(agent))
     result = await AgentService.get(session, AGENT_ID, tenant_id=TENANT_ID)
-
     assert result is agent
     session.exec.assert_awaited_once()
 
@@ -110,12 +125,8 @@ async def test_agent_service_get_found(mock_check: MagicMock) -> None:
 async def test_agent_service_get_not_found(mock_check: MagicMock) -> None:
     """AgentService.get returns None when agent not found in tenant scope."""
     session = _mock_session()
-    exec_result = MagicMock()
-    exec_result.first.return_value = None
-    session.exec = AsyncMock(return_value=exec_result)
-
+    session.exec = AsyncMock(return_value=_exec_result())
     result = await AgentService.get(session, AGENT_ID, tenant_id=TENANT_ID)
-
     assert result is None
     session.exec.assert_awaited_once()
 
@@ -174,10 +185,8 @@ async def test_agent_service_update_found(mock_check: MagicMock) -> None:
     session = _mock_session()
     user = _mock_user()
     agent = Agent(id=AGENT_ID, name="old", definition={}, owner_id=OWNER_ID)
-    # AgentService.update calls AgentService.get internally (uses exec)
-    exec_result = MagicMock()
-    exec_result.first.return_value = agent
-    session.exec = AsyncMock(return_value=exec_result)
+    # AgentService.update calls AgentService.get internally (uses session.exec)
+    session.exec = AsyncMock(return_value=_exec_result(agent))
     session.refresh = AsyncMock()
 
     result = await AgentService.update(
@@ -200,9 +209,7 @@ async def test_agent_service_update_not_found(mock_check: MagicMock) -> None:
     """AgentService.update returns None when agent not found."""
     session = _mock_session()
     user = _mock_user()
-    exec_result = MagicMock()
-    exec_result.first.return_value = None
-    session.exec = AsyncMock(return_value=exec_result)
+    session.exec = AsyncMock(return_value=_exec_result())
 
     result = await AgentService.update(
         session,
@@ -225,9 +232,7 @@ async def test_agent_service_update_ignores_unknown_fields(
     session = _mock_session()
     user = _mock_user()
     agent = Agent(id=AGENT_ID, name="old", definition={}, owner_id=OWNER_ID)
-    exec_result = MagicMock()
-    exec_result.first.return_value = agent
-    session.exec = AsyncMock(return_value=exec_result)
+    session.exec = AsyncMock(return_value=_exec_result(agent))
     session.refresh = AsyncMock()
 
     result = await AgentService.update(
@@ -241,6 +246,24 @@ async def test_agent_service_update_ignores_unknown_fields(
     assert result is not None
     assert result.name == "old"
     session.commit.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_agent_service_delete_found_no_patch() -> None:
+    """AgentService.delete (soft-delete) returns True when agent found."""
+    session = _mock_session()
+    agent = Agent(id=AGENT_ID, name="a", definition={}, owner_id=OWNER_ID)
+    # delete calls AgentService.get internally
+    session.exec = AsyncMock(return_value=_exec_result(agent))
+    result = await AgentService.delete(
+        session,
+        AGENT_ID,
+        tenant_id=TENANT_ID,
+        user=_admin_user(),
+    )
+    assert result is True
+    session.add.assert_called()
+    session.commit.assert_awaited()
 
 
 @pytest.mark.asyncio
@@ -274,9 +297,7 @@ async def test_agent_service_delete_not_found(mock_check: MagicMock) -> None:
     """AgentService.delete returns False when agent not found."""
     session = _mock_session()
     user = _mock_user()
-    exec_result = MagicMock()
-    exec_result.first.return_value = None
-    session.exec = AsyncMock(return_value=exec_result)
+    session.exec = AsyncMock(return_value=_exec_result())
 
     result = await AgentService.delete(
         session,
