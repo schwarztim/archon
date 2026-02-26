@@ -32,7 +32,7 @@ export function BulkRemediation({ selectedCount, onApply }: BulkRemediationProps
         {selectedCount} service{selectedCount > 1 ? "s" : ""} selected
       </span>
       <select
-        className="rounded-md border border-[#2a2d37] bg-[#0f1117] px-2 py-1 text-xs text-gray-200 focus:border-purple-500 focus:outline-none"
+        className="rounded-md border border-surface-border bg-surface-base px-2 py-1 text-xs text-gray-200 focus:border-purple-500 focus:outline-none"
         value={action}
         onChange={(e) => setAction(e.target.value)}
       >

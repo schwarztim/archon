@@ -37,7 +37,7 @@ interface HealthIndicatorsProps {
 
 export function HealthIndicators({ services }: HealthIndicatorsProps) {
   return (
-    <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-4">
+    <div className="rounded-lg border border-surface-border bg-surface-raised p-4">
       <h2 className="mb-3 text-sm font-semibold text-white">System Health</h2>
       <div className="flex flex-wrap gap-6">
         {services.map((service) => (

@@ -69,7 +69,7 @@ export function MetricsDashboard({ initialMetrics }: MetricsDashboardProps) {
       {/* Summary Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {summaryCards.map((s) => (
-          <div key={s.label} className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-4">
+          <div key={s.label} className="rounded-lg border border-surface-border bg-surface-raised p-4">
             <div className="mb-2 flex items-center justify-between">
               <span className="text-sm text-gray-400">{s.label}</span>
               <span className={s.color}>{s.icon}</span>
@@ -89,8 +89,8 @@ export function MetricsDashboard({ initialMetrics }: MetricsDashboardProps) {
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Detection Type Breakdown (donut placeholder) */}
-        <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27]">
-          <div className="border-b border-[#2a2d37] px-4 py-3">
+        <div className="rounded-lg border border-surface-border bg-surface-raised">
+          <div className="border-b border-surface-border px-4 py-3">
             <div className="flex items-center gap-2">
               <PieChart size={16} className="text-purple-400" />
               <h3 className="text-sm font-semibold text-white">Detection Type Breakdown</h3>
@@ -131,8 +131,8 @@ export function MetricsDashboard({ initialMetrics }: MetricsDashboardProps) {
         </div>
 
         {/* Trend Chart */}
-        <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27]">
-          <div className="border-b border-[#2a2d37] px-4 py-3">
+        <div className="rounded-lg border border-surface-border bg-surface-raised">
+          <div className="border-b border-surface-border px-4 py-3">
             <div className="flex items-center gap-2">
               <Activity size={16} className="text-purple-400" />
               <h3 className="text-sm font-semibold text-white">Detection Trend (7 days)</h3>

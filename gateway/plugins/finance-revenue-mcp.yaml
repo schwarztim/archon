@@ -1,0 +1,96 @@
+# Finance Revenue MCP Plugin
+# Exposes revenue reporting tools to authorized finance users.
+#
+# Access is restricted to the MCP-Users-Finance Entra group.
+# The plugin runs as a Docker container (ToolHive pattern) — spun up on
+# first invocation and shut down after idle_timeout seconds.
+
+name: finance-revenue-mcp
+display_name: "Finance Revenue MCP"
+version: "1.0.0"
+enabled: true
+description: >
+  Provides AI-assisted revenue reporting, forecasting, and analysis tools
+  for the Finance department via MCP protocol.
+
+type: container
+
+container:
+  image: ghcr.io/company/finance-revenue-mcp:latest
+  port: 8080
+  idle_timeout: 300  # 5 minutes
+  resources:
+    cpu: "0.5"
+    memory: "512Mi"
+  env: {}  # Secrets injected at runtime via Vault
+
+# Entra group IDs (or names) required for access
+required_groups:
+  - MCP-Users-Finance
+
+# MCP tools exposed by this plugin
+tools:
+  - id: get_revenue
+    description: "Retrieve revenue data for a given period and business unit."
+    can_forward: true
+    input_schema:
+      type: object
+      required:
+        - period
+      properties:
+        period:
+          type: string
+          description: "Reporting period, e.g. '2025-Q1' or '2025-01'"
+        business_unit:
+          type: string
+          description: "Business unit filter, e.g. 'retail' or 'wholesale'"
+        granularity:
+          type: string
+          enum: [daily, weekly, monthly, quarterly]
+          default: monthly
+
+  - id: forecast_revenue
+    description: "Generate a revenue forecast for the next N periods."
+    can_forward: true
+    input_schema:
+      type: object
+      required:
+        - horizon
+      properties:
+        horizon:
+          type: integer
+          description: "Number of future periods to forecast"
+          minimum: 1
+          maximum: 24
+        model:
+          type: string
+          enum: [arima, prophet, llm]
+          default: llm
+
+  - id: summarize_revenue_report
+    description: "Use AI to summarize a revenue report in plain English."
+    can_forward: false  # Executed via built-in Azure OpenAI
+    input_schema:
+      type: object
+      required:
+        - report_data
+      properties:
+        report_data:
+          type: object
+          description: "Raw revenue report data to summarize"
+        audience:
+          type: string
+          enum: [executive, analyst, board]
+          default: executive
+
+transport: http
+auth_type: bearer
+auth_header: Authorization
+
+metadata:
+  maintainer: "platform-team@company.com"
+  docs: "https://docs.company.com/mcp/finance-revenue"
+  tags:
+    - finance
+    - revenue
+    - reporting

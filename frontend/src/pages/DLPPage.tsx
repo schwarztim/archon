@@ -154,7 +154,7 @@ export function DLPPage() {
       </p>
 
       {/* Tab Navigation */}
-      <div className="mb-6 flex gap-1 rounded-lg border border-[#2a2d37] bg-[#0f1117] p-1">
+      <div className="mb-6 flex gap-1 rounded-lg border border-surface-border bg-surface-base p-1">
         {TABS.map((tab) => (
           <button
             key={tab.id}
@@ -186,21 +186,21 @@ export function DLPPage() {
         <div className="space-y-6">
           {/* Policy summary cards */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-4">
+            <div className="rounded-lg border border-surface-border bg-surface-raised p-4">
               <div className="mb-1 flex items-center gap-2">
                 <Shield size={16} className="text-green-400" />
                 <span className="text-sm text-gray-400">Active Policies</span>
               </div>
               <p className="text-2xl font-bold text-white">{activeCount}</p>
             </div>
-            <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-4">
+            <div className="rounded-lg border border-surface-border bg-surface-raised p-4">
               <div className="mb-1 flex items-center gap-2">
                 <ShieldAlert size={16} className="text-yellow-400" />
                 <span className="text-sm text-gray-400">Total Policies</span>
               </div>
               <p className="text-2xl font-bold text-white">{policies.length}</p>
             </div>
-            <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-4">
+            <div className="rounded-lg border border-surface-border bg-surface-raised p-4">
               <div className="mb-1 flex items-center gap-2">
                 <Search size={16} className="text-blue-400" />
                 <span className="text-sm text-gray-400">Detector Types in Use</span>
@@ -212,8 +212,8 @@ export function DLPPage() {
           </div>
 
           {/* Policy Management */}
-          <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27]">
-            <div className="flex items-center justify-between border-b border-[#2a2d37] px-4 py-3">
+          <div className="rounded-lg border border-surface-border bg-surface-raised">
+            <div className="flex items-center justify-between border-b border-surface-border px-4 py-3">
               <h2 className="text-sm font-semibold text-white">DLP Policies</h2>
               <Button size="sm" variant="secondary" onClick={() => setShowCreateForm(!showCreateForm)}>
                 {showCreateForm ? <X size={14} className="mr-1.5" /> : <Plus size={14} className="mr-1.5" />}
@@ -222,21 +222,21 @@ export function DLPPage() {
             </div>
 
             {showCreateForm && (
-              <div className="border-b border-[#2a2d37] bg-[#0f1117] p-4">
+              <div className="border-b border-surface-border bg-surface-base p-4">
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div>
                     <label className="mb-1 block text-xs text-gray-400">Name *</label>
-                    <input className="w-full rounded-md border border-[#2a2d37] bg-white/5 px-3 py-1.5 text-sm text-gray-200 focus:border-purple-500 focus:outline-none" value={formName} onChange={(e) => setFormName(e.target.value)} placeholder="Policy name" />
+                    <input className="w-full rounded-md border border-surface-border bg-white/5 px-3 py-1.5 text-sm text-gray-200 focus:border-purple-500 focus:outline-none" value={formName} onChange={(e) => setFormName(e.target.value)} placeholder="Policy name" />
                   </div>
                   <div>
                     <label className="mb-1 block text-xs text-gray-400">Action</label>
-                    <select className="w-full rounded-md border border-[#2a2d37] bg-white/5 px-3 py-1.5 text-sm text-gray-200 focus:border-purple-500 focus:outline-none" value={formAction} onChange={(e) => setFormAction(e.target.value)}>
+                    <select className="w-full rounded-md border border-surface-border bg-white/5 px-3 py-1.5 text-sm text-gray-200 focus:border-purple-500 focus:outline-none" value={formAction} onChange={(e) => setFormAction(e.target.value)}>
                       {ACTIONS.map((a) => <option key={a} value={a}>{a.charAt(0).toUpperCase() + a.slice(1)}</option>)}
                     </select>
                   </div>
                   <div className="md:col-span-2">
                     <label className="mb-1 block text-xs text-gray-400">Description</label>
-                    <input className="w-full rounded-md border border-[#2a2d37] bg-white/5 px-3 py-1.5 text-sm text-gray-200 focus:border-purple-500 focus:outline-none" value={formDesc} onChange={(e) => setFormDesc(e.target.value)} placeholder="Optional description" />
+                    <input className="w-full rounded-md border border-surface-border bg-white/5 px-3 py-1.5 text-sm text-gray-200 focus:border-purple-500 focus:outline-none" value={formDesc} onChange={(e) => setFormDesc(e.target.value)} placeholder="Optional description" />
                   </div>
                   <div className="md:col-span-2">
                     <label className="mb-2 block text-xs text-gray-400">Detector Types *</label>
@@ -254,7 +254,7 @@ export function DLPPage() {
                   </div>
                   <div>
                     <label className="mb-1 block text-xs text-gray-400">Sensitivity</label>
-                    <select className="w-full rounded-md border border-[#2a2d37] bg-white/5 px-3 py-1.5 text-sm text-gray-200 focus:border-purple-500 focus:outline-none" value={formSensitivity} onChange={(e) => setFormSensitivity(e.target.value)}>
+                    <select className="w-full rounded-md border border-surface-border bg-white/5 px-3 py-1.5 text-sm text-gray-200 focus:border-purple-500 focus:outline-none" value={formSensitivity} onChange={(e) => setFormSensitivity(e.target.value)}>
                       <option value="low">Low</option>
                       <option value="medium">Medium</option>
                       <option value="high">High</option>
@@ -263,7 +263,7 @@ export function DLPPage() {
                   </div>
                   <div className="flex items-center gap-3">
                     <label className="flex items-center gap-2 text-sm text-gray-300">
-                      <input type="checkbox" checked={formActive} onChange={(e) => setFormActive(e.target.checked)} className="rounded border-[#2a2d37]" />
+                      <input type="checkbox" checked={formActive} onChange={(e) => setFormActive(e.target.checked)} className="rounded border-surface-border" />
                       Active
                     </label>
                     <Button size="sm" onClick={handleCreatePolicy} disabled={createMutation.isPending || !formName.trim() || formTypes.length === 0}>
@@ -284,7 +284,7 @@ export function DLPPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-[#2a2d37] text-left text-xs text-gray-500">
+                    <tr className="border-b border-surface-border text-left text-xs text-gray-500">
                       <th className="px-4 py-2 font-medium">Name</th>
                       <th className="px-4 py-2 font-medium">Status</th>
                       <th className="px-4 py-2 font-medium">Action</th>
@@ -296,7 +296,7 @@ export function DLPPage() {
                   </thead>
                   <tbody>
                     {policies.map((p) => (
-                      <tr key={p.id} className="border-b border-[#2a2d37] hover:bg-white/5">
+                      <tr key={p.id} className="border-b border-surface-border hover:bg-white/5">
                         <td className="px-4 py-2">
                           <div className="font-medium text-white">{p.name}</div>
                           {p.description && <div className="text-xs text-gray-500">{p.description}</div>}

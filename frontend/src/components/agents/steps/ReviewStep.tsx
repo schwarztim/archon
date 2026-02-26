@@ -43,7 +43,7 @@ function SummaryCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-4">
+    <div className="rounded-lg border border-surface-border bg-surface-raised p-4">
       <div className="mb-2 flex items-center gap-2">
         <Icon size={16} className="text-purple-400" />
         <h4 className="text-sm font-medium text-white">{title}</h4>
@@ -76,7 +76,7 @@ function GraphPreview({
   nodes.push({ label: "Output", color: "bg-blue-500" });
 
   return (
-    <div className="rounded-lg border border-[#2a2d37] bg-[#12141e] p-4">
+    <div className="rounded-lg border border-surface-border bg-surface-overlay p-4">
       <h4 className="mb-3 text-sm font-medium text-white">Agent Graph Preview</h4>
       <div className="flex items-center gap-2 overflow-x-auto">
         {nodes.map((node, i) => (
@@ -185,7 +185,7 @@ export function ReviewStep({
       </div>
 
       {/* Test Button */}
-      <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-4">
+      <div className="rounded-lg border border-surface-border bg-surface-raised p-4">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm font-medium text-white">Test Agent</p>

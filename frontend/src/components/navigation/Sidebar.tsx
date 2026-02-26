@@ -123,7 +123,7 @@ export function Sidebar({
   const sidebarContent = (
     <aside
       className={cn(
-        "flex h-full flex-col border-r border-white/10 bg-[#0f1117] transition-all duration-200",
+        "flex h-full flex-col border-r border-white/10 bg-surface-base transition-all duration-200",
         collapsed ? "w-16" : "w-60",
       )}
     >

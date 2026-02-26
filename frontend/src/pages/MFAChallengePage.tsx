@@ -99,7 +99,7 @@ export function MFAChallengePage() {
   const expired = timeRemaining !== null && timeRemaining <= 0;
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#0f1117] px-4">
+    <div className="flex min-h-screen items-center justify-center bg-surface-base px-4">
       <div className="w-full max-w-md">
         {/* Header */}
         <div className="mb-8 text-center">
@@ -145,7 +145,7 @@ export function MFAChallengePage() {
           </div>
         )}
 
-        <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-6">
+        <div className="rounded-lg border border-surface-border bg-surface-raised p-6">
           {method === "totp" ? (
             <>
               {/* TOTP Code Input */}
@@ -167,7 +167,7 @@ export function MFAChallengePage() {
                     onChange={(e) => handleDigitChange(i, e.target.value)}
                     onKeyDown={(e) => handleKeyDown(i, e)}
                     disabled={loading || expired}
-                    className="h-12 w-10 rounded-md border border-[#2a2d37] bg-[#0f1117] text-center text-lg font-mono text-white outline-none transition focus:border-purple-500 focus:ring-2 focus:ring-purple-500 disabled:opacity-50"
+                    className="h-12 w-10 rounded-md border border-surface-border bg-surface-base text-center text-lg font-mono text-white outline-none transition focus:border-purple-500 focus:ring-2 focus:ring-purple-500 disabled:opacity-50"
                     aria-label={`Digit ${i + 1}`}
                     autoFocus={i === 0}
                   />
@@ -208,7 +208,7 @@ export function MFAChallengePage() {
                   value={recoveryCode}
                   onChange={(e) => setRecoveryCode(e.target.value)}
                   disabled={loading || expired}
-                  className="w-full rounded-md border border-[#2a2d37] bg-[#0f1117] px-3 py-2 font-mono text-sm text-white placeholder-gray-500 outline-none transition focus:ring-2 focus:ring-purple-500"
+                  className="w-full rounded-md border border-surface-border bg-surface-base px-3 py-2 font-mono text-sm text-white placeholder-gray-500 outline-none transition focus:ring-2 focus:ring-purple-500"
                   placeholder="xxxx-xxxx-xxxx"
                   autoFocus
                   aria-label="Recovery code"
@@ -229,13 +229,13 @@ export function MFAChallengePage() {
           )}
 
           {/* Remember Device */}
-          <div className="mt-4 border-t border-[#2a2d37] pt-4">
+          <div className="mt-4 border-t border-surface-border pt-4">
             <label className="flex items-center gap-2 text-sm text-gray-400">
               <input
                 type="checkbox"
                 checked={rememberDevice}
                 onChange={(e) => setRememberDevice(e.target.checked)}
-                className="h-4 w-4 rounded border-gray-600 bg-[#0f1117] text-purple-600 focus:ring-purple-500"
+                className="h-4 w-4 rounded border-gray-600 bg-surface-base text-purple-600 focus:ring-purple-500"
                 disabled={loading || expired}
               />
               Remember this device for 30 days

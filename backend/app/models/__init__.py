@@ -282,6 +282,9 @@ from app.models.redteam import (
 from app.models.settings import FeatureFlag, PlatformSetting, SettingsAPIKey
 from app.models.workflow import Workflow, WorkflowRun, WorkflowRunStep, WorkflowSchedule
 from app.models.oauth import OAuthPendingState
+from app.models.rbac import CustomRole
+from app.models.custom_role import GroupRoleMapping
+from app.models.scim_db import SCIMGroupRecord, SCIMUserRecord
 
 
 __all__ = [
@@ -374,4 +377,8 @@ __all__ = [
     "WorkflowRun",
     "WorkflowRunStep",
     "WorkflowSchedule",
+    "CustomRole",
+    "GroupRoleMapping",
+    "SCIMGroupRecord",
+    "SCIMUserRecord",
 ]

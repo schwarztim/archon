@@ -33,7 +33,7 @@ export function SalesforceForm({ config, onChange, onOAuthConnect }: SalesforceF
           placeholder="https://myorg.salesforce.com"
           value={config.instance_url ?? ""}
           onChange={(e) => set("instance_url", e.target.value)}
-          className="bg-gray-50 dark:bg-[#0f1117]"
+          className="bg-gray-50 dark:bg-surface-base"
         />
       </div>
     </div>

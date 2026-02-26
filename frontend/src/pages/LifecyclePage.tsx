@@ -293,7 +293,7 @@ export function LifecyclePage() {
       )}
 
       {/* ─── Tab Navigation ─────────────────────────────────────────── */}
-      <div className="mb-4 flex gap-1 rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-1">
+      <div className="mb-4 flex gap-1 rounded-lg border border-surface-border bg-surface-raised p-1">
         {TABS.map((tab) => (
           <button
             key={tab.key}
@@ -340,7 +340,7 @@ export function LifecyclePage() {
           </div>
 
           {/* Diff section */}
-          <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-4">
+          <div className="rounded-lg border border-surface-border bg-surface-raised p-4">
             <div className="mb-3 flex items-center gap-2">
               <ArrowLeftRight size={14} className="text-purple-400" />
               <span className="text-sm font-medium text-white">Environment Diff</span>
@@ -349,7 +349,7 @@ export function LifecyclePage() {
               <select
                 value={diffSource}
                 onChange={(e) => setDiffSource(e.target.value)}
-                className="h-8 rounded-md border border-[#2a2d37] bg-[#0f1117] px-2 text-xs text-white"
+                className="h-8 rounded-md border border-surface-border bg-surface-base px-2 text-xs text-white"
               >
                 <option value="dev">Draft</option>
                 <option value="staging">Review</option>
@@ -360,7 +360,7 @@ export function LifecyclePage() {
               <select
                 value={diffTarget}
                 onChange={(e) => setDiffTarget(e.target.value)}
-                className="h-8 rounded-md border border-[#2a2d37] bg-[#0f1117] px-2 text-xs text-white"
+                className="h-8 rounded-md border border-surface-border bg-surface-base px-2 text-xs text-white"
               >
                 <option value="dev">Draft</option>
                 <option value="staging">Review</option>
@@ -378,7 +378,7 @@ export function LifecyclePage() {
 
       {/* ─── History Tab ────────────────────────────────────────────── */}
       {activeTab === "history" && (
-        <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-4">
+        <div className="rounded-lg border border-surface-border bg-surface-raised p-4">
           <div className="mb-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Clock size={14} className="text-purple-400" />
@@ -387,7 +387,7 @@ export function LifecyclePage() {
             <select
               value={historyEnv}
               onChange={(e) => { setHistoryEnv(e.target.value); void fetchHistory(e.target.value); }}
-              className="h-8 rounded-md border border-[#2a2d37] bg-[#0f1117] px-2 text-xs text-white"
+              className="h-8 rounded-md border border-surface-border bg-surface-base px-2 text-xs text-white"
             >
               <option value="dev">Draft</option>
               <option value="staging">Review</option>
@@ -405,8 +405,8 @@ export function LifecyclePage() {
       )}
 
       {/* ─── Deployment Table ───────────────────────────────────────── */}
-      <div className="mt-6 rounded-lg border border-[#2a2d37] bg-[#1a1d27]">
-        <div className="border-b border-[#2a2d37] px-4 py-3">
+      <div className="mt-6 rounded-lg border border-surface-border bg-surface-raised">
+        <div className="border-b border-surface-border px-4 py-3">
           <h2 className="text-sm font-semibold text-white">All Deployments ({deployments.length})</h2>
         </div>
         {deployments.length === 0 ? (
@@ -417,7 +417,7 @@ export function LifecyclePage() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead><tr className="border-b border-[#2a2d37] text-left text-xs text-gray-500">
+              <thead><tr className="border-b border-surface-border text-left text-xs text-gray-500">
                 <th className="px-4 py-2 font-medium">Agent</th>
                 <th className="px-4 py-2 font-medium">Version</th>
                 <th className="px-4 py-2 font-medium">Environment</th>
@@ -431,7 +431,7 @@ export function LifecyclePage() {
                 const agentName = agents.find((a) => a.id === d.agent_id)?.name;
                 const metrics = healthMetrics[d.id];
                 return (
-                  <tr key={d.id} className="border-b border-[#2a2d37] hover:bg-white/5">
+                  <tr key={d.id} className="border-b border-surface-border hover:bg-white/5">
                     <td className="px-4 py-2">
                       <span className="font-medium text-white">{agentName ?? d.agent_id.slice(0, 8) + "…"}</span>
                     </td>

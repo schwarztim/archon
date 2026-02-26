@@ -77,7 +77,7 @@ export function SAMLForm({ tenantId, ssoId, initialData, onSave }: SAMLFormProps
   }
 
   return (
-    <div className="space-y-6 rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-6 dark:bg-[#1a1d27]">
+    <div className="space-y-6 rounded-lg border border-surface-border bg-surface-raised p-6 dark:bg-surface-raised">
       <div className="space-y-4">
         <FieldRow label="Provider Name">
           <Input
@@ -133,7 +133,7 @@ export function SAMLForm({ tenantId, ssoId, initialData, onSave }: SAMLFormProps
           />
         </FieldRow>
         <FieldRow label="ACS URL">
-          <Input readOnly value={acsUrl} className="bg-[#0f1117] text-gray-500 dark:bg-[#0f1117]" />
+          <Input readOnly value={acsUrl} className="bg-surface-base text-gray-500 dark:bg-surface-base" />
         </FieldRow>
         <FieldRow label="IdP Certificate (PEM)">
           <div className="flex items-center gap-2">
@@ -159,7 +159,7 @@ export function SAMLForm({ tenantId, ssoId, initialData, onSave }: SAMLFormProps
 
       <div>
         <h3 className="mb-3 text-sm font-semibold text-white">Attribute Mappings</h3>
-        <div className="rounded-md border border-[#2a2d37] bg-[#0f1117] p-4 dark:bg-[#0f1117]">
+        <div className="rounded-md border border-surface-border bg-surface-base p-4 dark:bg-surface-base">
           <ClaimMapper mappings={mappings} onChange={setMappings} />
         </div>
       </div>

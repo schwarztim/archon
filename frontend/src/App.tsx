@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, RequireAuth, useAuth } from "@/providers/auth-provider";
+import { ThemeProvider } from "@/providers/theme-provider";
 import { AppLayout } from "@/layouts/AppLayout";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { AgentsPage } from "@/pages/AgentsPage";
@@ -45,7 +46,7 @@ function AuthGate() {
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-[#0f1117]">
+      <div className="flex h-screen items-center justify-center bg-surface-base">
         <p className="text-gray-400">Loading…</p>
       </div>
     );
@@ -95,14 +96,16 @@ function AuthGate() {
 
 export default function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <AuthProvider>
-          <Routes>
-            <Route path="/*" element={<AuthGate />} />
-          </Routes>
-        </AuthProvider>
-      </BrowserRouter>
-    </QueryClientProvider>
+    <ThemeProvider>
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>
+          <AuthProvider>
+            <Routes>
+              <Route path="/*" element={<AuthGate />} />
+            </Routes>
+          </AuthProvider>
+        </BrowserRouter>
+      </QueryClientProvider>
+    </ThemeProvider>
   );
 }

@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -110,6 +110,7 @@ async def export_audit_logs(
             "resource_id",
             "status_code",
             "ip_address",
+            "details",
             "hash",
             "prev_hash",
             "created_at",

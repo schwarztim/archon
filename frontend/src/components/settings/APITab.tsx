@@ -15,7 +15,7 @@ function Card({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-5">
+    <div className="rounded-lg border border-surface-border bg-surface-raised p-5">
       <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold">
         <Icon size={14} className="text-purple-400" />
         {title}
@@ -103,7 +103,7 @@ export function APITab() {
             {keys.map((k) => (
               <div
                 key={k.id}
-                className="flex items-center justify-between rounded-md border border-[#2a2d37] bg-[#0f1117] px-3 py-2"
+                className="flex items-center justify-between rounded-md border border-surface-border bg-surface-base px-3 py-2"
               >
                 <div>
                   <span className="text-sm font-medium">{k.name}</span>

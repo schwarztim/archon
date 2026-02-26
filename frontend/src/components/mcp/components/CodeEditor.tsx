@@ -32,9 +32,9 @@ export function CodeEditor({
   const lines = code.split("\n");
 
   return (
-    <div className="overflow-hidden rounded-lg border border-[#2a2d37]">
+    <div className="overflow-hidden rounded-lg border border-surface-border">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-[#2a2d37] bg-[#0f1117] px-4 py-2">
+      <div className="flex items-center justify-between border-b border-surface-border bg-surface-base px-4 py-2">
         <span className="text-xs text-gray-400">
           {title ?? language}
         </span>
@@ -49,7 +49,7 @@ export function CodeEditor({
 
       {/* Code area */}
       {readOnly ? (
-        <div className="overflow-x-auto bg-[#0a0c10] p-4 font-mono text-sm leading-relaxed">
+        <div className="overflow-x-auto bg-surface-base p-4 font-mono text-sm leading-relaxed">
           {lines.map((line, i) => (
             <div key={i} className="flex">
               <span className="mr-4 inline-block w-8 select-none text-right text-gray-600">
@@ -62,7 +62,7 @@ export function CodeEditor({
       ) : (
         <textarea
           className={cn(
-            "w-full bg-[#0a0c10] p-4 font-mono text-sm leading-relaxed text-gray-300",
+            "w-full bg-surface-base p-4 font-mono text-sm leading-relaxed text-gray-300",
             "resize-y focus:outline-none",
           )}
           value={code}

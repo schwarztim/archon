@@ -40,7 +40,7 @@ export function SystemHealthTab() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/health", { credentials: "include" });
+      const res = await fetch("/api/v1/health", { credentials: "include" });
       if (res.ok) {
         setHealth(await res.json());
       } else {
@@ -94,7 +94,7 @@ export function SystemHealthTab() {
               return (
                 <div
                   key={name}
-                  className="flex items-center justify-between rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-4"
+                  className="flex items-center justify-between rounded-lg border border-surface-border bg-surface-raised p-4"
                 >
                   <div className="flex items-center gap-3">
                     <Icon size={16} className="text-purple-400" />

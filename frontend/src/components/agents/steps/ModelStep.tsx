@@ -40,7 +40,7 @@ const FALLBACK_MODELS = [
 ];
 
 const inputClass =
-  "w-full rounded-lg border border-[#2a2d37] bg-[#1a1d27] px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none";
+  "w-full rounded-lg border border-surface-border bg-surface-raised px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none";
 const labelClass = "mb-1 block text-xs font-medium text-gray-400";
 
 // ─── Component ───────────────────────────────────────────────────────
@@ -85,7 +85,7 @@ export function ModelStep({ data, onChange }: ModelStepProps) {
                 className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${
                   data.provider === p
                     ? "border-purple-500 bg-purple-500/20 text-white"
-                    : `border-[#2a2d37] ${b.color} hover:border-gray-600`
+                    : `border-surface-border ${b.color} hover:border-gray-600`
                 }`}
               >
                 {b.label}
@@ -107,7 +107,7 @@ export function ModelStep({ data, onChange }: ModelStepProps) {
               className={`flex items-center justify-between rounded-lg border p-3 text-left text-sm transition-colors ${
                 data.modelId === m.model_id
                   ? "border-purple-500 bg-purple-500/10"
-                  : "border-[#2a2d37] bg-[#1a1d27] hover:border-gray-600"
+                  : "border-surface-border bg-surface-raised hover:border-gray-600"
               }`}
             >
               <div>

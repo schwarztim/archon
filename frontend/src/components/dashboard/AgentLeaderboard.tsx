@@ -15,8 +15,8 @@ export function AgentLeaderboard({ agents }: AgentLeaderboardProps) {
 
   if (agents.length === 0) {
     return (
-      <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27]">
-        <div className="flex items-center gap-2 border-b border-[#2a2d37] px-4 py-3">
+      <div className="rounded-lg border border-surface-border bg-surface-raised">
+        <div className="flex items-center gap-2 border-b border-surface-border px-4 py-3">
           <Trophy size={14} className="text-yellow-400" />
           <h2 className="text-sm font-semibold text-white">Agent Leaderboard</h2>
         </div>
@@ -29,8 +29,8 @@ export function AgentLeaderboard({ agents }: AgentLeaderboardProps) {
   }
 
   return (
-    <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27]">
-      <div className="flex items-center gap-2 border-b border-[#2a2d37] px-4 py-3">
+    <div className="rounded-lg border border-surface-border bg-surface-raised">
+      <div className="flex items-center gap-2 border-b border-surface-border px-4 py-3">
         <Trophy size={14} className="text-yellow-400" />
         <h2 className="text-sm font-semibold text-white">Agent Leaderboard</h2>
       </div>
@@ -49,7 +49,7 @@ export function AgentLeaderboard({ agents }: AgentLeaderboardProps) {
                   {agent.execution_count} runs
                 </span>
               </div>
-              <div className="h-1.5 w-full rounded-full bg-[#2a2d37]">
+              <div className="h-1.5 w-full rounded-full bg-surface-border">
                 <div
                   className="h-1.5 rounded-full bg-purple-500 transition-all"
                   style={{ width: `${(agent.execution_count / maxCount) * 100}%` }}

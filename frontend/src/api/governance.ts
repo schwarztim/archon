@@ -116,19 +116,6 @@ export async function checkCompliance(
   });
 }
 
-// ── Audit Trail ────────────────────────────────────────────────────────
-
-/** Get audit trail */
-export async function getAuditTrail(
-  params: PaginationParams & {
-    actor?: string;
-    resource_type?: string;
-    resource_id?: string;
-  } = {},
-): Promise<ApiResponse<AuditEntry[]>> {
-  return apiGet<AuditEntry[]>("/governance/audit", params);
-}
-
 // ── Agent Registry (legacy) ────────────────────────────────────────────
 
 /** Register an agent with governance */
@@ -208,7 +195,11 @@ export async function rejectRequest(
   return apiPost<ApprovalRequest>(`/governance/approvals/${id}/reject`, { comment });
 }
 
-/** Get audit logs (from audit-logs endpoint) */
+/**
+ * Get audit logs.
+ * Consolidated from the former `getAuditTrail()` (which incorrectly called
+ * `/governance/audit`). This function uses the correct `/audit-logs/` endpoint.
+ */
 export async function getAuditLogs(
   params: PaginationParams & {
     action?: string;

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import uuid4
@@ -25,6 +26,11 @@ try:
     import httpx
 except ImportError:  # pragma: no cover
     httpx = None  # type: ignore[assignment]
+
+try:
+    import pyotp
+except ImportError:  # pragma: no cover
+    pyotp = None  # type: ignore[assignment]
 
 logger = logging.getLogger(__name__)
 
@@ -119,6 +125,45 @@ def _audit_event(
     )
 
 
+async def _get_totp_secret(user_id: str) -> str | None:
+    """Retrieve the TOTP secret for *user_id* from the secure store.
+
+    Currently attempts to load from the database ``user_identities`` table
+    via a hypothetical ``totp_secret`` column.  Returns ``None`` when no
+    secret is found (user has not completed TOTP setup) or when the DB is
+    unavailable.
+
+    Production: replace with Vault lookup using ``user_id`` as the path key.
+    """
+    try:
+        from uuid import UUID
+
+        from sqlmodel import select
+
+        from app.database import async_session_factory
+        from app.models.auth import UserIdentity
+
+        try:
+            user_uuid = UUID(user_id)
+        except ValueError:
+            return None
+
+        async with async_session_factory() as session:
+            result = await session.exec(
+                select(UserIdentity).where(UserIdentity.id == user_uuid)
+            )
+            identity = result.first()
+
+        if identity is None:
+            return None
+
+        # ``totp_secret`` column may not exist on all deployments yet
+        return getattr(identity, "totp_secret", None)
+    except Exception:
+        logger.debug("_get_totp_secret: DB lookup failed", exc_info=True)
+        return None
+
+
 # ── Routes ───────────────────────────────────────────────────────────
 
 # ── Dev-mode login (HS256 self-signed JWT, no Keycloak needed) ───────
@@ -198,7 +243,9 @@ async def _keycloak_userinfo(access_token: str) -> dict[str, Any]:
             headers={"Authorization": f"Bearer {access_token}"},
         )
     if resp.status_code != 200:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
+        )
     return resp.json()
 
 
@@ -245,10 +292,12 @@ async def dev_login(body: DevLoginRequest) -> dict[str, Any]:
 
         logger.info("Dev login: %s", body.email, extra={"request_id": request_id})
 
-        response = JSONResponse(content={
-            "data": session_info,
-            "meta": _meta(request_id=request_id),
-        })
+        response = JSONResponse(
+            content={
+                "data": session_info,
+                "meta": _meta(request_id=request_id),
+            }
+        )
         response.set_cookie(
             key="access_token",
             value=access_token,
@@ -294,10 +343,12 @@ async def dev_login(body: DevLoginRequest) -> dict[str, Any]:
 
     logger.info("Keycloak login: %s", body.email, extra={"request_id": request_id})
 
-    response = JSONResponse(content={
-        "data": session_info,
-        "meta": _meta(request_id=request_id),
-    })
+    response = JSONResponse(
+        content={
+            "data": session_info,
+            "meta": _meta(request_id=request_id),
+        }
+    )
     response.set_cookie(
         key="access_token",
         value=access_token,
@@ -337,30 +388,39 @@ async def get_me(request: Request) -> dict[str, Any]:
             dev_user = _DEV_USERS[dev_email]
             auto_token = _dev_create_token(dev_user, dev_email)
             payload = jose_jwt.decode(
-                auto_token, settings.JWT_SECRET, algorithms=["HS256"],
+                auto_token,
+                settings.JWT_SECRET,
+                algorithms=["HS256"],
                 options={"verify_aud": False, "verify_iss": False},
             )
-            response = JSONResponse(content={
-                "data": {
-                    "user": {
-                        "id": dev_user["id"],
-                        "email": dev_email,
-                        "name": dev_user["name"],
-                        "roles": dev_user["roles"],
-                        "permissions": dev_user["permissions"],
-                        "tenant_id": dev_user["tenant_id"],
-                        "workspace_id": dev_user["workspace_id"],
-                        "mfa_enabled": False,
+            response = JSONResponse(
+                content={
+                    "data": {
+                        "user": {
+                            "id": dev_user["id"],
+                            "email": dev_email,
+                            "name": dev_user["name"],
+                            "roles": dev_user["roles"],
+                            "permissions": dev_user["permissions"],
+                            "tenant_id": dev_user["tenant_id"],
+                            "workspace_id": dev_user["workspace_id"],
+                            "mfa_enabled": False,
+                        },
+                        "access_token": auto_token,
+                        "expires_at": datetime.fromtimestamp(
+                            payload["exp"], tz=timezone.utc
+                        ).isoformat(),
+                        "issued_at": datetime.fromtimestamp(
+                            payload["iat"], tz=timezone.utc
+                        ).isoformat(),
+                        "refresh_token_expires_at": (
+                            datetime.fromtimestamp(payload["exp"], tz=timezone.utc)
+                            + timedelta(days=7)
+                        ).isoformat(),
                     },
-                    "access_token": auto_token,
-                    "expires_at": datetime.fromtimestamp(payload["exp"], tz=timezone.utc).isoformat(),
-                    "issued_at": datetime.fromtimestamp(payload["iat"], tz=timezone.utc).isoformat(),
-                    "refresh_token_expires_at": (
-                        datetime.fromtimestamp(payload["exp"], tz=timezone.utc) + timedelta(days=7)
-                    ).isoformat(),
-                },
-                "meta": _meta(),
-            })
+                    "meta": _meta(),
+                }
+            )
             response.set_cookie(
                 key="access_token",
                 value=auto_token,
@@ -376,7 +436,9 @@ async def get_me(request: Request) -> dict[str, Any]:
     payload: dict[str, Any] | None = None
     try:
         payload = jose_jwt.decode(
-            token, settings.JWT_SECRET, algorithms=["HS256"],
+            token,
+            settings.JWT_SECRET,
+            algorithms=["HS256"],
             options={"verify_aud": False, "verify_iss": False},
         )
     except Exception:
@@ -400,14 +462,21 @@ async def get_me(request: Request) -> dict[str, Any]:
                     "roles": payload.get("roles", []),
                     "permissions": payload.get("permissions", []),
                     "tenant_id": payload.get("tenant_id", ""),
-                    "workspace_id": user_info.get("workspace_id", "") if user_info else "",
+                    "workspace_id": user_info.get("workspace_id", "")
+                    if user_info
+                    else "",
                     "mfa_enabled": payload.get("mfa_verified", False),
                 },
                 "access_token": token,
-                "expires_at": datetime.fromtimestamp(payload.get("exp", 0), tz=timezone.utc).isoformat(),
-                "issued_at": datetime.fromtimestamp(payload.get("iat", 0), tz=timezone.utc).isoformat(),
+                "expires_at": datetime.fromtimestamp(
+                    payload.get("exp", 0), tz=timezone.utc
+                ).isoformat(),
+                "issued_at": datetime.fromtimestamp(
+                    payload.get("iat", 0), tz=timezone.utc
+                ).isoformat(),
                 "refresh_token_expires_at": (
-                    datetime.fromtimestamp(payload.get("exp", 0), tz=timezone.utc) + timedelta(days=7)
+                    datetime.fromtimestamp(payload.get("exp", 0), tz=timezone.utc)
+                    + timedelta(days=7)
                 ).isoformat(),
             },
             "meta": _meta(),
@@ -447,10 +516,15 @@ async def get_me(request: Request) -> dict[str, Any]:
                 "mfa_enabled": payload.get("mfa_verified", False),
             },
             "access_token": token,
-            "expires_at": datetime.fromtimestamp(payload.get("exp", 0), tz=timezone.utc).isoformat(),
-            "issued_at": datetime.fromtimestamp(payload.get("iat", 0), tz=timezone.utc).isoformat(),
+            "expires_at": datetime.fromtimestamp(
+                payload.get("exp", 0), tz=timezone.utc
+            ).isoformat(),
+            "issued_at": datetime.fromtimestamp(
+                payload.get("iat", 0), tz=timezone.utc
+            ).isoformat(),
             "refresh_token_expires_at": (
-                datetime.fromtimestamp(payload.get("exp", 0), tz=timezone.utc) + timedelta(days=7)
+                datetime.fromtimestamp(payload.get("exp", 0), tz=timezone.utc)
+                + timedelta(days=7)
             ).isoformat(),
         },
         "meta": _meta(),
@@ -491,12 +565,18 @@ async def login(body: TokenRequest) -> dict[str, Any]:
         )
 
     audit = _audit_event(
-        "auth.login", "session", None,
+        "auth.login",
+        "session",
+        None,
         {"username": body.username},
     )
     logger.info(
         "Login attempted",
-        extra={"request_id": request_id, "username": body.username, "audit_id": str(audit.id)},
+        extra={
+            "request_id": request_id,
+            "username": body.username,
+            "audit_id": str(audit.id),
+        },
     )
 
     return {
@@ -590,7 +670,9 @@ async def saml_acs(body: SAMLACSPayload) -> dict[str, Any]:
     }
 
     audit = _audit_event(
-        "auth.saml_login", "session", None,
+        "auth.saml_login",
+        "session",
+        None,
         {"relay_state": body.relay_state},
     )
     logger.info(
@@ -604,26 +686,52 @@ async def saml_acs(body: SAMLACSPayload) -> dict[str, Any]:
     }
 
 
+@router.post("/totp/setup")
 @router.post("/mfa/totp/setup")
 async def mfa_totp_setup(
     user: AuthenticatedUser = Depends(require_auth),
 ) -> dict[str, Any]:
     """Set up TOTP-based multi-factor authentication for the current user.
 
-    Generates a TOTP secret and provisioning URI for authenticator apps.
-    Backup codes are provided for account recovery.
+    Generates a cryptographically random TOTP secret and a provisioning URI
+    suitable for import into any RFC 6238-compliant authenticator app
+    (e.g. Google Authenticator, Authy, Microsoft Authenticator).
+
+    The secret is returned **once** — the caller is responsible for storing it
+    securely (e.g. encrypted in Vault or the user's DB record).  Backup codes
+    are single-use recovery tokens generated with ``secrets.token_hex``.
     """
     request_id = str(uuid4())
 
-    # Production: generate TOTP secret via pyotp, store encrypted in Vault.
+    if pyotp is None:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="pyotp is not installed. Add pyotp to requirements.txt.",
+        )
+
+    # Generate a 32-character base-32 secret (160 bits of entropy)
+    totp_secret: str = pyotp.random_base32()
+
+    # Build the otpauth:// URI for QR-code display
+    provisioning_uri: str = pyotp.TOTP(totp_secret).provisioning_uri(
+        name=user.email,
+        issuer_name="Archon",
+    )
+
+    # Generate 8 single-use backup codes (each 8 hex bytes = 64 bits)
+    backup_codes: list[str] = [secrets.token_hex(8) for _ in range(8)]
+
     setup_data = MFASetupResponse(
-        secret="",
-        provisioning_uri="",
-        backup_codes=[],
+        secret=totp_secret,
+        provisioning_uri=provisioning_uri,
+        backup_codes=backup_codes,
     )
 
     audit = _audit_event(
-        "auth.mfa_setup", "mfa", user.id, user=user,
+        "auth.mfa_setup",
+        "mfa",
+        user.id,
+        user=user,
     )
     logger.info(
         "MFA TOTP setup initiated",
@@ -641,6 +749,7 @@ async def mfa_totp_setup(
     }
 
 
+@router.post("/totp/verify")
 @router.post("/mfa/totp/verify")
 async def mfa_totp_verify(
     body: TOTPVerifyRequest,
@@ -648,16 +757,47 @@ async def mfa_totp_verify(
 ) -> dict[str, Any]:
     """Verify a TOTP code to complete MFA authentication.
 
-    Validates the one-time code against the user's enrolled TOTP secret.
-    On success, upgrades the session to MFA-verified status.
+    Validates the 6-digit code against the TOTP secret stored for the user.
+    A ±30-second drift window is accepted (``valid_window=1``).
+
+    In production, the TOTP secret should be retrieved from an encrypted
+    store (e.g. HashiCorp Vault) keyed by ``user.id``.  This implementation
+    returns a clear error when no secret is found so the client can prompt
+    the user to complete setup first.
     """
     request_id = str(uuid4())
 
-    # Production: validate TOTP code via pyotp against stored secret.
-    verified = False
+    if pyotp is None:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="pyotp is not installed. Add pyotp to requirements.txt.",
+        )
+
+    # Retrieve the TOTP secret for this user from the secure store.
+    # Production: fetch from Vault / encrypted DB column.
+    # Here we attempt the DB lookup and return a 422 when no secret exists.
+    totp_secret: str | None = await _get_totp_secret(user.id)
+
+    if not totp_secret:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="TOTP not configured for this user. Call /totp/setup first.",
+        )
+
+    code = body.code.strip()
+    if len(code) != 6 or not code.isdigit():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="TOTP code must be exactly 6 digits.",
+        )
+
+    totp = pyotp.TOTP(totp_secret)
+    verified: bool = totp.verify(code, valid_window=1)
 
     audit = _audit_event(
-        "auth.mfa_verify", "mfa", user.id,
+        "auth.mfa_verify",
+        "mfa",
+        user.id,
         {"verified": verified},
         user=user,
     )
@@ -671,8 +811,14 @@ async def mfa_totp_verify(
         },
     )
 
+    if not verified:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired TOTP code.",
+        )
+
     return {
-        "data": {"verified": verified},
+        "data": {"verified": True},
         "meta": _meta(request_id=request_id),
     }
 
@@ -686,9 +832,11 @@ async def logout(
 
     logger.info("User logged out", extra={"request_id": request_id})
 
-    response = JSONResponse(content={
-        "data": {"message": "Logged out successfully"},
-        "meta": _meta(request_id=request_id),
-    })
+    response = JSONResponse(
+        content={
+            "data": {"message": "Logged out successfully"},
+            "meta": _meta(request_id=request_id),
+        }
+    )
     response.delete_cookie(key="access_token", path="/")
     return response

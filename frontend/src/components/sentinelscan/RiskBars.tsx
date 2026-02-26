@@ -15,7 +15,7 @@ const CATEGORY_COLORS: Record<string, string> = {
 export function RiskBars({ risks, onCategoryClick }: RiskBarsProps) {
   if (!risks) {
     return (
-      <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-4">
+      <div className="rounded-lg border border-surface-border bg-surface-raised p-4">
         <h3 className="mb-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Risk Breakdown</h3>
         <p className="text-sm text-gray-500">Run a scan to see risk breakdown.</p>
       </div>
@@ -26,7 +26,7 @@ export function RiskBars({ risks, onCategoryClick }: RiskBarsProps) {
   const maxCount = Math.max(1, ...Object.values(categories).map((c) => c.count));
 
   return (
-    <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-4">
+    <div className="rounded-lg border border-surface-border bg-surface-raised p-4">
       <h3 className="mb-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Risk Breakdown</h3>
       <div className="space-y-3">
         {Object.entries(categories).map(([name, cat]) => {

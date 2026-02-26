@@ -210,7 +210,7 @@ export function SentinelScanPage() {
         <RiskBars risks={risks} onCategoryClick={handleCategoryClick} />
 
         {/* Scan Launcher */}
-        <div className="lg:col-span-2 rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-4">
+        <div className="lg:col-span-2 rounded-lg border border-surface-border bg-surface-raised p-4">
           <h3 className="mb-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Run Discovery Scan</h3>
           <div className="space-y-3">
             <div>
@@ -223,7 +223,7 @@ export function SentinelScanPage() {
                     className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
                       scanSources.includes(src)
                         ? "bg-purple-500/20 text-purple-400 border border-purple-500/40"
-                        : "bg-white/5 text-gray-500 border border-[#2a2d37]"
+                        : "bg-white/5 text-gray-500 border border-surface-border"
                     }`}
                     onClick={() => handleSourceToggle(src)}
                   >
@@ -236,7 +236,7 @@ export function SentinelScanPage() {
               <div>
                 <label className="mb-1 block text-xs text-gray-500">Scan Depth</label>
                 <select
-                  className="w-full rounded-md border border-[#2a2d37] bg-[#0f1117] px-3 py-1.5 text-sm text-gray-200 focus:border-purple-500 focus:outline-none"
+                  className="w-full rounded-md border border-surface-border bg-surface-base px-3 py-1.5 text-sm text-gray-200 focus:border-purple-500 focus:outline-none"
                   value={scanDepth}
                   onChange={(e) => setScanDepth(e.target.value)}
                 >

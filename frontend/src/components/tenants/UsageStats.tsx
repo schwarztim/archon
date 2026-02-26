@@ -31,7 +31,7 @@ function UsageBar({ label, current, max }: { label: string; current: number; max
 
 export function UsageStats({ stats }: UsageStatsProps) {
   return (
-    <div className="space-y-5 rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-5 dark:bg-[#1a1d27]">
+    <div className="space-y-5 rounded-lg border border-surface-border bg-surface-raised p-5 dark:bg-surface-raised">
       <h3 className="text-sm font-semibold text-white">Usage & Quotas</h3>
       <UsageBar label="Agents" current={stats.agents.current} max={stats.agents.max} />
       <UsageBar label="Executions / Month" current={stats.executions.current} max={stats.executions.max} />

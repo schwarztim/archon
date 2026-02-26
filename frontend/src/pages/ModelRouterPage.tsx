@@ -180,7 +180,7 @@ function HealthStatusBadge({ status }: { status: string }) {
   );
 }
 
-const inputCls = "h-9 w-full rounded-md border border-[#2a2d37] bg-[#0f1117] px-3 text-sm text-white";
+const inputCls = "h-9 w-full rounded-md border border-surface-border bg-surface-base px-3 text-sm text-white";
 const selectCls = inputCls;
 
 /* ─── Main Component ────────────────────────────────────────────────── */
@@ -450,7 +450,7 @@ export function ModelRouterPage() {
 
       {/* Stats */}
       <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-4">
-        <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-4">
+        <div className="rounded-lg border border-surface-border bg-surface-raised p-4">
           <div className="mb-2 flex items-center justify-between">
             <span className="text-sm text-gray-400">Providers</span>
             <Server size={20} className="text-purple-400" />
@@ -458,7 +458,7 @@ export function ModelRouterPage() {
           <p className="text-2xl font-bold text-white">{providers.length}</p>
           <p className="mt-1 text-xs text-gray-500">{providers.filter((p) => p.is_active).length} active</p>
         </div>
-        <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-4">
+        <div className="rounded-lg border border-surface-border bg-surface-raised p-4">
           <div className="mb-2 flex items-center justify-between">
             <span className="text-sm text-gray-400">Models</span>
             <Cpu size={20} className="text-purple-400" />
@@ -466,14 +466,14 @@ export function ModelRouterPage() {
           <p className="text-2xl font-bold text-white">{models.length}</p>
           <p className="mt-1 text-xs text-gray-500">{models.filter((m) => m.is_active).length} active</p>
         </div>
-        <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-4">
+        <div className="rounded-lg border border-surface-border bg-surface-raised p-4">
           <div className="mb-2 flex items-center justify-between">
             <span className="text-sm text-gray-400">Unique Sources</span>
             <Globe size={20} className="text-purple-400" />
           </div>
           <p className="text-2xl font-bold text-white">{new Set(models.map((m) => m.provider)).size}</p>
         </div>
-        <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-4">
+        <div className="rounded-lg border border-surface-border bg-surface-raised p-4">
           <div className="mb-2 flex items-center justify-between">
             <span className="text-sm text-gray-400">Routing Rules</span>
             <Zap size={20} className="text-purple-400" />
@@ -484,13 +484,13 @@ export function ModelRouterPage() {
       </div>
 
       {/* ── Provider Health Dashboard ────────────────────────────────── */}
-      <div className="mb-6 rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-4">
+      <div className="mb-6 rounded-lg border border-surface-border bg-surface-raised p-4">
         <HealthDashboard />
       </div>
 
       {/* ── Providers ────────────────────────────────────────────────── */}
-      <div className="mb-6 rounded-lg border border-[#2a2d37] bg-[#1a1d27]">
-        <div className="flex items-center justify-between border-b border-[#2a2d37] px-4 py-3">
+      <div className="mb-6 rounded-lg border border-surface-border bg-surface-raised">
+        <div className="flex items-center justify-between border-b border-surface-border px-4 py-3">
           <h2 className="text-sm font-semibold text-white">Providers</h2>
           <Button size="sm" className="bg-purple-600 hover:bg-purple-700" onClick={() => setShowProviderForm(!showProviderForm)}>
             {showProviderForm ? <><X size={14} className="mr-1.5" /> Cancel</> : <><Plus size={14} className="mr-1.5" /> Add Provider</>}
@@ -498,7 +498,7 @@ export function ModelRouterPage() {
         </div>
 
         {showProviderForm && (
-          <form onSubmit={handleCreateProvider} className="border-b border-[#2a2d37] bg-[#0f1117] px-4 py-4">
+          <form onSubmit={handleCreateProvider} className="border-b border-surface-border bg-surface-base px-4 py-4">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <div>
                 <label className="mb-1 block text-xs text-gray-400">Name *</label>
@@ -560,7 +560,7 @@ export function ModelRouterPage() {
           ) : (
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-[#2a2d37] text-left text-xs text-gray-500">
+                <tr className="border-b border-surface-border text-left text-xs text-gray-500">
                   <th className="px-4 py-2 font-medium">Name</th>
                   <th className="px-4 py-2 font-medium">Type</th>
                   <th className="px-4 py-2 font-medium">Models</th>
@@ -577,7 +577,7 @@ export function ModelRouterPage() {
                   const health = providerHealth.find((h) => h.provider_id === p.id);
                   return (
                     <React.Fragment key={p.id}>
-                    <tr className="border-b border-[#2a2d37] hover:bg-white/5">
+                    <tr className="border-b border-surface-border hover:bg-white/5">
                       <td className="px-4 py-2 font-medium text-white">{p.name}</td>
                       <td className="px-4 py-2 text-gray-400">{PROVIDER_TYPES.find((pt) => pt.value === p.api_type)?.label ?? p.api_type}</td>
                       <td className="px-4 py-2">
@@ -624,7 +624,7 @@ export function ModelRouterPage() {
                     </tr>
                     {/* Expanded credential form */}
                     {expandedProviderId === p.id && (
-                      <tr className="border-b border-[#2a2d37] bg-[#0f1117]">
+                      <tr className="border-b border-surface-border bg-surface-base">
                         <td colSpan={9} className="px-8 py-4">
                           <ProviderForm
                             providerId={p.id}
@@ -647,8 +647,8 @@ export function ModelRouterPage() {
       </div>
 
       {/* ── Models ───────────────────────────────────────────────────── */}
-      <div className="mb-6 rounded-lg border border-[#2a2d37] bg-[#1a1d27]">
-        <div className="flex items-center justify-between border-b border-[#2a2d37] px-4 py-3">
+      <div className="mb-6 rounded-lg border border-surface-border bg-surface-raised">
+        <div className="flex items-center justify-between border-b border-surface-border px-4 py-3">
           <h2 className="text-sm font-semibold text-white">Model Registry</h2>
           <Button size="sm" className="bg-purple-600 hover:bg-purple-700" onClick={() => setShowModelForm(!showModelForm)}>
             {showModelForm ? <><X size={14} className="mr-1.5" /> Cancel</> : <><Plus size={14} className="mr-1.5" /> Register Model</>}
@@ -656,7 +656,7 @@ export function ModelRouterPage() {
         </div>
 
         {showModelForm && (
-          <form onSubmit={handleCreateModel} className="border-b border-[#2a2d37] bg-[#0f1117] px-4 py-4">
+          <form onSubmit={handleCreateModel} className="border-b border-surface-border bg-surface-base px-4 py-4">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <div>
                 <label className="mb-1 block text-xs text-gray-400">Name *</label>
@@ -713,7 +713,7 @@ export function ModelRouterPage() {
           ) : (
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-[#2a2d37] text-left text-xs text-gray-500">
+                <tr className="border-b border-surface-border text-left text-xs text-gray-500">
                   <th className="px-4 py-2 font-medium">Name</th>
                   <th className="px-4 py-2 font-medium">Provider</th>
                   <th className="px-4 py-2 font-medium">Model ID</th>
@@ -725,7 +725,7 @@ export function ModelRouterPage() {
               </thead>
               <tbody>
                 {models.map((m) => (
-                  <tr key={m.id} className="border-b border-[#2a2d37] hover:bg-white/5">
+                  <tr key={m.id} className="border-b border-surface-border hover:bg-white/5">
                     <td className="px-4 py-2 font-medium text-white">{m.name}</td>
                     <td className="px-4 py-2 text-gray-400">{m.provider}</td>
                     <td className="px-4 py-2 text-gray-400 font-mono text-xs">{m.model_id}</td>
@@ -748,8 +748,8 @@ export function ModelRouterPage() {
       </div>
 
       {/* ── Visual Routing Rules ────────────────────────────────────── */}
-      <div className="mb-6 rounded-lg border border-[#2a2d37] bg-[#1a1d27]">
-        <div className="flex items-center justify-between border-b border-[#2a2d37] px-4 py-3">
+      <div className="mb-6 rounded-lg border border-surface-border bg-surface-raised">
+        <div className="flex items-center justify-between border-b border-surface-border px-4 py-3">
           <h2 className="text-sm font-semibold text-white">Visual Routing Rules</h2>
           <Button
             size="sm"
@@ -771,8 +771,8 @@ export function ModelRouterPage() {
       </div>
 
       {/* ── Legacy Routing Rules ────────────────────────────────────── */}
-      <div className="mb-6 rounded-lg border border-[#2a2d37] bg-[#1a1d27]">
-        <div className="flex items-center justify-between border-b border-[#2a2d37] px-4 py-3">
+      <div className="mb-6 rounded-lg border border-surface-border bg-surface-raised">
+        <div className="flex items-center justify-between border-b border-surface-border px-4 py-3">
           <h2 className="text-sm font-semibold text-white">Routing Rules</h2>
           <Button size="sm" className="bg-purple-600 hover:bg-purple-700" onClick={() => setShowRuleForm(!showRuleForm)}>
             {showRuleForm ? <><X size={14} className="mr-1.5" /> Cancel</> : <><Plus size={14} className="mr-1.5" /> Add Rule</>}
@@ -780,7 +780,7 @@ export function ModelRouterPage() {
         </div>
 
         {showRuleForm && (
-          <form onSubmit={handleCreateRule} className="border-b border-[#2a2d37] bg-[#0f1117] px-4 py-4">
+          <form onSubmit={handleCreateRule} className="border-b border-surface-border bg-surface-base px-4 py-4">
             <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div>
                 <label className="mb-1 block text-xs text-gray-400">Rule Name *</label>
@@ -847,7 +847,7 @@ export function ModelRouterPage() {
           ) : (
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-[#2a2d37] text-left text-xs text-gray-500">
+                <tr className="border-b border-surface-border text-left text-xs text-gray-500">
                   <th className="w-16 px-4 py-2 font-medium">Order</th>
                   <th className="px-4 py-2 font-medium">Name</th>
                   <th className="px-4 py-2 font-medium">Conditions</th>
@@ -861,7 +861,7 @@ export function ModelRouterPage() {
                   const condRows = conditionsToRows(r.conditions as Record<string, unknown>);
                   const targetModel = models.find((m) => m.id === r.target_model_id);
                   return (
-                    <tr key={r.id} className="border-b border-[#2a2d37] hover:bg-white/5">
+                    <tr key={r.id} className="border-b border-surface-border hover:bg-white/5">
                       <td className="px-4 py-2">
                         <div className="flex gap-0.5">
                           <button
@@ -906,8 +906,8 @@ export function ModelRouterPage() {
       </div>
 
       {/* ── Fallback Chain ───────────────────────────────────────────── */}
-      <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27]">
-        <div className="flex items-center justify-between border-b border-[#2a2d37] px-4 py-3">
+      <div className="rounded-lg border border-surface-border bg-surface-raised">
+        <div className="flex items-center justify-between border-b border-surface-border px-4 py-3">
           <div className="flex items-center gap-2">
             <Shield size={16} className="text-purple-400" />
             <h2 className="text-sm font-semibold text-white">Fallback Chain</h2>
@@ -971,7 +971,7 @@ function ProviderApiKeyCell({
     <div className="flex items-center gap-1">
       <input
         type="password"
-        className="h-7 w-28 rounded border border-[#2a2d37] bg-[#0f1117] px-2 text-xs text-white"
+        className="h-7 w-28 rounded border border-surface-border bg-surface-base px-2 text-xs text-white"
         placeholder="sk-…"
         value={value}
         onChange={(e) => setValue(e.target.value)}

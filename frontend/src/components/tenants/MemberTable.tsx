@@ -33,17 +33,17 @@ function roleBadge(role: string) {
 export function MemberTable({ members, onImpersonate }: MemberTableProps) {
   if (members.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-[#2a2d37] py-12">
+      <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-surface-border py-12">
         <p className="text-sm text-gray-500">No members in this tenant.</p>
       </div>
     );
   }
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-[#2a2d37] bg-[#1a1d27] dark:bg-[#1a1d27]">
+    <div className="overflow-x-auto rounded-lg border border-surface-border bg-surface-raised dark:bg-surface-raised">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-[#2a2d37] text-left text-xs text-gray-500">
+          <tr className="border-b border-surface-border text-left text-xs text-gray-500">
             <th className="px-4 py-2 font-medium">Name</th>
             <th className="px-4 py-2 font-medium">Email</th>
             <th className="px-4 py-2 font-medium">Role</th>
@@ -55,7 +55,7 @@ export function MemberTable({ members, onImpersonate }: MemberTableProps) {
         </thead>
         <tbody>
           {members.map((m) => (
-            <tr key={m.id} className="border-b border-[#2a2d37] hover:bg-white/5">
+            <tr key={m.id} className="border-b border-surface-border hover:bg-white/5">
               <td className="px-4 py-2 font-medium text-white">{m.name}</td>
               <td className="px-4 py-2 text-gray-400">{m.email}</td>
               <td className="px-4 py-2">{roleBadge(m.role)}</td>

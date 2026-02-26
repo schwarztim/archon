@@ -56,8 +56,8 @@ export function DetectionsList() {
   }
 
   return (
-    <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27]">
-      <div className="flex items-center justify-between border-b border-[#2a2d37] px-4 py-3">
+    <div className="rounded-lg border border-surface-border bg-surface-raised">
+      <div className="flex items-center justify-between border-b border-surface-border px-4 py-3">
         <div className="flex items-center gap-2">
           <FileWarning size={16} className="text-orange-400" />
           <h3 className="text-sm font-semibold text-white">Recent Detections</h3>
@@ -80,7 +80,7 @@ export function DetectionsList() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-[#2a2d37] text-left text-xs text-gray-500">
+                <tr className="border-b border-surface-border text-left text-xs text-gray-500">
                   <th className="px-4 py-2 font-medium">Time</th>
                   <th className="px-4 py-2 font-medium">Types</th>
                   <th className="px-4 py-2 font-medium">Findings</th>
@@ -91,7 +91,7 @@ export function DetectionsList() {
               </thead>
               <tbody>
                 {detections.map((d) => (
-                  <tr key={d.id} className="border-b border-[#2a2d37] hover:bg-white/5">
+                  <tr key={d.id} className="border-b border-surface-border hover:bg-white/5">
                     <td className="whitespace-nowrap px-4 py-2 text-gray-400">
                       {d.created_at
                         ? new Date(d.created_at).toLocaleString(undefined, {
@@ -127,7 +127,7 @@ export function DetectionsList() {
           </div>
           {/* Pagination */}
           {total > PAGE_SIZE && (
-            <div className="flex items-center justify-between border-t border-[#2a2d37] px-4 py-2">
+            <div className="flex items-center justify-between border-t border-surface-border px-4 py-2">
               <span className="text-xs text-gray-500">
                 Showing {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, total)} of {total}
               </span>

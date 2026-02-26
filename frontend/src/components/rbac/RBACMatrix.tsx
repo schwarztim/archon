@@ -113,18 +113,18 @@ export function RBACMatrix({}: RBACMatrixProps) {
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-[#2a2d37]">
+      <div className="overflow-x-auto rounded-lg border border-surface-border">
         <table className="w-full text-xs">
           <thead>
-            <tr className="border-b border-[#2a2d37] bg-[#0f1117] dark:bg-[#0f1117]">
-              <th className="sticky left-0 z-10 bg-[#0f1117] px-3 py-2 text-left font-medium text-gray-500 dark:bg-[#0f1117]">
+            <tr className="border-b border-surface-border bg-surface-base dark:bg-surface-base">
+              <th className="sticky left-0 z-10 bg-surface-base px-3 py-2 text-left font-medium text-gray-500 dark:bg-surface-base">
                 Resource
               </th>
               {roleNames.map((role) => (
                 <th
                   key={role}
                   colSpan={data.actions.length}
-                  className="border-l border-[#2a2d37] px-2 py-2 text-center font-medium text-gray-400"
+                  className="border-l border-surface-border px-2 py-2 text-center font-medium text-gray-400"
                 >
                   <div className="flex flex-col items-center gap-0.5">
                     <span>{roleLabel(role)}</span>
@@ -137,13 +137,13 @@ export function RBACMatrix({}: RBACMatrixProps) {
                 </th>
               ))}
             </tr>
-            <tr className="border-b border-[#2a2d37] bg-[#0f1117] dark:bg-[#0f1117]">
-              <th className="sticky left-0 z-10 bg-[#0f1117] px-3 py-1 dark:bg-[#0f1117]" />
+            <tr className="border-b border-surface-border bg-surface-base dark:bg-surface-base">
+              <th className="sticky left-0 z-10 bg-surface-base px-3 py-1 dark:bg-surface-base" />
               {roleNames.map((role) =>
                 data.actions.map((action) => (
                   <th
                     key={`${role}-${action}`}
-                    className="border-l border-[#2a2d37] px-1 py-1 text-center text-[10px] font-normal uppercase text-gray-600"
+                    className="border-l border-surface-border px-1 py-1 text-center text-[10px] font-normal uppercase text-gray-600"
                   >
                     {action[0]}
                   </th>
@@ -153,8 +153,8 @@ export function RBACMatrix({}: RBACMatrixProps) {
           </thead>
           <tbody>
             {data.resources.map((resource) => (
-              <tr key={resource} className="border-b border-[#2a2d37] hover:bg-white/5">
-                <td className="sticky left-0 z-10 bg-[#1a1d27] px-3 py-1.5 font-medium text-gray-300 dark:bg-[#1a1d27]">
+              <tr key={resource} className="border-b border-surface-border hover:bg-white/5">
+                <td className="sticky left-0 z-10 bg-surface-raised px-3 py-1.5 font-medium text-gray-300 dark:bg-surface-raised">
                   {resourceLabel(resource)}
                 </td>
                 {roleNames.map((role) =>
@@ -164,7 +164,7 @@ export function RBACMatrix({}: RBACMatrixProps) {
                     return (
                       <td
                         key={`${role}-${resource}-${action}`}
-                        className={`border-l border-[#2a2d37] px-1 py-1.5 text-center ${
+                        className={`border-l border-surface-border px-1 py-1.5 text-center ${
                           isEditable ? "cursor-pointer hover:bg-white/10" : ""
                         }`}
                         onClick={() => isEditable && togglePermission(role, resource, action, allowed)}

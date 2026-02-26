@@ -47,7 +47,7 @@ export function TemplateSuggestions({
 
   if (loading) {
     return (
-      <div className="rounded-lg border border-[#2a2d37] bg-[#0f1117] p-4">
+      <div className="rounded-lg border border-surface-border bg-surface-base p-4">
         <div className="flex items-center gap-2 mb-3">
           <Layers size={14} className="text-purple-400" />
           <h4 className="text-xs font-medium text-gray-400">Similar Templates</h4>
@@ -62,7 +62,7 @@ export function TemplateSuggestions({
   if (templates.length === 0) return null;
 
   return (
-    <div className="rounded-lg border border-[#2a2d37] bg-[#0f1117] p-4">
+    <div className="rounded-lg border border-surface-border bg-surface-base p-4">
       <div className="flex items-center gap-2 mb-3">
         <Layers size={14} className="text-purple-400" />
         <h4 className="text-xs font-medium text-gray-400">Similar Templates</h4>
@@ -73,7 +73,7 @@ export function TemplateSuggestions({
             key={tpl.id}
             type="button"
             onClick={() => onSelect(tpl)}
-            className="flex w-full items-center gap-2 rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-2.5 text-left transition-colors hover:border-purple-500/30"
+            className="flex w-full items-center gap-2 rounded-lg border border-surface-border bg-surface-raised p-2.5 text-left transition-colors hover:border-purple-500/30"
           >
             <div className="flex-1 min-w-0">
               <p className="text-xs font-medium text-white truncate">

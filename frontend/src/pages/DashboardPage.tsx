@@ -55,13 +55,16 @@ interface ChartPoint {
 }
 
 interface HealthResponse {
-  api?: boolean;
-  database?: boolean;
-  db?: boolean;
-  redis?: boolean;
-  vault?: boolean;
-  keycloak?: boolean;
-  sso?: boolean;
+  status?: string;
+  services?: {
+    api?: string;
+    database?: string;
+    redis?: string;
+    vault?: string;
+    keycloak?: string;
+  };
+  version?: string;
+  timestamp?: string;
 }
 
 export function DashboardPage() {
@@ -221,47 +224,42 @@ export function DashboardPage() {
     }
 
     async function fetchHealth() {
+      const unknownServices: ServiceHealth[] = [
+        { name: "api", displayName: "API", status: "unknown" },
+        { name: "database", displayName: "Database", status: "unknown" },
+        { name: "redis", displayName: "Redis", status: "unknown" },
+        { name: "vault", displayName: "Vault", status: "unknown" },
+        { name: "keycloak", displayName: "Keycloak", status: "unknown" },
+      ];
       try {
         const res = await fetch("/api/v1/health");
-        const fallback = !res.ok ? await fetch("/ready") : res;
-        const data: HealthResponse = fallback.ok ? await fallback.json() : {};
+        if (!res.ok) {
+          setHealthServices([
+            { name: "api", displayName: "API", status: "unhealthy" },
+            { name: "database", displayName: "Database", status: "unknown" },
+            { name: "redis", displayName: "Redis", status: "unknown" },
+            { name: "vault", displayName: "Vault", status: "unknown" },
+            { name: "keycloak", displayName: "Keycloak", status: "unknown" },
+          ]);
+          return;
+        }
+
+        const data: HealthResponse = await res.json();
+        const svc = data.services ?? {};
+
+        const toStatus = (val: string | undefined, upValues = ["up", "connected"]): ServiceHealth["status"] =>
+          val === undefined ? "unknown" : upValues.includes(val) ? "healthy" : "unhealthy";
 
         const services: ServiceHealth[] = [
-          {
-            name: "api",
-            displayName: "API",
-            status: fallback.ok ? "healthy" : "unhealthy",
-          },
-          {
-            name: "database",
-            displayName: "Database",
-            status: (data?.database ?? data?.db) === true ? "healthy" : (data?.database ?? data?.db) === false ? "unhealthy" : "unknown",
-          },
-          {
-            name: "redis",
-            displayName: "Redis",
-            status: data?.redis === true ? "healthy" : data?.redis === false ? "unhealthy" : "unknown",
-          },
-          {
-            name: "vault",
-            displayName: "Vault",
-            status: data?.vault === true ? "healthy" : data?.vault === false ? "unhealthy" : "unknown",
-          },
-          {
-            name: "keycloak",
-            displayName: "Keycloak",
-            status: (data?.keycloak ?? data?.sso) === true ? "healthy" : (data?.keycloak ?? data?.sso) === false ? "unhealthy" : "unknown",
-          },
+          { name: "api",      displayName: "API",      status: toStatus(svc.api) },
+          { name: "database", displayName: "Database", status: toStatus(svc.database, ["up", "connected"]) },
+          { name: "redis",    displayName: "Redis",    status: toStatus(svc.redis,    ["up", "connected"]) },
+          { name: "vault",    displayName: "Vault",    status: toStatus(svc.vault,    ["up", "connected"]) },
+          { name: "keycloak", displayName: "Keycloak", status: toStatus(svc.keycloak, ["up", "connected"]) },
         ];
         setHealthServices(services);
       } catch {
-        setHealthServices([
-          { name: "api", displayName: "API", status: "unhealthy" },
-          { name: "database", displayName: "Database", status: "unknown" },
-          { name: "redis", displayName: "Redis", status: "unknown" },
-          { name: "vault", displayName: "Vault", status: "unknown" },
-          { name: "keycloak", displayName: "Keycloak", status: "unknown" },
-        ]);
+        setHealthServices(unknownServices);
       }
     }
 

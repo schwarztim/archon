@@ -53,7 +53,7 @@ export function PackageCard({ pkg, onInstall }: PackageCardProps) {
 
   return (
     <div
-      className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-4 transition-colors hover:border-purple-500/30"
+      className="rounded-lg border border-surface-border bg-surface-raised p-4 transition-colors hover:border-purple-500/30"
       role="listitem"
     >
       <div className="mb-3 flex items-start gap-3">

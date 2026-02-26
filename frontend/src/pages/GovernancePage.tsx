@@ -57,7 +57,7 @@ export function GovernancePage() {
       <p className="mb-6 text-gray-400">Agent registry, compliance policies, approval workflows, and audit trail.</p>
 
       {/* Tab bar */}
-      <div className="mb-6 flex gap-1 rounded-lg border border-[#2a2d37] bg-[#0f1117] p-1">
+      <div className="mb-6 flex gap-1 rounded-lg border border-surface-border bg-surface-base p-1">
         {TABS.map((tab) => (
           <button
             key={tab}
@@ -86,8 +86,8 @@ export function GovernancePage() {
       {activeTab === "Approvals" && <ApprovalQueue refreshKey={approvalRefreshKey} />}
 
       {activeTab === "Audit Trail" && (
-        <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27]">
-          <div className="flex items-center justify-between border-b border-[#2a2d37] px-4 py-3">
+        <div className="rounded-lg border border-surface-border bg-surface-raised">
+          <div className="flex items-center justify-between border-b border-surface-border px-4 py-3">
             <h2 className="flex items-center gap-2 text-sm font-semibold text-white">
               <ClipboardList size={14} /> Audit Trail
             </h2>
@@ -95,7 +95,7 @@ export function GovernancePage() {
               <select
                 value={auditFilter.action}
                 onChange={(e) => setAuditFilter((f) => ({ ...f, action: e.target.value }))}
-                className="h-8 rounded-md border border-[#2a2d37] bg-[#0f1117] px-2 text-xs text-white"
+                className="h-8 rounded-md border border-surface-border bg-surface-base px-2 text-xs text-white"
               >
                 <option value="">All Actions</option>
                 <option value="compliance_scan.executed">Compliance Scan</option>
@@ -106,7 +106,7 @@ export function GovernancePage() {
               <select
                 value={auditFilter.resource_type}
                 onChange={(e) => setAuditFilter((f) => ({ ...f, resource_type: e.target.value }))}
-                className="h-8 rounded-md border border-[#2a2d37] bg-[#0f1117] px-2 text-xs text-white"
+                className="h-8 rounded-md border border-surface-border bg-surface-base px-2 text-xs text-white"
               >
                 <option value="">All Resources</option>
                 <option value="agent">Agent</option>
@@ -129,7 +129,7 @@ export function GovernancePage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-[#2a2d37] text-left text-xs text-gray-500">
+                  <tr className="border-b border-surface-border text-left text-xs text-gray-500">
                     <th className="px-4 py-2 font-medium">Timestamp</th>
                     <th className="px-4 py-2 font-medium">Action</th>
                     <th className="px-4 py-2 font-medium">Resource</th>
@@ -139,7 +139,7 @@ export function GovernancePage() {
                 </thead>
                 <tbody>
                   {auditTrail.map((e) => (
-                    <tr key={e.id} className="border-b border-[#2a2d37] hover:bg-white/5">
+                    <tr key={e.id} className="border-b border-surface-border hover:bg-white/5">
                       <td className="px-4 py-2 text-gray-400">
                         {new Date(e.created_at).toLocaleString()}
                       </td>

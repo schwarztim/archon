@@ -56,7 +56,7 @@ function StepTimeline({ steps }: { steps: WorkflowRunStep[] }) {
       {steps.map((step, i) => (
         <div
           key={step.id}
-          className="flex items-center gap-3 rounded-lg border border-[#2a2d37] bg-[#12141e] px-3 py-2"
+          className="flex items-center gap-3 rounded-lg border border-surface-border bg-surface-overlay px-3 py-2"
         >
           <div className="flex items-center gap-1.5 min-w-[24px]">
             <span className="text-[10px] text-gray-600">{i + 1}</span>
@@ -93,16 +93,16 @@ function StepIO({ step }: { step: WorkflowRunStep }) {
         <ChevronRight size={12} className={`transform transition-transform ${expanded ? "rotate-90" : ""}`} />
       </button>
       {expanded && (
-        <div className="absolute right-4 mt-1 z-10 w-80 rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-3 shadow-xl">
+        <div className="absolute right-4 mt-1 z-10 w-80 rounded-lg border border-surface-border bg-surface-raised p-3 shadow-xl">
           <div className="mb-2">
             <p className="text-[10px] font-medium text-gray-400 mb-0.5">Input</p>
-            <pre className="text-[9px] text-gray-500 bg-[#12141e] rounded p-1.5 max-h-24 overflow-auto">
+            <pre className="text-[9px] text-gray-500 bg-surface-overlay rounded p-1.5 max-h-24 overflow-auto">
               {JSON.stringify(step.input_data, null, 2)}
             </pre>
           </div>
           <div>
             <p className="text-[10px] font-medium text-gray-400 mb-0.5">Output</p>
-            <pre className="text-[9px] text-gray-500 bg-[#12141e] rounded p-1.5 max-h-24 overflow-auto">
+            <pre className="text-[9px] text-gray-500 bg-surface-overlay rounded p-1.5 max-h-24 overflow-auto">
               {JSON.stringify(step.output_data, null, 2)}
             </pre>
           </div>
@@ -164,7 +164,7 @@ export function WorkflowRunHistory({ runs, isLoading, onRunClick }: WorkflowRunH
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="rounded border border-[#2a2d37] bg-[#1a1d27] px-2 py-1 text-xs text-white focus:border-purple-500 focus:outline-none"
+            className="rounded border border-surface-border bg-surface-raised px-2 py-1 text-xs text-white focus:border-purple-500 focus:outline-none"
           >
             <option value="all">All Statuses</option>
             <option value="pending">Pending</option>
@@ -178,7 +178,7 @@ export function WorkflowRunHistory({ runs, isLoading, onRunClick }: WorkflowRunH
           <select
             value={triggerFilter}
             onChange={(e) => setTriggerFilter(e.target.value)}
-            className="rounded border border-[#2a2d37] bg-[#1a1d27] px-2 py-1 text-xs text-white focus:border-purple-500 focus:outline-none"
+            className="rounded border border-surface-border bg-surface-raised px-2 py-1 text-xs text-white focus:border-purple-500 focus:outline-none"
           >
             <option value="all">All Triggers</option>
             <option value="manual">Manual</option>
@@ -204,15 +204,15 @@ export function WorkflowRunHistory({ runs, isLoading, onRunClick }: WorkflowRunH
 
       {/* Table */}
       {filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-8 rounded-lg border border-[#2a2d37] bg-[#1a1d27]">
+        <div className="flex flex-col items-center justify-center py-8 rounded-lg border border-surface-border bg-surface-raised">
           <Calendar size={24} className="mb-2 text-gray-600" />
           <p className="text-xs text-gray-500">No runs found</p>
         </div>
       ) : (
-        <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27]">
+        <div className="rounded-lg border border-surface-border bg-surface-raised">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-[#2a2d37] text-left text-xs text-gray-500">
+              <tr className="border-b border-surface-border text-left text-xs text-gray-500">
                 <th className="px-3 py-2 font-medium">Run ID</th>
                 <th className="px-3 py-2 font-medium">Status</th>
                 <th className="px-3 py-2 font-medium">Trigger</th>
@@ -226,7 +226,7 @@ export function WorkflowRunHistory({ runs, isLoading, onRunClick }: WorkflowRunH
                 <>
                   <tr
                     key={run.id}
-                    className="border-b border-[#2a2d37] hover:bg-white/5 cursor-pointer"
+                    className="border-b border-surface-border hover:bg-white/5 cursor-pointer"
                     onClick={() => {
                       setExpandedRunId(expandedRunId === run.id ? null : run.id);
                       onRunClick?.(run);
@@ -254,7 +254,7 @@ export function WorkflowRunHistory({ runs, isLoading, onRunClick }: WorkflowRunH
                   </tr>
                   {expandedRunId === run.id && run.steps && (
                     <tr key={`${run.id}-steps`}>
-                      <td colSpan={6} className="px-4 bg-[#12141e]">
+                      <td colSpan={6} className="px-4 bg-surface-overlay">
                         <StepTimeline steps={run.steps} />
                       </td>
                     </tr>

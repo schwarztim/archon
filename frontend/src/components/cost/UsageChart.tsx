@@ -35,8 +35,8 @@ export function UsageChart({ series, providers }: UsageChartProps) {
   );
 
   return (
-    <div className="mb-6 rounded-lg border border-[#2a2d37] bg-[#1a1d27]">
-      <div className="flex items-center justify-between border-b border-[#2a2d37] px-4 py-3">
+    <div className="mb-6 rounded-lg border border-surface-border bg-surface-raised">
+      <div className="flex items-center justify-between border-b border-surface-border px-4 py-3">
         <h2 className="flex items-center gap-2 text-sm font-semibold text-white">
           <BarChart3 size={14} /> Usage by Provider
         </h2>

@@ -45,6 +45,7 @@ from app.routes.governance import router as governance_router
 from app.routes.sentinelscan import (
     router as sentinelscan_router,
     scan_router as sentinelscan_scan_router,
+    enterprise_router as sentinelscan_enterprise_router,
 )
 from app.routes.mcp_security import router as mcp_security_router
 
@@ -73,6 +74,7 @@ from app.routes.scim import router as scim_router
 from app.routes.auth_routes import router as auth_router
 from app.routes.sso import router as sso_router
 from app.routes.sso_config import router as sso_config_router
+from app.routes.totp import router as totp_router
 
 # Additional routers (self-prefixed with /api/v1)
 from app.routes.secrets import router as secrets_router
@@ -155,6 +157,11 @@ def create_app() -> FastAPI:
 
     application.add_middleware(DLPMiddleware)
 
+    # -- Rate limiting middleware (outermost after CORS so all requests are counted) --
+    from app.middleware.rate_limit import RateLimitMiddleware
+
+    application.add_middleware(RateLimitMiddleware)
+
     # -- Health probes (unauthenticated) ------------------------------
     application.include_router(health_router)
 
@@ -187,6 +194,9 @@ def create_app() -> FastAPI:
     application.include_router(governance_router, prefix=settings.API_PREFIX)
     application.include_router(sentinelscan_router, prefix=settings.API_PREFIX)
     application.include_router(sentinelscan_scan_router, prefix=settings.API_PREFIX)
+    application.include_router(
+        sentinelscan_enterprise_router, prefix=settings.API_PREFIX
+    )
     application.include_router(mcp_security_router, prefix=settings.API_PREFIX)
 
     # -- Workflow routers ---------------------------------------------
@@ -216,6 +226,9 @@ def create_app() -> FastAPI:
 
     # -- Auth (dev login, /me, /logout) --------------------------------
     application.include_router(auth_router)
+
+    # -- TOTP (dedicated non-OIDC MFA fallback) -------------------------
+    application.include_router(totp_router)
 
     # -- SSO configuration (CRUD, test-connection, RBAC matrix) --------------
     application.include_router(sso_router)

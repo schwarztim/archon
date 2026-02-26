@@ -150,8 +150,8 @@ export function PolicyGallery({ onPolicyCreated }: Props) {
     : 0;
 
   return (
-    <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27]">
-      <div className="border-b border-[#2a2d37] px-4 py-3">
+    <div className="rounded-lg border border-surface-border bg-surface-raised">
+      <div className="border-b border-surface-border px-4 py-3">
         <h2 className="text-sm font-semibold text-white">Policy Template Gallery</h2>
       </div>
 
@@ -162,7 +162,7 @@ export function PolicyGallery({ onPolicyCreated }: Props) {
             className={`cursor-pointer rounded-lg border p-4 transition-colors ${
               selectedTemplate?.id === t.id
                 ? "border-purple-500/50 bg-purple-500/10"
-                : "border-[#2a2d37] bg-[#0f1117] hover:border-[#3a3d47]"
+                : "border-surface-border bg-surface-base hover:border-surface-border"
             }`}
             onClick={() => handleSelectTemplate(t)}
           >
@@ -187,7 +187,7 @@ export function PolicyGallery({ onPolicyCreated }: Props) {
       </div>
 
       {selectedTemplate && (
-        <div className="border-t border-[#2a2d37] p-4">
+        <div className="border-t border-surface-border p-4">
           <div className="mb-3 flex items-center gap-3">
             <Input
               placeholder="Policy name"

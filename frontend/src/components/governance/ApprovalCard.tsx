@@ -103,7 +103,7 @@ export function ApprovalCard({ approval, onDecisionMade }: Props) {
           <div className="mb-2 flex items-center gap-2">
             <MessageSquare size={14} className="text-gray-500" />
             <textarea
-              className="flex-1 rounded-md border border-[#2a2d37] bg-[#0f1117] px-3 py-2 text-sm text-white placeholder:text-gray-600"
+              className="flex-1 rounded-md border border-surface-border bg-surface-base px-3 py-2 text-sm text-white placeholder:text-gray-600"
               rows={2}
               placeholder="Add a comment..."
               value={comment}

@@ -143,7 +143,7 @@ function RunAgentModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="w-full max-w-lg rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-6 shadow-xl">
+      <div className="w-full max-w-lg rounded-lg border border-surface-border bg-surface-raised p-6 shadow-xl">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-white">Run Agent</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-white"><X size={18} /></button>
@@ -154,7 +154,7 @@ function RunAgentModal({
           <select
             value={selectedAgentId}
             onChange={(e) => setSelectedAgentId(e.target.value)}
-            className="w-full rounded-md border border-[#2a2d37] bg-[#0f1117] px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+            className="w-full rounded-md border border-surface-border bg-surface-base px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
           >
             {agents.map((a) => (
               <option key={a.id} value={a.id}>{a.name}</option>
@@ -168,7 +168,7 @@ function RunAgentModal({
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             rows={6}
-            className="border-[#2a2d37] bg-[#0f1117] font-mono text-sm text-gray-200"
+            className="border-surface-border bg-surface-base font-mono text-sm text-gray-200"
           />
         </div>
 
@@ -182,7 +182,7 @@ function RunAgentModal({
               step="0.1"
               value={temperature}
               onChange={(e) => setTemperature(e.target.value)}
-              className="w-full rounded-md border border-[#2a2d37] bg-[#0f1117] px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+              className="w-full rounded-md border border-surface-border bg-surface-base px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
             />
           </div>
           <div>
@@ -193,7 +193,7 @@ function RunAgentModal({
               max="128000"
               value={maxTokens}
               onChange={(e) => setMaxTokens(e.target.value)}
-              className="w-full rounded-md border border-[#2a2d37] bg-[#0f1117] px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+              className="w-full rounded-md border border-surface-border bg-surface-base px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
             />
           </div>
         </div>
@@ -401,7 +401,7 @@ export function ExecutionsPage() {
         <select
           value={filterStatus}
           onChange={(e) => setFilterStatus(e.target.value)}
-          className="rounded-md border border-[#2a2d37] bg-[#0f1117] px-3 py-1.5 text-sm text-gray-300 focus:outline-none focus:ring-1 focus:ring-purple-500"
+          className="rounded-md border border-surface-border bg-surface-base px-3 py-1.5 text-sm text-gray-300 focus:outline-none focus:ring-1 focus:ring-purple-500"
         >
           <option value="">All Statuses</option>
           <option value="queued">Queued</option>
@@ -414,7 +414,7 @@ export function ExecutionsPage() {
         <select
           value={filterAgentId}
           onChange={(e) => setFilterAgentId(e.target.value)}
-          className="rounded-md border border-[#2a2d37] bg-[#0f1117] px-3 py-1.5 text-sm text-gray-300 focus:outline-none focus:ring-1 focus:ring-purple-500"
+          className="rounded-md border border-surface-border bg-surface-base px-3 py-1.5 text-sm text-gray-300 focus:outline-none focus:ring-1 focus:ring-purple-500"
         >
           <option value="">All Agents</option>
           {agents.map((a) => (
@@ -426,14 +426,14 @@ export function ExecutionsPage() {
           value={filterDateFrom}
           onChange={(e) => setFilterDateFrom(e.target.value)}
           placeholder="From"
-          className="rounded-md border border-[#2a2d37] bg-[#0f1117] px-3 py-1.5 text-sm text-gray-300 focus:outline-none focus:ring-1 focus:ring-purple-500"
+          className="rounded-md border border-surface-border bg-surface-base px-3 py-1.5 text-sm text-gray-300 focus:outline-none focus:ring-1 focus:ring-purple-500"
         />
         <input
           type="date"
           value={filterDateTo}
           onChange={(e) => setFilterDateTo(e.target.value)}
           placeholder="To"
-          className="rounded-md border border-[#2a2d37] bg-[#0f1117] px-3 py-1.5 text-sm text-gray-300 focus:outline-none focus:ring-1 focus:ring-purple-500"
+          className="rounded-md border border-surface-border bg-surface-base px-3 py-1.5 text-sm text-gray-300 focus:outline-none focus:ring-1 focus:ring-purple-500"
         />
         {(filterStatus || filterAgentId || filterDateFrom || filterDateTo) && (
           <button
@@ -446,7 +446,7 @@ export function ExecutionsPage() {
       </div>
 
       {/* Table */}
-      <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27]">
+      <div className="rounded-lg border border-surface-border bg-surface-raised">
         <div className="overflow-x-auto">
           {executions.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12">
@@ -456,7 +456,7 @@ export function ExecutionsPage() {
           ) : (
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-[#2a2d37] text-left text-xs text-gray-500">
+                <tr className="border-b border-surface-border text-left text-xs text-gray-500">
                   <th className="w-8 px-4 py-2">
                     <input
                       type="checkbox"
@@ -479,7 +479,7 @@ export function ExecutionsPage() {
                   <>
                     <tr
                       key={e.id}
-                      className="border-b border-[#2a2d37] hover:bg-white/5 cursor-pointer"
+                      className="border-b border-surface-border hover:bg-white/5 cursor-pointer"
                       onClick={() => setExpandedId(expandedId === e.id ? null : e.id)}
                       onDoubleClick={() => navigate(`/executions/${e.id}`)}
                     >
@@ -500,7 +500,7 @@ export function ExecutionsPage() {
                       <td className="px-4 py-2 text-right text-gray-400">{new Date(e.created_at).toLocaleString()}</td>
                     </tr>
                     {expandedId === e.id && (
-                      <tr key={`${e.id}-detail`} className="border-b border-[#2a2d37] bg-[#0f1117]">
+                      <tr key={`${e.id}-detail`} className="border-b border-surface-border bg-surface-base">
                         <ExecutionDetail execution={e} agentName={agentMap[e.agent_id] ?? e.agent_id} />
                       </tr>
                     )}

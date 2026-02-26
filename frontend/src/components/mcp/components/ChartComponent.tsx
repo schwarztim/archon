@@ -58,7 +58,7 @@ export function ChartComponent({
   };
 
   return (
-    <div className="rounded-lg border border-[#2a2d37] bg-[#0f1117] p-4">
+    <div className="rounded-lg border border-surface-border bg-surface-base p-4">
       {title && (
         <h4 className="mb-3 text-sm font-semibold text-white">{title}</h4>
       )}

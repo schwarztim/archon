@@ -11,7 +11,7 @@ export function AppLayout() {
   const closeMobile = useCallback(() => setMobileOpen(false), []);
 
   return (
-    <div className="flex h-screen bg-[#0f1117] text-white dark:bg-[#0f1117]">
+    <div className="flex h-screen bg-surface-base text-white dark:bg-surface-base">
       {/* Sidebar */}
       <Sidebar
         collapsed={collapsed}

@@ -33,7 +33,7 @@ export function SlackForm({ config, onChange, onOAuthConnect }: SlackFormProps) 
           placeholder="#general, #alerts"
           value={config.channels ?? ""}
           onChange={(e) => set("channels", e.target.value)}
-          className="bg-gray-50 dark:bg-[#0f1117]"
+          className="bg-gray-50 dark:bg-surface-base"
         />
         <p className="mt-1 text-xs text-gray-500">Comma-separated list of channels</p>
       </div>

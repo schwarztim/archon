@@ -66,9 +66,9 @@ export function TemplateDetail({
       aria-modal="true"
       aria-label={`Template details: ${template.name}`}
     >
-      <div className="relative w-full max-w-lg rounded-xl border border-[#2a2d37] bg-[#12141e] shadow-2xl">
+      <div className="relative w-full max-w-lg rounded-xl border border-surface-border bg-surface-overlay shadow-2xl">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-[#2a2d37] px-6 py-4">
+        <div className="flex items-center justify-between border-b border-surface-border px-6 py-4">
           <div>
             <h2 className="text-lg font-semibold text-white">
               {template.name}
@@ -96,7 +96,7 @@ export function TemplateDetail({
           </p>
 
           {/* Graph Preview placeholder */}
-          <div className="rounded-lg border border-[#2a2d37] bg-[#0f1117] p-4">
+          <div className="rounded-lg border border-surface-border bg-surface-base p-4">
             <div className="mb-2 flex items-center gap-2 text-xs font-medium text-gray-400">
               <GitBranch size={12} /> Graph Preview
             </div>
@@ -132,7 +132,7 @@ export function TemplateDetail({
           {(model || temperature !== undefined) && (
             <div className="grid grid-cols-2 gap-3 text-sm">
               {model && (
-                <div className="rounded-lg border border-[#2a2d37] bg-[#0f1117] px-3 py-2">
+                <div className="rounded-lg border border-surface-border bg-surface-base px-3 py-2">
                   <span className="text-[10px] uppercase text-gray-500">
                     Model
                   </span>
@@ -140,7 +140,7 @@ export function TemplateDetail({
                 </div>
               )}
               {temperature !== undefined && (
-                <div className="rounded-lg border border-[#2a2d37] bg-[#0f1117] px-3 py-2">
+                <div className="rounded-lg border border-surface-border bg-surface-base px-3 py-2">
                   <span className="text-[10px] uppercase text-gray-500">
                     Temperature
                   </span>
@@ -186,7 +186,7 @@ export function TemplateDetail({
         </div>
 
         {/* Footer */}
-        <div className="border-t border-[#2a2d37] px-6 py-4">
+        <div className="border-t border-surface-border px-6 py-4">
           <Button
             className="w-full bg-purple-600 hover:bg-purple-700"
             onClick={onUse}

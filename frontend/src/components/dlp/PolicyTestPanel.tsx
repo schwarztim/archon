@@ -117,8 +117,8 @@ export function PolicyTestPanel({ policies }: PolicyTestPanelProps) {
   }
 
   return (
-    <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27]">
-      <div className="border-b border-[#2a2d37] px-4 py-3">
+    <div className="rounded-lg border border-surface-border bg-surface-raised">
+      <div className="border-b border-surface-border px-4 py-3">
         <div className="flex items-center gap-2">
           <Search size={16} className="text-purple-400" />
           <h2 className="text-sm font-semibold text-white">Policy Test Scanner</h2>
@@ -137,7 +137,7 @@ export function PolicyTestPanel({ policies }: PolicyTestPanelProps) {
               key={label}
               type="button"
               onClick={() => insertSample(i)}
-              className="rounded border border-[#2a2d37] bg-white/5 px-2 py-0.5 text-[10px] text-gray-400 hover:border-purple-500/50 hover:text-white"
+              className="rounded border border-surface-border bg-white/5 px-2 py-0.5 text-[10px] text-gray-400 hover:border-purple-500/50 hover:text-white"
             >
               {label}
             </button>
@@ -146,7 +146,7 @@ export function PolicyTestPanel({ policies }: PolicyTestPanelProps) {
 
         {/* Input */}
         <textarea
-          className="mb-3 w-full rounded-md border border-[#2a2d37] bg-[#0f1117] p-3 text-sm text-gray-200 placeholder-gray-600 focus:border-purple-500 focus:outline-none font-mono"
+          className="mb-3 w-full rounded-md border border-surface-border bg-surface-base p-3 text-sm text-gray-200 placeholder-gray-600 focus:border-purple-500 focus:outline-none font-mono"
           rows={5}
           placeholder="Paste text to scan for sensitive data..."
           value={content}
@@ -157,7 +157,7 @@ export function PolicyTestPanel({ policies }: PolicyTestPanelProps) {
         <div className="flex items-center gap-2">
           {policies.length > 0 && (
             <select
-              className="h-8 rounded-md border border-[#2a2d37] bg-[#0f1117] px-2 text-xs text-white"
+              className="h-8 rounded-md border border-surface-border bg-surface-base px-2 text-xs text-white"
               value={selectedPolicy}
               onChange={(e) => setSelectedPolicy(e.target.value)}
             >
@@ -181,7 +181,7 @@ export function PolicyTestPanel({ policies }: PolicyTestPanelProps) {
         {result && (
           <div className="mt-4 space-y-4">
             {/* Summary bar */}
-            <div className="flex items-center gap-4 rounded-lg border border-[#2a2d37] bg-[#0f1117] p-3">
+            <div className="flex items-center gap-4 rounded-lg border border-surface-border bg-surface-base p-3">
               {result.total_findings > 0 ? (
                 <AlertTriangle size={18} className="shrink-0 text-orange-400" />
               ) : (
@@ -226,7 +226,7 @@ export function PolicyTestPanel({ policies }: PolicyTestPanelProps) {
                     {showRedacted ? "Show Original" : "Show Redacted"}
                   </button>
                 </div>
-                <div className="rounded-lg border border-[#2a2d37] bg-[#0f1117] p-3 font-mono text-sm leading-relaxed text-gray-300 whitespace-pre-wrap">
+                <div className="rounded-lg border border-surface-border bg-surface-base p-3 font-mono text-sm leading-relaxed text-gray-300 whitespace-pre-wrap">
                   {showRedacted ? result.redacted_text : renderHighlighted()}
                 </div>
               </div>
@@ -240,7 +240,7 @@ export function PolicyTestPanel({ policies }: PolicyTestPanelProps) {
                   {result.detections.map((det, i) => (
                     <div
                       key={i}
-                      className="flex items-center gap-3 rounded border border-[#2a2d37] bg-white/5 px-3 py-2 text-sm"
+                      className="flex items-center gap-3 rounded border border-surface-border bg-white/5 px-3 py-2 text-sm"
                     >
                       <Shield size={14} className="shrink-0 text-purple-400" />
                       <span className="rounded bg-purple-500/20 px-1.5 py-0.5 text-xs font-medium text-purple-300">

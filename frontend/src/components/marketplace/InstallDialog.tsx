@@ -29,7 +29,7 @@ export function InstallDialog({
       aria-modal="true"
       aria-label="Install confirmation"
     >
-      <div className="w-full max-w-sm rounded-xl border border-[#2a2d37] bg-[#12141e] p-6 shadow-2xl">
+      <div className="w-full max-w-sm rounded-xl border border-surface-border bg-surface-overlay p-6 shadow-2xl">
         <h3 className="mb-2 text-lg font-semibold text-white">
           Install Agent
         </h3>

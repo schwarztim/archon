@@ -291,7 +291,7 @@ async def list_risk_classifications(
 # ── Posture Report ──────────────────────────────────────────────────
 
 
-@router.get("/posture")
+@router.get("/posture/summary")
 async def get_posture_report(
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:

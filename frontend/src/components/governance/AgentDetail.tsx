@@ -55,7 +55,7 @@ export function AgentDetail({ agentId, onBack }: Props) {
 
   if (!detail) {
     return (
-      <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-6">
+      <div className="rounded-lg border border-surface-border bg-surface-raised p-6">
         <Button size="sm" variant="secondary" onClick={onBack}>
           <ArrowLeft size={14} className="mr-1" /> Back
         </Button>
@@ -69,7 +69,7 @@ export function AgentDetail({ agentId, onBack }: Props) {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-4">
+      <div className="rounded-lg border border-surface-border bg-surface-raised p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Button size="sm" variant="secondary" onClick={onBack}>
@@ -95,7 +95,7 @@ export function AgentDetail({ agentId, onBack }: Props) {
           { label: "Total Scans", value: String(total_scans), color: "text-blue-400" },
           { label: "Passed", value: `${passed_scans}/${total_scans}`, color: "text-green-400" },
         ].map((s) => (
-          <div key={s.label} className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-3">
+          <div key={s.label} className="rounded-lg border border-surface-border bg-surface-raised p-3">
             <p className="text-xs text-gray-500">{s.label}</p>
             <p className={`mt-1 text-xl font-bold ${s.color}`}>{s.value}</p>
           </div>
@@ -103,8 +103,8 @@ export function AgentDetail({ agentId, onBack }: Props) {
       </div>
 
       {/* Compliance History Timeline */}
-      <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27]">
-        <div className="border-b border-[#2a2d37] px-4 py-3">
+      <div className="rounded-lg border border-surface-border bg-surface-raised">
+        <div className="border-b border-surface-border px-4 py-3">
           <h3 className="flex items-center gap-2 text-sm font-semibold text-white">
             <ShieldCheck size={14} /> Compliance History
           </h3>

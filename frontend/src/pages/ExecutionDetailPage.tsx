@@ -269,25 +269,25 @@ export function ExecutionDetailPage() {
 
       {/* Metrics summary */}
       <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-4">
+        <div className="rounded-lg border border-surface-border bg-surface-raised p-4">
           <div className="flex items-center gap-2 text-xs text-gray-500">
             <Clock size={12} /> Duration
           </div>
           <div className="mt-1 text-lg font-bold text-white">{formatDuration(getDuration(execution.metrics))}</div>
         </div>
-        <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-4">
+        <div className="rounded-lg border border-surface-border bg-surface-raised p-4">
           <div className="flex items-center gap-2 text-xs text-gray-500">
             <Zap size={12} /> Tokens
           </div>
           <div className="mt-1 text-lg font-bold text-white">{execution.metrics?.total_tokens ?? "—"}</div>
         </div>
-        <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-4">
+        <div className="rounded-lg border border-surface-border bg-surface-raised p-4">
           <div className="flex items-center gap-2 text-xs text-gray-500">
             <DollarSign size={12} /> Cost
           </div>
           <div className="mt-1 text-lg font-bold text-white">{formatCost(getCost(execution.metrics))}</div>
         </div>
-        <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-4">
+        <div className="rounded-lg border border-surface-border bg-surface-raised p-4">
           <div className="flex items-center gap-2 text-xs text-gray-500">
             Steps
           </div>
@@ -312,26 +312,26 @@ export function ExecutionDetailPage() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="bg-[#1a1d27] border border-[#2a2d37]">
+        <TabsList className="bg-surface-raised border border-surface-border">
           <TabsTrigger value="timeline">Timeline</TabsTrigger>
           <TabsTrigger value="graph">Graph View</TabsTrigger>
           <TabsTrigger value="raw">Raw Data</TabsTrigger>
         </TabsList>
 
         <TabsContent value="timeline">
-          <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-6">
+          <div className="rounded-lg border border-surface-border bg-surface-raised p-6">
             <StepTimeline steps={steps} />
           </div>
         </TabsContent>
 
         <TabsContent value="graph">
-          <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] overflow-hidden">
+          <div className="rounded-lg border border-surface-border bg-surface-raised overflow-hidden">
             <ExecutionGraph steps={steps} />
           </div>
         </TabsContent>
 
         <TabsContent value="raw">
-          <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-6">
+          <div className="rounded-lg border border-surface-border bg-surface-raised p-6">
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-sm font-medium text-gray-400">Full Execution Data</h3>
               <Button variant="ghost" size="sm" onClick={handleCopyJson} className="text-gray-400">
@@ -348,7 +348,7 @@ export function ExecutionDetailPage() {
 
       {/* WebSocket events log */}
       {wsEvents.length > 0 && (
-        <div className="mt-6 rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-4">
+        <div className="mt-6 rounded-lg border border-surface-border bg-surface-raised p-4">
           <h3 className="mb-2 text-xs font-semibold uppercase text-gray-500">Real-time Events</h3>
           <div className="max-h-40 overflow-auto space-y-1">
             {wsEvents.map((ev, i) => (

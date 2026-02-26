@@ -19,7 +19,7 @@ function strokeColor(score: number): string {
 
 export function PostureGauge({ posture, serviceCount }: PostureGaugeProps) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-6">
+    <div className="flex flex-col items-center justify-center rounded-lg border border-surface-border bg-surface-raised p-6">
       <p className="mb-1 text-xs text-gray-500 uppercase tracking-wider">Security Posture</p>
       {posture ? (
         <>

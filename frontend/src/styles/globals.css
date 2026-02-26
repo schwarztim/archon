@@ -22,6 +22,12 @@
     --input: 214.3 31.8% 91.4%;
     --ring: 262.1 83.3% 57.8%;
     --radius: 0.5rem;
+
+    /* App surface tokens (light) */
+    --surface-base: 220 20% 97%;
+    --surface-raised: 0 0% 100%;
+    --surface-overlay: 220 15% 95%;
+    --surface-border: 214.3 31.8% 88%;
   }
 
   .dark {
@@ -42,6 +48,16 @@
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 263.4 70% 50.4%;
+
+    /* App surface tokens (dark) — maps to hardcoded hex values */
+    /* #0f1117 → base canvas */
+    --surface-base: 228 13% 8%;
+    /* #1a1d27 → raised cards/panels */
+    --surface-raised: 229 20% 12%;
+    /* #12141e → deeper inset sections */
+    --surface-overlay: 230 22% 9%;
+    /* #2a2d37 → border colour */
+    --surface-border: 228 13% 19%;
   }
 }
 

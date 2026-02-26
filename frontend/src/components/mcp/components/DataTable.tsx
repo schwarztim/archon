@@ -54,10 +54,10 @@ export function DataTable({
   }
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-[#2a2d37]">
+    <div className="overflow-x-auto rounded-lg border border-surface-border">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-[#2a2d37] bg-[#0f1117]">
+          <tr className="border-b border-surface-border bg-surface-base">
             {columns.map((col) => (
               <th
                 key={col.key}
@@ -87,7 +87,7 @@ export function DataTable({
             <tr
               key={i}
               className={cn(
-                "border-b border-[#2a2d37] transition-colors",
+                "border-b border-surface-border transition-colors",
                 onRowClick && "cursor-pointer hover:bg-purple-500/5",
                 !onRowClick && "hover:bg-white/5",
               )}
@@ -114,7 +114,7 @@ export function DataTable({
       </table>
 
       {totalPages > 1 && (
-        <div className="flex items-center justify-between border-t border-[#2a2d37] bg-[#0f1117] px-4 py-2">
+        <div className="flex items-center justify-between border-t border-surface-border bg-surface-base px-4 py-2">
           <span className="text-xs text-gray-500">
             {sorted.length} row{sorted.length !== 1 && "s"} · Page {page + 1} of{" "}
             {totalPages}

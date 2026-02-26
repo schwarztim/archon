@@ -61,15 +61,15 @@ export function PolicyDetail({ refreshKey }: Props) {
 
   if (loading) {
     return (
-      <div className="flex h-24 items-center justify-center rounded-lg border border-[#2a2d37] bg-[#1a1d27]">
+      <div className="flex h-24 items-center justify-center rounded-lg border border-surface-border bg-surface-raised">
         <Loader2 size={20} className="animate-spin text-gray-500" />
       </div>
     );
   }
 
   return (
-    <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27]">
-      <div className="border-b border-[#2a2d37] px-4 py-3">
+    <div className="rounded-lg border border-surface-border bg-surface-raised">
+      <div className="border-b border-surface-border px-4 py-3">
         <h2 className="text-sm font-semibold text-white">Compliance Policies ({policies.length})</h2>
       </div>
 
@@ -117,7 +117,7 @@ export function PolicyDetail({ refreshKey }: Props) {
               </div>
 
               {expandedId === p.id && (
-                <div className="border-t border-[#2a2d37] bg-[#0f1117] px-4 py-3">
+                <div className="border-t border-surface-border bg-surface-base px-4 py-3">
                   <div className="text-xs text-gray-400">
                     <p className="mb-1"><strong>Type:</strong> {p.type}</p>
                     <p className="mb-1"><strong>Enforcement:</strong> {p.enforcement}</p>

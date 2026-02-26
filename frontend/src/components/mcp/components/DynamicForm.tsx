@@ -73,7 +73,7 @@ export function DynamicForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className="space-y-4 rounded-lg border border-[#2a2d37] bg-[#0f1117] p-4"
+      className="space-y-4 rounded-lg border border-surface-border bg-surface-base p-4"
     >
       {title && (
         <h4 className="mb-2 text-sm font-semibold text-white">{title}</h4>
@@ -88,7 +88,7 @@ export function DynamicForm({
 
           {f.type === "textarea" ? (
             <textarea
-              className="w-full rounded-md border border-[#2a2d37] bg-[#1a1d27] px-3 py-1.5 text-sm text-gray-200 placeholder-gray-600 focus:border-purple-500 focus:outline-none"
+              className="w-full rounded-md border border-surface-border bg-surface-raised px-3 py-1.5 text-sm text-gray-200 placeholder-gray-600 focus:border-purple-500 focus:outline-none"
               placeholder={f.placeholder}
               rows={3}
               value={String(values[f.name] ?? "")}
@@ -96,7 +96,7 @@ export function DynamicForm({
             />
           ) : f.type === "select" ? (
             <select
-              className="w-full rounded-md border border-[#2a2d37] bg-[#1a1d27] px-3 py-1.5 text-sm text-gray-200 focus:border-purple-500 focus:outline-none"
+              className="w-full rounded-md border border-surface-border bg-surface-raised px-3 py-1.5 text-sm text-gray-200 focus:border-purple-500 focus:outline-none"
               value={String(values[f.name] ?? "")}
               onChange={(e) => set(f.name, e.target.value)}
             >
@@ -110,14 +110,14 @@ export function DynamicForm({
           ) : f.type === "checkbox" ? (
             <input
               type="checkbox"
-              className="h-4 w-4 rounded border-gray-600 bg-[#1a1d27] text-purple-500 focus:ring-purple-500"
+              className="h-4 w-4 rounded border-gray-600 bg-surface-raised text-purple-500 focus:ring-purple-500"
               checked={Boolean(values[f.name])}
               onChange={(e) => set(f.name, e.target.checked)}
             />
           ) : (
             <input
               type={f.type}
-              className="w-full rounded-md border border-[#2a2d37] bg-[#1a1d27] px-3 py-1.5 text-sm text-gray-200 placeholder-gray-600 focus:border-purple-500 focus:outline-none"
+              className="w-full rounded-md border border-surface-border bg-surface-raised px-3 py-1.5 text-sm text-gray-200 placeholder-gray-600 focus:border-purple-500 focus:outline-none"
               placeholder={f.placeholder}
               value={String(values[f.name] ?? "")}
               onChange={(e) =>

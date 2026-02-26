@@ -72,7 +72,7 @@ function ToolIcon({ icon, size = 18 }: { icon: string; size?: number }) {
 }
 
 const inputClass =
-  "w-full rounded-lg border border-[#2a2d37] bg-[#1a1d27] px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none";
+  "w-full rounded-lg border border-surface-border bg-surface-raised px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none";
 const labelClass = "mb-1 block text-xs font-medium text-gray-400";
 
 // ─── Component ───────────────────────────────────────────────────────
@@ -151,17 +151,17 @@ export function ToolsStep({ data, onChange }: ToolsStepProps) {
               className={`group relative rounded-lg border p-3 transition-colors ${
                 isSelected
                   ? "border-purple-500 bg-purple-500/10"
-                  : "border-[#2a2d37] bg-[#1a1d27] hover:border-gray-600"
+                  : "border-surface-border bg-surface-raised hover:border-gray-600"
               }`}
             >
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-2">
-                  <div className={`rounded-lg p-1.5 ${isSelected ? "bg-purple-500/20 text-purple-400" : "bg-[#12141e] text-gray-400"}`}>
+                  <div className={`rounded-lg p-1.5 ${isSelected ? "bg-purple-500/20 text-purple-400" : "bg-surface-overlay text-gray-400"}`}>
                     <ToolIcon icon={tool.icon} />
                   </div>
                   <div>
                     <span className="text-sm font-medium text-white">{tool.name}</span>
-                    <span className="ml-2 rounded bg-[#12141e] px-1.5 py-0.5 text-[10px] text-gray-500">
+                    <span className="ml-2 rounded bg-surface-overlay px-1.5 py-0.5 text-[10px] text-gray-500">
                       {tool.category}
                     </span>
                   </div>
@@ -198,7 +198,7 @@ export function ToolsStep({ data, onChange }: ToolsStepProps) {
 
               {/* Inline Parameter Config */}
               {configuringTool === tool.id && toolDef && toolConfig && (
-                <div className="mt-3 space-y-2 border-t border-[#2a2d37] pt-3">
+                <div className="mt-3 space-y-2 border-t border-surface-border pt-3">
                   {toolDef.params.map((p) => (
                     <div key={p.name}>
                       <label className={labelClass}>{p.label}</label>

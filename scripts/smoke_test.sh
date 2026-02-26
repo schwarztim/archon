@@ -47,7 +47,7 @@ endpoints = [
     ('GET', '/api/v1/marketplace/listings', 'exists'),
 
     # DLP (double-prefixed in actual app)
-    ('GET', '/api/v1/api/v1/dlp/policies', 'exists'),
+    ('GET', '/api/v1/dlp/policies', 'exists'),
 
     # Settings, Admin
     ('GET', '/api/v1/settings', 'exists'),

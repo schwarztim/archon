@@ -85,7 +85,7 @@ export function GuardrailsPage() {
         )}
 
         {result && (
-          <div className="mt-4 rounded-md border border-[#2a2d37] bg-[#0f1117] p-4">
+          <div className="mt-4 rounded-md border border-surface-border bg-surface-base p-4">
             <h3 className="mb-2 text-sm font-semibold text-white">Result</h3>
             <pre className="overflow-auto text-xs text-gray-300">
               {JSON.stringify(result, null, 2)}
@@ -95,7 +95,7 @@ export function GuardrailsPage() {
       </div>
 
       {/* Guardrail Policies List */}
-      <div className="mb-8 rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-5">
+      <div className="mb-8 rounded-lg border border-surface-border bg-surface-raised p-5">
         <h2 className="mb-3 text-sm font-semibold text-white">Active Guardrail Policies</h2>
         {policiesLoading ? (
           <div className="flex items-center gap-2 text-sm text-gray-400">
@@ -112,7 +112,7 @@ export function GuardrailsPage() {
             {policies.map((policy) => (
               <div
                 key={policy.id}
-                className="flex items-center justify-between rounded-md border border-[#2a2d37] bg-[#0f1117] px-4 py-3"
+                className="flex items-center justify-between rounded-md border border-surface-border bg-surface-base px-4 py-3"
               >
                 <div>
                   <span className="text-sm font-medium text-white">{policy.name}</span>
@@ -149,7 +149,7 @@ export function GuardrailsPage() {
       </div>
 
       {/* DLP Link */}
-      <div className="rounded-lg border border-[#2a2d37] bg-[#1a1d27] p-8 text-center">
+      <div className="rounded-lg border border-surface-border bg-surface-raised p-8 text-center">
         <ShieldCheck size={36} className="mx-auto mb-3 text-purple-400" />
         <h2 className="mb-2 text-sm font-semibold text-white">Manage Guardrail Rules in DLP</h2>
         <p className="mb-4 text-xs text-gray-400">

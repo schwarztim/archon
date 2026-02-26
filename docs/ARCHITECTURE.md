@@ -217,9 +217,38 @@ Supported formats: PDF, DOCX, PPTX, XLSX, HTML, Markdown, Plain Text, Images (OC
 | **Identity** | Active Directory, Okta, Azure AD |
 | **Custom** | REST API, GraphQL, gRPC, WebSocket, MCP Protocol |
 
+## 3.8 MCP Host Gateway
+
+**Tech**: FastAPI + Python 3.12 + Plugin Registry
+
+The MCP (Model Context Protocol) Host Gateway is a lightweight, independently deployable service that bridges external MCP-compatible tools and the Archon platform. It exposes a plugin-based architecture where each plugin maps to a set of tool definitions callable by AI agents.
+
+**Location:** `gateway/` (standalone FastAPI service, port 8080)
+
+| Component | Description |
+|-----------|-------------|
+| **Plugin Registry** | Dynamic loader that discovers YAML-defined plugins from `gateway/plugins/` |
+| **Plugin Loader** | Validates plugin schemas, resolves tool configurations at startup |
+| **Plugins API** | `GET /api/v1/plugins` — list all loaded plugins and their tool manifests |
+| **Health Probe** | `GET /health` — liveness check, reports loaded plugin count |
+| **Docs** | `GET /docs` — Swagger UI, `GET /redoc` — ReDoc |
+
+**Plugin Schema** (`gateway/plugins/_example.yaml`):
+```yaml
+name: my-tool
+version: "1.0"
+description: "Example MCP tool plugin"
+tools:
+  - name: do_something
+    description: "Performs an action"
+    parameters: {}
+```
+
+**Deployment:** The gateway runs as a separate container (`archon-gateway`) and is built/pushed independently in the CD pipeline. It communicates with the Archon backend via internal service networking.
+
 ---
 
-## 4. Data Flow Diagrams
+
 
 ### 4.1 Agent Execution Flow
 

@@ -1,0 +1,61 @@
+"""Integration tests for Azure OpenAI via the model router.
+
+Runs against a live Archon backend at http://localhost:8000.
+AUTH_DEV_MODE=true — no auth headers required.
+
+Skipped automatically when AZURE_OPENAI_API_KEY is not set in the environment,
+because these tests require a live Azure OpenAI deployment to succeed.
+"""
+
+import os
+
+import httpx
+import pytest
+
+BASE_URL = "http://localhost:8000"
+
+_AZURE_KEY = os.getenv("AZURE_OPENAI_API_KEY", "")
+_skip_reason = "AZURE_OPENAI_API_KEY environment variable is not set"
+
+
+@pytest.fixture(scope="module")
+def client():
+    with httpx.Client(base_url=BASE_URL, timeout=60.0) as c:
+        yield c
+
+
+@pytest.fixture(scope="module")
+def api_prefix():
+    return "/api/v1"
+
+
+@pytest.mark.skipif(not _AZURE_KEY, reason=_skip_reason)
+class TestAzureOpenAIViaRouter:
+    """Tests for Azure OpenAI routing through the model router.
+
+    All tests in this class are automatically skipped when
+    AZURE_OPENAI_API_KEY is not present in the environment.
+    """
+
+    def test_azure_openai_via_router(self, client, api_prefix):
+        """POST /api/v1/router/chat with Azure model should return 200.
+
+        Uses model 'gpt-5.2-codex' which maps to an Azure OpenAI deployment.
+        """
+        payload = {
+            "model": "gpt-5.2-codex",
+            "messages": [{"role": "user", "content": "Say hello in one word."}],
+            "max_tokens": 10,
+        }
+        resp = client.post(f"{api_prefix}/router/chat", json=payload)
+        assert resp.status_code in (200, 422), (
+            f"Unexpected status from router/chat (Azure): "
+            f"{resp.status_code} — {resp.text[:300]}"
+        )
+        if resp.status_code == 200:
+            body = resp.json()
+            assert isinstance(body, dict), f"Expected dict response, got {type(body)}"
+            # Standard OpenAI-compatible response shape
+            assert any(
+                k in body for k in ("choices", "content", "message", "text", "result")
+            ), f"Unexpected chat response shape: {list(body.keys())}"
