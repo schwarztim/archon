@@ -79,7 +79,7 @@ async def authenticate_websocket(
         The decoded JWT payload dict on success, or ``None`` if the token
         is invalid or expired.
     """
-    from app.middleware.auth import _extract_roles, _fetch_jwks, _get_signing_key
+    from app.middleware.auth import _fetch_jwks, _get_signing_key
 
     try:
         from jose import JWTError, jwt as jose_jwt

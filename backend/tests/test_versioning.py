@@ -6,7 +6,6 @@ Covers version comparison (diff), rollback, and deployment promotion.
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID, uuid4
 

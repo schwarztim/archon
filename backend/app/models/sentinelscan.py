@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -159,7 +159,7 @@ class SentinelScanHistory(SQLModel, table=True):
 
 # ── Pydantic API schema models (non-table) ──────────────────────────
 
-from pydantic import BaseModel, Field as PField
+from pydantic import BaseModel, Field as PField  # noqa: E402
 
 
 class DiscoveryConfig(BaseModel):

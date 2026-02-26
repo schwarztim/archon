@@ -19,7 +19,6 @@ from app.models.lifecycle import (
     DeploymentStrategy,
     DeploymentStrategyType,
 )
-from app.secrets.manager import VaultSecretsManager, get_secrets_manager
 from app.services.lifecycle import LifecycleManager
 from app.services.lifecycle_service import LifecycleService
 

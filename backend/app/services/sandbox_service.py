@@ -13,7 +13,6 @@ import logging
 import textwrap
 import time
 from datetime import datetime, timedelta, timezone
-from enum import Enum
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -27,7 +26,6 @@ from app.models.sandbox import (
     BenchmarkResult,
     BenchmarkSet,
     ExecutionStatus,
-    ResourceLimits,
     Sandbox,
     SandboxConfig,
     SandboxExecution,

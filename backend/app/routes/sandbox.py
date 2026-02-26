@@ -16,13 +16,11 @@ from app.secrets.manager import get_secrets_manager
 from app.services.sandbox_service import (
     SandboxExecuteRequest,
     SandboxResourceLimits,
-    SandboxService,
     sandbox_service,
 )
 from starlette.responses import Response
 from app.models.sandbox import (
     ArenaConfig,
-    ArenaTestCase,
     SandboxConfig,
 )
 

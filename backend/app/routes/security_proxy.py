@@ -8,7 +8,6 @@ from typing import Any
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
 
 from app.interfaces.models.enterprise import AuthenticatedUser
 from app.middleware.auth import require_auth

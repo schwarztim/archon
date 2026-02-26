@@ -9,12 +9,10 @@ from typing import Any
 
 from app.models.scim import (
     SCIMEmail,
-    SCIMError,
     SCIMGroup,
     SCIMGroupMember,
     SCIMListResponse,
     SCIMMeta,
-    SCIMName,
     SCIMPatchOperation,
     SCIMUser,
 )
@@ -470,7 +468,6 @@ class SCIMService:
 
     def _record_to_scim_user(self, record: Any) -> SCIMUser:
         """Convert a SCIMUserRecord to a SCIMUser Pydantic model."""
-        from app.models.scim_db import SCIMUserRecord
 
         return SCIMUser(
             id=record.scim_id,
@@ -490,7 +487,6 @@ class SCIMService:
 
     def _record_to_scim_group(self, record: Any) -> SCIMGroup:
         """Convert a SCIMGroupRecord to a SCIMGroup Pydantic model."""
-        from app.models.scim_db import SCIMGroupRecord
 
         return SCIMGroup(
             id=record.scim_id,

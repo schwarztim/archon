@@ -18,18 +18,12 @@ from sqlmodel import select
 
 from app.database import get_session
 from app.interfaces.models.enterprise import AuthenticatedUser
-from app.middleware.auth import get_current_user
-from app.middleware.rbac import check_permission, require_permission
+from app.middleware.rbac import require_permission
 from app.models.audit import EnterpriseAuditEvent
 from app.models.dlp import (
     DLPPolicy,
-    DLPScanResultSchema,
     GuardrailConfig,
-    GuardrailResult,
-    PolicyEvaluation,
-    ScanDirection,
 )
-from app.secrets.manager import VaultSecretsManager, get_secrets_manager
 from app.services.dlp import DLPEngine
 from app.services.dlp_service import DLPService
 

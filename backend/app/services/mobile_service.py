@@ -250,7 +250,7 @@ class MobileService:
             user_id: Target user.
             notification: Notification payload.
         """
-        push_creds = await self._get_push_credentials(tenant_id)
+        await self._get_push_credentials(tenant_id)
 
         await self._audit_log(
             tenant_id,

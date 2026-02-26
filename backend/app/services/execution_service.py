@@ -6,7 +6,6 @@ injection, cost tracking, and execution lifecycle management.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import random
 from datetime import datetime

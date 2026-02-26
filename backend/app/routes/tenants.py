@@ -10,9 +10,9 @@ from uuid import UUID, uuid4
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field as PField
 
-from app.interfaces.models.enterprise import AuthenticatedUser, IdPConfig
+from app.interfaces.models.enterprise import AuthenticatedUser
 from app.middleware.auth import require_auth
-from app.middleware.rbac import check_permission, require_permission
+from app.middleware.rbac import require_permission
 from app.models.audit import EnterpriseAuditEvent
 
 logger = logging.getLogger(__name__)

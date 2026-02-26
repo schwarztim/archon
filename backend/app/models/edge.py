@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -168,8 +168,8 @@ class FleetConfig(SQLModel, table=True):
 
 # ── Pydantic API schemas (non-table) ────────────────────────────────
 
-from pydantic import BaseModel as PydanticBase
-from pydantic import Field as PField
+from pydantic import BaseModel as PydanticBase  # noqa: E402
+from pydantic import Field as PField  # noqa: E402
 
 
 class DeviceRegistration(PydanticBase):

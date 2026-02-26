@@ -8,7 +8,6 @@ full audit logging — all scoped to tenant.
 from __future__ import annotations
 
 import base64
-import hashlib
 import logging
 import time
 import uuid
@@ -18,7 +17,6 @@ from xml.etree import ElementTree as ET
 
 from app.interfaces.models.enterprise import AuthenticatedUser
 from app.models.security_proxy import (
-    AuthMethod,
     ContentClassification,
     DLPFinding,
     ProxyMetrics,
@@ -116,7 +114,7 @@ class SecurityProxyService:
         upstream = await self._resolve_upstream(tenant_id, proxy_request.url)
 
         # 3. Inject credentials from Vault
-        injected_headers = await self.inject_credentials(
+        await self.inject_credentials(
             tenant_id, upstream.provider_type.value, proxy_request,
         )
 

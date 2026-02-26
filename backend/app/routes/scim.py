@@ -3,19 +3,16 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
 from typing import Any
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
 
 from app.models.audit import EnterpriseAuditEvent
 from app.models.scim import (
     SCIMError,
     SCIMGroup,
-    SCIMListResponse,
     SCIMPatchRequest,
     SCIMUser,
 )

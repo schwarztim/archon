@@ -17,10 +17,8 @@ from app.models.audit import EnterpriseAuditEvent
 from app.models.mobile import (
     BiometricProof,
     DeviceRegistration,
-    MobileAuthResult,
     OfflineAction,
     PushNotification,
-    SyncResult,
 )
 from app.secrets.manager import VaultSecretsManager, get_secrets_manager
 from app.services.mobile_service import MobileService

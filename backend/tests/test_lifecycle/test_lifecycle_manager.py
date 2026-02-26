@@ -19,7 +19,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from app.models.lifecycle import DeploymentRecord, HealthCheck, LifecycleEvent
+from app.models.lifecycle import DeploymentRecord, HealthCheck
 from app.services.lifecycle import LifecycleManager
 
 # ── Fixed UUIDs ─────────────────────────────────────────────────────

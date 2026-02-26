@@ -847,13 +847,12 @@ class TestRecordUsage:
         """Recording usage increments the matching quota counter."""
         session = _mock_session()
         q = _quota(used_executions=10)
-        record = _usage_record()
         session.refresh = AsyncMock()
 
         with patch.object(
             TenantManager, "get_quota", new_callable=AsyncMock, return_value=q,
         ):
-            result = await TenantManager.record_usage(
+            await TenantManager.record_usage(
                 session,
                 tenant_id=TENANT_ID_A,
                 resource_type="execution",
@@ -1064,7 +1063,7 @@ class TestCreateBillingRecord:
         session = _mock_session()
         session.refresh = AsyncMock()
 
-        result = await TenantManager.create_billing_record(
+        await TenantManager.create_billing_record(
             session,
             tenant_id=TENANT_ID_A,
             record_type="invoice",

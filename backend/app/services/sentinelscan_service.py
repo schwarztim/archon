@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import logging
 from datetime import datetime, timezone
 from typing import Any
@@ -432,8 +431,6 @@ class SentinelScanService:
         Returns:
             List of CredentialExposure findings.
         """
-        now = datetime.now(tz=timezone.utc)
-
         # In production, integrates with repo scanning tools (e.g., GitHub secret scanning)
         # and scans configured repositories filtered by tenant
         logger.info(
@@ -630,9 +627,6 @@ class SentinelScanService:
         scan_id = str(uuid4())
 
         findings: list[dict[str, Any]] = []
-        service_types = ["LLM", "Embedding", "Image", "Voice", "Code"]
-        statuses = ["Approved", "Unapproved", "Blocked"]
-        risk_levels = ["critical", "high", "medium", "low"]
         data_exposures = ["PII detected", "Confidential data", "Internal only", "Public", "None detected"]
 
         # Generate realistic sample findings from known services

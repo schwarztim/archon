@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import logging
-from datetime import datetime, timezone
 from typing import Any
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -404,10 +403,10 @@ class MarketplaceService:
         listings_result = await session.execute(listings_stmt)
         listings = list(listings_result.scalars().all())
 
-        total_installs = sum(l.install_count for l in listings)
-        total_ratings = sum(l.review_count for l in listings)
+        total_installs = sum(lst.install_count for lst in listings)
+        total_ratings = sum(lst.review_count for lst in listings)
         avg_rating = (
-            sum(l.avg_rating * l.review_count for l in listings) / total_ratings
+            sum(lst.avg_rating * lst.review_count for lst in listings) / total_ratings
             if total_ratings
             else 0.0
         )
