@@ -302,13 +302,18 @@ async def _send_slack_notification(webhook_url: str, message: str) -> None:
 
 
 async def _send_teams_notification(webhook_url: str, message: str) -> None:
-    """POST a MessageCard to a Microsoft Teams Incoming Webhook URL."""
+    """POST a MessageCard to a Microsoft Teams Incoming Webhook URL.
+
+    Uses the Office 365 Connector MessageCard format with Archon branding.
+    See: https://docs.microsoft.com/en-us/outlook/actionable-messages/message-card-reference
+    """
     async with httpx.AsyncClient(timeout=10.0) as client:
         payload = {
             "@type": "MessageCard",
             "@context": "http://schema.org/extensions",
-            "summary": "Archon Notification",
-            "sections": [{"text": message}],
+            "themeColor": "0078D4",
+            "summary": message,
+            "sections": [{"activityText": message}],
         }
         await client.post(webhook_url, json=payload)
 

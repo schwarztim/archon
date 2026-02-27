@@ -1,4 +1,4 @@
-"""Integration tests for Azure OpenAI via the model router.
+"""Integration tests for Azure OpenAI via the model router and directly.
 
 Runs against a live Archon backend at http://localhost:8000.
 AUTH_DEV_MODE=true — no auth headers required.
@@ -59,3 +59,31 @@ class TestAzureOpenAIViaRouter:
             assert any(
                 k in body for k in ("choices", "content", "message", "text", "result")
             ), f"Unexpected chat response shape: {list(body.keys())}"
+
+
+@pytest.mark.asyncio
+async def test_azure_openai_direct():
+    """Call Azure OpenAI directly (NOT through Archon backend) to verify connectivity.
+
+    Uses hardcoded sandbox credentials for the QRG experiment deployment.
+    This test validates that the Azure OpenAI service itself is reachable and
+    responding — independent of Archon's model router.
+    """
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(
+            "https://YOUR_AZURE_ENDPOINT.cognitiveservices.azure.com"
+            "/openai/deployments/gpt-4o/chat/completions"
+            "?api-version=2024-02-15-preview",
+            headers={
+                "api-key": "REDACTED_API_KEY",
+                "Content-Type": "application/json",
+            },
+            json={
+                "messages": [{"role": "user", "content": "Say OK"}],
+                "max_tokens": 10,
+            },
+            timeout=30,
+        )
+        assert resp.status_code == 200, (
+            f"Azure OpenAI direct call failed: {resp.status_code} — {resp.text[:300]}"
+        )
