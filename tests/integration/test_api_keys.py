@@ -1,24 +1,10 @@
 """Integration tests for the API keys settings endpoint.
 
-Runs against a live Archon backend at http://localhost:8000.
+Uses in-process TestClient — no live server required.
 AUTH_DEV_MODE=true — no auth headers required.
 """
 
-import httpx
 import pytest
-
-BASE_URL = "http://localhost:8000"
-
-
-@pytest.fixture(scope="module")
-def client():
-    with httpx.Client(base_url=BASE_URL, timeout=30.0) as c:
-        yield c
-
-
-@pytest.fixture(scope="module")
-def api_prefix():
-    return "/api/v1"
 
 
 class TestApiKeys:

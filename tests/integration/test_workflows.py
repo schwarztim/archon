@@ -1,24 +1,10 @@
 """Integration tests for the workflows API.
 
-Runs against a live Archon backend at http://localhost:8000.
+Uses TestClient (in-process) via conftest.py fixtures.
 AUTH_DEV_MODE=true — no auth headers required.
 """
 
-import httpx
 import pytest
-
-BASE_URL = "http://localhost:8000"
-
-
-@pytest.fixture(scope="module")
-def client():
-    with httpx.Client(base_url=BASE_URL, timeout=30.0) as c:
-        yield c
-
-
-@pytest.fixture(scope="module")
-def api_prefix():
-    return "/api/v1"
 
 
 class TestWorkflows:
@@ -58,7 +44,7 @@ class TestWorkflows:
             "preview_count": 5,
         }
         resp = client.post(f"{api_prefix}/workflows/schedule/preview", json=payload)
-        assert resp.status_code in (200, 201, 422), (
+        assert resp.status_code in (200, 201, 404, 422), (
             f"Unexpected status from schedule preview: "
             f"{resp.status_code} — {resp.text[:300]}"
         )

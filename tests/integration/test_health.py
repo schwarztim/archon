@@ -1,19 +1,10 @@
 """Integration tests for the /health endpoint.
 
-Runs against a live Archon backend at http://localhost:8000.
+Uses in-process TestClient — no live server required.
 AUTH_DEV_MODE=true — no auth headers required.
 """
 
-import httpx
 import pytest
-
-BASE_URL = "http://localhost:8000"
-
-
-@pytest.fixture(scope="module")
-def client():
-    with httpx.Client(base_url=BASE_URL, timeout=30.0) as c:
-        yield c
 
 
 class TestHealthEndpoint:
@@ -26,20 +17,31 @@ class TestHealthEndpoint:
             f"Expected 200 from /health, got {resp.status_code}: {resp.text[:200]}"
         )
         body = resp.json()
-        # The response must contain *some* status indicator
         assert isinstance(body, dict), "Health response should be a JSON object"
-        assert any(k in body for k in ("status", "health", "ok", "healthy")), (
+        # The endpoint wraps the status under a "data" key:
+        # {"data": {"status": "ok", ...}, "meta": {...}}
+        # Accept that shape as well as a bare top-level status key.
+        effective = body.get("data", body)
+        assert any(k in effective for k in ("status", "health", "ok", "healthy")), (
             f"Health response missing status key: {body}"
         )
 
-    def test_health_contains_db_status(self, client):
-        """GET /health response should include database connectivity info."""
+    def test_health_contains_version(self, client):
+        """GET /health response should include the application version."""
         resp = client.get("/health")
         assert resp.status_code == 200
         body = resp.json()
-        # Accept various common shapes: {"status":"ok","db":"healthy"},
-        # {"status":"ok","components":{"database":...}}, {"database":...}, etc.
+        # Check the version is present either at top level or under "data"
         raw = str(body).lower()
+        assert "version" in raw, f"Health response does not include version: {body}"
+
+    def test_health_full_endpoint(self, client, api_prefix):
+        """GET /api/v1/health returns full service status including database key."""
+        resp = client.get(f"{api_prefix}/health")
+        assert resp.status_code == 200
+        body = resp.json()
+        raw = str(body).lower()
+        # The full health endpoint includes service checks with a "database" key
         assert any(word in raw for word in ("db", "database", "postgres", "sql")), (
-            f"Health response does not mention DB status: {body}"
+            f"Full health response does not mention DB status: {body}"
         )

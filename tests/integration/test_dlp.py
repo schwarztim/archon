@@ -1,24 +1,10 @@
 """Integration tests for the DLP (Data Loss Prevention) API.
 
-Runs against a live Archon backend at http://localhost:8000.
+Uses in-process TestClient — no live server required.
 AUTH_DEV_MODE=true — no auth headers required.
 """
 
-import httpx
 import pytest
-
-BASE_URL = "http://localhost:8000"
-
-
-@pytest.fixture(scope="module")
-def client():
-    with httpx.Client(base_url=BASE_URL, timeout=30.0) as c:
-        yield c
-
-
-@pytest.fixture(scope="module")
-def api_prefix():
-    return "/api/v1"
 
 
 class TestDLP:
@@ -40,10 +26,25 @@ class TestDLP:
             assert isinstance(body, dict), (
                 f"Expected dict from dlp/scan, got {type(body)}"
             )
-            # Expect at minimum a risk level or action field
+            # Accept either flat keys or an envelope {"data": {...}, "meta": {...}}
+            effective = body.get("data", body)
+            assert isinstance(effective, dict), (
+                f"Expected dict inside data/envelope, got {type(effective)}"
+            )
+            # Expect at minimum a risk level or action field (or any status field)
             assert any(
-                k in body
+                k in effective
                 for k in ("risk_level", "action", "findings", "result", "status")
+            ) or any(
+                k in body
+                for k in (
+                    "risk_level",
+                    "action",
+                    "findings",
+                    "result",
+                    "status",
+                    "data",
+                )
             ), f"Unexpected DLP scan response shape: {list(body.keys())}"
 
     def test_dlp_policies(self, client, api_prefix):

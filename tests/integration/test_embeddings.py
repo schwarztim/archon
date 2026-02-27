@@ -1,6 +1,6 @@
 """Integration tests for the embeddings endpoint via the model router.
 
-Runs against a live Archon backend at http://localhost:8000.
+Uses TestClient (in-process) via conftest.py fixtures.
 AUTH_DEV_MODE=true — no auth headers required.
 
 Skipped automatically when AZURE_OPENAI_API_KEY is not set in the environment,
@@ -9,24 +9,10 @@ because the embeddings model ('qrg-embedding-experimental') is hosted on Azure.
 
 import os
 
-import httpx
 import pytest
-
-BASE_URL = "http://localhost:8000"
 
 _AZURE_KEY = os.getenv("AZURE_OPENAI_API_KEY", "")
 _skip_reason = "AZURE_OPENAI_API_KEY environment variable is not set"
-
-
-@pytest.fixture(scope="module")
-def client():
-    with httpx.Client(base_url=BASE_URL, timeout=60.0) as c:
-        yield c
-
-
-@pytest.fixture(scope="module")
-def api_prefix():
-    return "/api/v1"
 
 
 @pytest.mark.skipif(not _AZURE_KEY, reason=_skip_reason)
