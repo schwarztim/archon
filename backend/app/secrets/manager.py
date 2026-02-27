@@ -74,7 +74,9 @@ class VaultSecretsManager:
         self._config = config or SecretsConfig()
         self._vault_addr = vault_addr
         self._namespace = namespace
-        self._vault_token = self._read_token(vault_token_path)
+        self._vault_token = self._read_token(
+            vault_token_path, config.vault_token if config else ""
+        )
         self._cache: dict[str, _CacheEntry] = {}
 
         self._client = hvac.Client(
@@ -99,7 +101,9 @@ class VaultSecretsManager:
 
         entry = self._cache.get(cache_key)
         if entry is not None and not entry.is_expired(self._config.cache_ttl_seconds):
-            logger.debug("Cache hit for secret", extra={"path": path, "tenant_id": tenant_id})
+            logger.debug(
+                "Cache hit for secret", extra={"path": path, "tenant_id": tenant_id}
+            )
             return entry.value
 
         client = self._get_client(tenant_id)
@@ -122,9 +126,7 @@ class VaultSecretsManager:
         self._cache[cache_key] = _CacheEntry(data)
         return data
 
-    async def put_secret(
-        self, path: str, data: dict, tenant_id: str
-    ) -> SecretMetadata:
+    async def put_secret(self, path: str, data: dict, tenant_id: str) -> SecretMetadata:
         """Store or update a secret, returning its metadata."""
         self._validate_tenant_id(tenant_id)
         client = self._get_client(tenant_id)
@@ -181,9 +183,7 @@ class VaultSecretsManager:
             extra={"path": path, "tenant_id": tenant_id},
         )
 
-    async def list_secrets(
-        self, prefix: str, tenant_id: str
-    ) -> list[SecretMetadata]:
+    async def list_secrets(self, prefix: str, tenant_id: str) -> list[SecretMetadata]:
         """List secret metadata under a given prefix."""
         self._validate_tenant_id(tenant_id)
         client = self._get_client(tenant_id)
@@ -212,9 +212,7 @@ class VaultSecretsManager:
             for key in keys
         ]
 
-    async def rotate_secret(
-        self, path: str, tenant_id: str
-    ) -> SecretMetadata:
+    async def rotate_secret(self, path: str, tenant_id: str) -> SecretMetadata:
         """Create a new version of a secret with rotation_policy metadata."""
         self._validate_tenant_id(tenant_id)
 
@@ -314,7 +312,7 @@ class VaultSecretsManager:
     async def health(self) -> dict:
         """Return Vault cluster health status."""
         try:
-            status = await asyncio.to_thread(self._client.sys.read_health_status)
+            status = await asyncio.to_thread(self._client.sys.read_seal_status)
             return {
                 "status": "healthy",
                 "initialized": status.get("initialized", False),
@@ -348,8 +346,10 @@ class VaultSecretsManager:
         )
 
     @staticmethod
-    def _read_token(token_path: str) -> str:
-        """Read the Vault token from a file path."""
+    def _read_token(token_path: str, direct_token: str = "") -> str:
+        """Read the Vault token from a file path or direct value."""
+        if direct_token:
+            return direct_token
         path = Path(token_path)
         if not path.exists():
             logger.warning(
@@ -372,7 +372,10 @@ class _StubSecretsManager:
         self._store: dict[str, dict[str, Any]] = {}
 
     async def put_secret(
-        self, path: str, data: dict[str, Any], tenant_id: str = "",
+        self,
+        path: str,
+        data: dict[str, Any],
+        tenant_id: str = "",
     ) -> SecretMetadata:
         from uuid import uuid4
 
@@ -389,7 +392,10 @@ class _StubSecretsManager:
         return meta
 
     async def get_secret(
-        self, path: str, tenant_id: str = "", version: int | None = None,
+        self,
+        path: str,
+        tenant_id: str = "",
+        version: int | None = None,
     ) -> dict[str, Any]:
         key = f"{tenant_id}/{path}"
         entry = self._store.get(key)
@@ -402,17 +408,24 @@ class _StubSecretsManager:
         self._store.pop(key, None)
 
     async def list_secrets(
-        self, prefix: str = "", tenant_id: str = "",
+        self,
+        prefix: str = "",
+        tenant_id: str = "",
     ) -> list[SecretMetadata]:
         results = []
         tp = f"{tenant_id}/"
         for key, entry in self._store.items():
-            if key.startswith(tp) and (not prefix or entry["meta"].path.startswith(prefix)):
+            if key.startswith(tp) and (
+                not prefix or entry["meta"].path.startswith(prefix)
+            ):
                 results.append(entry["meta"])
         return results
 
     async def rotate_secret(
-        self, path: str, tenant_id: str = "", reason: str = "",
+        self,
+        path: str,
+        tenant_id: str = "",
+        reason: str = "",
     ) -> SecretMetadata:
         key = f"{tenant_id}/{path}"
         entry = self._store.get(key)
@@ -430,7 +443,12 @@ class _StubSecretsManager:
 
     async def health(self) -> dict:
         """Return stub health status."""
-        return {"status": "stub", "initialized": False, "sealed": False, "cluster_name": ""}
+        return {
+            "status": "stub",
+            "initialized": False,
+            "sealed": False,
+            "cluster_name": "",
+        }
 
     async def issue_certificate(self, *_: Any, **__: Any) -> CertificateBundle:
         raise CertificateError("Vault PKI not available in stub mode")

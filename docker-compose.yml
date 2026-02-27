@@ -42,6 +42,11 @@ services:
       ARCHON_JWT_SECRET: "dev-secret-key-for-testing"
       ARCHON_JWT_ALGORITHM: "HS256"
       ARCHON_DEBUG: "true"
+      ARCHON_VAULT_ADDR: "http://vault:8200"
+      ARCHON_VAULT_TOKEN_PATH: "/var/run/secrets/vault-token"
+      ARCHON_VAULT_NAMESPACE: "archon"
+      ARCHON_VAULT_MOUNT_POINT: "secret"
+      ARCHON_VAULT_TOKEN: "dev-root-token"
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:8000/health"]
       interval: 10s

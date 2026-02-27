@@ -14,6 +14,9 @@ class SecretsConfig(BaseSettings):
 
     vault_addr: str = "http://localhost:8200"
     vault_token_path: str = "/var/run/secrets/vault-token"
+    vault_token: str = (
+        ""  # Optional: override token directly via ARCHON_VAULT_TOKEN env var
+    )
     vault_namespace: str = "archon"
     vault_mount_point: str = "secret"
     cache_ttl_seconds: int = 300
