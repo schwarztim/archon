@@ -1,27 +1,18 @@
 """Integration tests for rate-limit behaviour.
 
-Runs against a live Archon backend at http://localhost:8000.
+Uses in-process TestClient — no live server required.
 AUTH_DEV_MODE=true — no auth headers required.
 
-Note: rate limiting may not be enabled in all environments.  The
-header-presence test is lenient and will pass even when rate-limit headers
+Note: rate limiting is disabled in the test environment (ARCHON_RATE_LIMIT_ENABLED=false).
+The header-presence test is lenient and will pass even when rate-limit headers
 are absent — it merely documents the expectation.  The rapid-request test
 verifies that normal traffic is never blocked under the configured limit.
 """
 
-import httpx
 import pytest
-
-BASE_URL = "http://localhost:8000"
 
 # Number of back-to-back requests that should never hit a rate limit
 _RAPID_REQUEST_COUNT = 10
-
-
-@pytest.fixture(scope="module")
-def client():
-    with httpx.Client(base_url=BASE_URL, timeout=30.0) as c:
-        yield c
 
 
 class TestRateLimit:
