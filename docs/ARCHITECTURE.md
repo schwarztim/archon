@@ -225,15 +225,32 @@ The MCP (Model Context Protocol) Host Gateway is a lightweight, independently de
 
 **Location:** `gateway/` (standalone FastAPI service, port 8080)
 
-| Component | Description |
-|-----------|-------------|
-| **Plugin Registry** | Dynamic loader that discovers YAML-defined plugins from `gateway/plugins/` |
-| **Plugin Loader** | Validates plugin schemas, resolves tool configurations at startup |
-| **Plugins API** | `GET /api/v1/plugins` — list all loaded plugins and their tool manifests |
-| **Health Probe** | `GET /health` — liveness check, reports loaded plugin count |
-| **Docs** | `GET /docs` — Swagger UI, `GET /redoc` — ReDoc |
+### Components
 
-**Plugin Schema** (`gateway/plugins/_example.yaml`):
+| Component | File(s) | Description |
+|-----------|---------|-------------|
+| **FastAPI App** | `gateway/app/main.py` | Application factory; lifespan hook loads plugins and starts the hot-reload watcher |
+| **Plugin Registry** | `gateway/app/plugins/loader.py` | Discovers YAML-defined plugins from `gateway/plugins/`; supports hot-reload via `watchfiles` |
+| **Plugin Loader** | `gateway/app/plugins/loader.py` | Validates plugin schemas, resolves tool configurations at startup |
+| **Capabilities API** | `gateway/app/routes/capabilities.py` | `GET /api/v1/capabilities` — returns all tool manifests from loaded plugins |
+| **Invoke API** | `gateway/app/routes/invoke.py` | `POST /api/v1/invoke/{tool}` — routes a tool call to the correct plugin |
+| **Plugins API** | `gateway/app/routes/plugins.py` | `GET /api/v1/plugins` — list all loaded plugins and their metadata |
+| **Health Probe** | `gateway/app/routes/health.py` | `GET /health` — liveness check, reports loaded plugin count |
+| **JWKS Cache** | `gateway/app/auth/middleware.py` | Resolves OIDC discovery → `jwks_uri`, caches keyset for 1 hour (TTL-based, async-safe lock) |
+| **Docs** | (FastAPI default) | `GET /docs` — Swagger UI, `GET /redoc` — ReDoc |
+
+### JWKS Caching
+
+The gateway verifies incoming JWTs using Entra ID (Azure AD). The JWKS endpoint is resolved lazily on the first authenticated request:
+
+1. Fetch OIDC discovery document from `ARCHON_OIDC_DISCOVERY_URL`
+2. Extract `jwks_uri` from the response
+3. Fetch the JSON Web Key Set (JWKS) and cache it in-process for **1 hour** (`_JWKS_TTL_SECONDS = 3600`)
+4. All subsequent requests within the TTL window use the cached keyset — no network round-trips
+5. Cache refresh is protected by an `asyncio.Lock` to prevent thundering herd on expiry
+
+### Plugin Schema (`gateway/plugins/_example.yaml`)
+
 ```yaml
 name: my-tool
 version: "1.0"

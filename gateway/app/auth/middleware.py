@@ -6,12 +6,62 @@ string "dev-token" is accepted and a synthetic dev user is returned.
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import time
 from typing import Any
 
 from fastapi import HTTPException, Request
 
 logger = logging.getLogger(__name__)
+
+# ── JWKS cache (1-hour TTL) ─────────────────────────────────────────────────
+
+_jwks_cache: dict[str, Any] | None = None
+_jwks_cache_ts: float = 0.0
+_jwks_lock = asyncio.Lock()
+_JWKS_TTL_SECONDS: int = 3600  # 1 hour
+
+
+async def _fetch_entra_jwks(discovery_url: str) -> dict[str, Any]:
+    """Fetch JWKS from the Entra ID OIDC discovery endpoint.
+
+    Resolves ``jwks_uri`` from the discovery document then caches the keyset
+    for ``_JWKS_TTL_SECONDS`` (1 hour) to avoid blocking the event loop on
+    every request.
+    """
+    global _jwks_cache, _jwks_cache_ts  # noqa: PLW0603
+
+    async with _jwks_lock:
+        now = time.monotonic()
+        if _jwks_cache is not None and (now - _jwks_cache_ts) < _JWKS_TTL_SECONDS:
+            return _jwks_cache
+
+        import httpx
+
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                discovery_resp = await client.get(discovery_url)
+                discovery_resp.raise_for_status()
+                discovery = discovery_resp.json()
+
+                jwks_uri: str = discovery.get("jwks_uri", "")
+                if not jwks_uri:
+                    raise HTTPException(
+                        status_code=401,
+                        detail="OIDC discovery returned no jwks_uri",
+                    )
+
+                jwks_resp = await client.get(jwks_uri)
+                jwks_resp.raise_for_status()
+                _jwks_cache = jwks_resp.json()
+                _jwks_cache_ts = now
+                logger.debug("Refreshed gateway JWKS cache from %s", jwks_uri)
+                return _jwks_cache
+        except HTTPException:
+            raise
+        except Exception as exc:
+            raise HTTPException(status_code=401, detail=f"JWKS fetch failed: {exc}") from exc
 
 
 def _decode_hs256_dev(token: str, secret: str) -> dict[str, Any] | None:
@@ -24,33 +74,16 @@ def _decode_hs256_dev(token: str, secret: str) -> dict[str, Any] | None:
         return None
 
 
-def _decode_entra_jwt(token: str, client_id: str, discovery_url: str) -> dict[str, Any]:
+async def _decode_entra_jwt(token: str, client_id: str, discovery_url: str) -> dict[str, Any]:
     """Validate an Entra ID RS256 JWT using OIDC discovery.
 
-    Fetches JWKS on first call (cached by python-jose's internals).
-    Raises :class:`HTTPException` 401 on failure.
+    Fetches JWKS asynchronously with a 1-hour module-level TTL cache to avoid
+    blocking the event loop.  Raises :class:`HTTPException` 401 on failure.
     """
     try:
-        import httpx
         from jose import jwt
 
-        # Fetch JWKS URI from discovery document
-        try:
-            resp = httpx.get(discovery_url, timeout=10)
-            resp.raise_for_status()
-            jwks_uri = resp.json().get("jwks_uri", "")
-        except Exception as exc:
-            raise HTTPException(status_code=401, detail=f"OIDC discovery failed: {exc}") from exc
-
-        if not jwks_uri:
-            raise HTTPException(status_code=401, detail="OIDC discovery returned no jwks_uri")
-
-        try:
-            jwks_resp = httpx.get(jwks_uri, timeout=10)
-            jwks_resp.raise_for_status()
-            jwks = jwks_resp.json()
-        except Exception as exc:
-            raise HTTPException(status_code=401, detail=f"JWKS fetch failed: {exc}") from exc
+        jwks = await _fetch_entra_jwks(discovery_url)
 
         return jwt.decode(
             token,
@@ -122,7 +155,7 @@ async def get_current_user(
     if not settings.oidc_discovery_url:
         raise HTTPException(status_code=503, detail="OIDC not configured. Set OIDC_DISCOVERY_URL.")
 
-    claims = _decode_entra_jwt(token, settings.oidc_client_id, settings.oidc_discovery_url)
+    claims = await _decode_entra_jwt(token, settings.oidc_client_id, settings.oidc_discovery_url)
 
     # Extract groups — may be IDs or names depending on token config
     groups: list[str] = claims.get("groups", [])

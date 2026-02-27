@@ -1,121 +1,239 @@
-# Project Health Report
+# Archon Platform — Health Report
 
-Generated: Thu Feb 26 14:10:53 EST 2026
+**Generated:** Thu Feb 26 2026  
+**Executor:** L3 Worker (ws-0), swarm session swarm-1772144420849-1  
+**Scope:** Baseline diagnostics — no code modifications made
 
-## Executive Summary
-
-Overall project health is **GOOD**. Core backend and frontend functionality is stable, with 98% of tests passing. The frontend builds cleanly with zero TypeScript errors. Two confirmed route mismatches require immediate attention. The majority of linting violations are auto-fixable. Infrastructure endpoints are reachable with minor configuration adjustments needed.
-
----
-
-## Test Results
-
-### pytest
-- **Total Tests:** 1782
-- **Passed:** 1747
-- **Failed:** 35
-- **Errors:** 0
-
-**Failed Test Breakdown:**
-- 31 integration tests (backend not running during test execution)
-- 2 unit test failures in `test_agent19` (`test_settings.py`)
-- 2 other test failures
-
-**Assessment:** Core functionality stable. Integration failures are expected without a running backend. Unit test failures in `test_agent19` need investigation.
+> _Previous report dated Thu Feb 26 14:10:53 EST 2026 is superseded by this run._
 
 ---
 
-### Code Quality (ruff)
-- **Total Violations:** 184
-- **Auto-fixable:** 138 (75%)
-- **Manual Fixes Required:** 46
+## Summary Dashboard
 
-**Assessment:** The majority of linting issues can be resolved automatically by running `ruff check --fix` on the backend codebase. The remaining 46 violations require manual review.
-
----
-
-### Frontend Build
-- **Status:** ✅ PASS
-- **Build Time:** 4.03s
-- **TypeScript Errors (`tsc --noEmit`):** 0
-
-**Assessment:** Frontend builds cleanly with no type errors.
+| Check | Status | Details |
+|-------|--------|---------|
+| Pytest Suite | ⚠️ PARTIAL | 1727 passed, 55 failed (infrastructure gaps only) |
+| Ruff Linting | ✅ PASS | 0 violations |
+| Frontend Build | ✅ PASS | Built in 4.27s, 2614 modules |
+| TypeScript Check | ✅ PASS | 0 errors |
+| Azure OpenAI Connectivity | ⚠️ REACHABLE | HTTP 400 — API param mismatch (`messages` → `input`) |
+| OIDC Discovery | ✅ PASS | Valid JSON, `authorization_endpoint` present |
 
 ---
 
-## Infrastructure Health
+## 1. Pytest Suite
 
-### Azure OpenAI
-- **Connectivity:** ✅ Reachable
-- **Status:** HTTP 400 (model name format issue)
-- **Assessment:** Endpoint is accessible but requires the correct API model naming format to return valid responses.
+**Command:** `PYTHONPATH=backend python3 -m pytest tests/ --no-header -q`  
+**Duration:** 20.20s  
+**Result:** `55 failed, 1727 passed, 10 warnings`
 
-### OIDC Discovery
-- **Connectivity:** ✅ Reachable
-- **Response:** Valid JSON
-- **Assessment:** SSO integration is functional.
+### Pass Rate
+- **Total tests:** 1,782
+- **Passed:** 1,727 (96.9%)
+- **Failed:** 55 (3.1%)
+- **Warnings:** 10 (`PytestDeprecationWarning` — `asyncio_default_fixture_loop_scope` unset)
 
-### Docker
-- **Status:** ⚠️ Not tested
-- **Reason:** Docker may not be running on the test system
-- **Assessment:** Containerization untested in this run; should be validated in CI environment.
+### Failure Root Cause Analysis
+
+All 55 failures trace to **two missing infrastructure dependencies** — no application logic bugs were found.
+
+#### Category 1: Backend Server Not Running — 30 failures
+All integration tests connect to `localhost:8000` and fail with:
+```
+httpx.ConnectError: [Errno 61] Connection refused
+```
+
+Affected test files:
+
+| File | Failures |
+|------|----------|
+| `tests/integration/test_workflows.py` | 3 |
+| `tests/integration/test_sentinel.py` | 3 |
+| `tests/integration/test_templates.py` | 2 |
+| `tests/integration/test_settings.py` | 2 |
+| `tests/integration/test_secrets.py` | 2 |
+| `tests/integration/test_rbac.py` | 2 |
+| `tests/integration/test_rate_limit.py` | 2 |
+| `tests/integration/test_model_router.py` | 2 |
+| `tests/integration/test_marketplace.py` | 2 |
+| `tests/integration/test_health.py` | 2 |
+| `tests/integration/test_dlp.py` | 2 |
+| `tests/integration/test_audit_logs.py` | 2 |
+| `tests/integration/test_api_keys.py` | 2 |
+| `tests/integration/test_embeddings.py` | 1 |
+| `tests/integration/test_azure_openai.py` | 1 |
+
+**Sample stack trace:**
+```python
+tests/integration/test_api_keys.py:29: in test_list_api_keys
+    resp = client.get(f"{api_prefix}/settings/api-keys")
+httpx._transports.default:118: ConnectError
+    httpx.ConnectError: [Errno 61] Connection refused
+```
+
+#### Category 2: PostgreSQL Not Running — 25 failures
+All `tests/test_agent01/test_scim_service.py` tests fail with:
+```
+OSError: Multiple exceptions: [Errno 61] Connect call failed ('::1', 5432, 0, 0),
+         [Errno 61] Connect call failed ('127.0.0.1', 5432)
+```
+PostgreSQL not running on `localhost:5432`. 3 of 28 SCIM tests pass (non-DB code paths).
+
+**Failing SCIM test classes:**
+- `TestCreateUser` — user creation/retrieval
+- `TestUpdateUser` — replace display name, active flag, last_modified
+- `TestDeleteUser` — deactivation, delete nonexistent, last_modified update
+- `TestGroups` — list/create/filter/meta
+- `TestTenantIsolation` — cross-tenant isolation for users and groups
+- `TestSCIMErrorHandling` — 404 handling for users and groups
+
+### Deprecation Warnings
+```
+PytestDeprecationWarning: The configuration option "asyncio_default_fixture_loop_scope" is unset.
+Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope.
+```
+**Fix:** Add to `pyproject.toml`:
+```toml
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+```
 
 ---
 
-## Confirmed Bugs
+## 2. Linting Status (Ruff)
+
+**Command:** `ruff check backend/`  
+**Result:** `All checks passed!`
+
+- **Violations:** 0
+- **Status:** ✅ Fully clean — zero linting issues
+
+> _Note: A prior health report (14:10 EST) reported 184 violations. Those have since been resolved._
+
+---
+
+## 3. Frontend Build
+
+**Command:** `cd frontend && npm install && npm run build`  
+**Result:** ✅ Build successful
+
+```
+> archon-frontend@0.1.0 build
+> tsc -b && vite build
+
+vite v6.4.1 building for production...
+✓ 2614 modules transformed.
+
+dist/index.html                     0.54 kB │ gzip:   0.36 kB
+dist/assets/index-Cdkx47TW.css     75.82 kB │ gzip:  12.69 kB
+dist/assets/index-U68zRER_.js   1,584.19 kB │ gzip: 413.53 kB
+
+✓ built in 4.27s
+```
+
+**Cosmetic Warning (non-blocking):**
+> Some chunks are larger than 500 kB after minification.  
+> Main JS bundle: 1,584 kB (413 kB gzipped). Consider dynamic imports or `build.rollupOptions.output.manualChunks`.
+
+**npm audit:** Packages with known vulnerabilities; run `npm audit` for full details.
+
+---
+
+## 4. TypeScript Check
+
+**Command:** `cd frontend && npx tsc --noEmit`  
+**Result:** No output — **zero TypeScript errors**
+
+- **Error count:** 0
+- **Status:** ✅ Clean
+
+---
+
+## 5. Azure OpenAI Connectivity
+
+**Endpoint:** `https://openai-qrg-sandbox-experiment.cognitiveservices.azure.com/openai/responses?api-version=2025-04-01-preview`  
+**Model:** `gpt-5.2-codex`  
+**HTTP Status:** `400 Bad Request`
+
+**Status: ⚠️ REACHABLE — API parameter mismatch**
+
+The endpoint responds (not 401/403/502/504). The 400 error is a request format issue:
+
+```json
+{
+  "error": {
+    "message": "Unsupported parameter: 'messages'. In the Responses API, this parameter has moved to 'input'.",
+    "type": "invalid_request_error",
+    "param": null,
+    "code": "unsupported_parameter"
+  }
+}
+```
+
+**Root cause:** The test curl command uses `"messages"` (Chat Completions API format) against the newer Responses API which requires `"input"`.
+
+**Fix:** Update request body:
+```json
+{
+  "input": [{"role": "user", "content": "ping"}],
+  "max_completion_tokens": 5,
+  "model": "gpt-5.2-codex"
+}
+```
+
+The Azure OpenAI service is **up and responding**; connectivity is confirmed.
+
+---
+
+## 6. OIDC Discovery
+
+**URL:** `https://login.microsoftonline.com/ff3213cc-c3f6-45d4-a104-8f7823656fec/v2.0/.well-known/openid-configuration`  
+**Result:** ✅ Valid JSON — all required OIDC keys present
+
+| Key | Value |
+|-----|-------|
+| `authorization_endpoint` | `https://login.microsoftonline.com/ff3213cc-c3f6-45d4-a104-8f7823656fec/oauth2/v2.0/authorize` |
+| `token_endpoint` | `https://login.microsoftonline.com/ff3213cc-c3f6-45d4-a104-8f7823656fec/oauth2/v2.0/token` |
+| `jwks_uri` | `https://login.microsoftonline.com/ff3213cc-c3f6-45d4-a104-8f7823656fec/discovery/v2.0/keys` |
+| `issuer` | `https://login.microsoftonline.com/ff3213cc-c3f6-45d4-a104-8f7823656fec/v2.0` |
+
+OIDC discovery is fully operational for tenant `ff3213cc-c3f6-45d4-a104-8f7823656fec`.
+
+---
+
+## Confirmed Bugs from Prior Runs (carried forward)
 
 ### 1. Audit Log URL Mismatch
 - **File:** `frontend/src/api/governance.ts`
-- **Issue:** `getAuditTrail()` calls `/governance/audit` but the backend router is registered at `/audit-logs/`
-- **Impact:** Audit log feature is non-functional
-- **Fix Required:** Change the endpoint in `governance.ts` to `/audit-logs/`
-
----
+- **Issue:** `getAuditTrail()` calls `/governance/audit` but backend router is at `/audit-logs/`
+- **Impact:** Audit log feature non-functional
 
 ### 2. System Health Endpoint Mismatch
-- **Files:**
-  - `frontend/src/components/settings/SystemHealthTab.tsx`
-  - `frontend/src/pages/DashboardPage.tsx`
-- **Issue:** Frontend calls `/health` but backend is registered at `/api/v1/health`
-- **Response Format Mismatch:** Backend returns `{status, services: {api, database, redis, vault, keycloak}, version, timestamp}` with string values (`"up"`, `"connected"`), but frontend expects boolean fields
-- **Additional Bug (`DashboardPage.tsx`):** Double-consume of `response.json()` causing runtime errors
-- **Impact:** Health monitoring is non-functional
-- **Fix Required:** Update endpoint URLs and response parsing logic in both files
-
----
-
-## Debunked Issues
-
-### 1. Marketplace Triple-Prefix ❌ FALSE POSITIVE
-- **Investigation:** Routes are correctly configured at `/api/v1/marketplace`
-- **Status:** Working as designed
-
-### 2. Sentinel White Screen ❌ FALSE POSITIVE
-- **Investigation:** All 3 routers are properly registered in `main.py`
-- **Status:** Working as designed
+- **Files:** `frontend/src/components/settings/SystemHealthTab.tsx`, `frontend/src/pages/DashboardPage.tsx`
+- **Issue:** Frontend calls `/health` but backend is at `/api/v1/health`; response format mismatch (string vs boolean fields)
+- **Impact:** Health monitoring non-functional
 
 ---
 
 ## Recommendations
 
-### Immediate Actions
-1. Fix audit log URL mismatch (see WS-1)
-2. Fix health endpoint mismatches (see WS-1)
-3. Run `ruff check --fix` on backend codebase to resolve 138 auto-fixable violations
-4. Investigate `test_agent19` unit test failures in `test_settings.py`
+### Priority 1 — Start Infrastructure (blocks 55 tests)
+1. **PostgreSQL on :5432** — required for all SCIM service tests.
+2. **Backend server on :8000** — required for all integration tests. Alternative: refactor integration tests to use FastAPI `TestClient` (in-process, no server required).
 
-### Short-term Actions
-1. Set up Docker testing environment and validate containerization
-2. Configure Azure OpenAI with the correct model naming format
-3. Address remaining 46 manual linting fixes identified by ruff
+### Priority 2 — API Compatibility
+3. **Azure OpenAI Responses API**: Update all backend code using `/openai/responses` endpoint to use `"input"` instead of `"messages"`.
 
-### Long-term Actions
-1. Implement integration test fixtures that mock external services to eliminate false negatives
-2. Add pre-commit hooks for ruff auto-fixing to prevent regression
-3. Add API contract tests (e.g., OpenAPI schema validation) to catch URL mismatches early
+### Priority 3 — Non-blocking Improvements
+4. **pytest-asyncio deprecation**: Set `asyncio_default_fixture_loop_scope = "function"` in `pyproject.toml`.
+5. **Frontend bundle size**: Route-based code splitting recommended (1.58 MB main bundle).
+6. **npm audit**: Review and remediate package vulnerabilities.
 
 ---
 
 ## Conclusion
 
-Overall project health is **GOOD** with targeted fixes needed. Core functionality is stable with a **98% test pass rate**. The frontend builds cleanly with zero TypeScript errors. Two confirmed route mismatches require immediate attention and are tracked under WS-1. Code quality issues are largely auto-fixable. Infrastructure endpoints are reachable with minor configuration adjustments needed for Azure OpenAI.
+The Archon codebase is in **good shape**. Backend linting is fully clean (0 ruff violations), the frontend builds with zero TypeScript errors, and OIDC authentication infrastructure is healthy. The 55 test failures are 100% attributable to missing runtime infrastructure (no live backend server, no PostgreSQL) — not code defects. Azure OpenAI connectivity is confirmed reachable; only the request format needs updating for the newer Responses API.
+
+**No code modifications were made during this diagnostic run.**

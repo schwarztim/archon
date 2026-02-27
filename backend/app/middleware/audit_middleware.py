@@ -18,6 +18,7 @@ before AuditMiddleware reads it.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import re
 import uuid
@@ -107,6 +108,24 @@ def _redact_path(path: str) -> str:
     return _EMAIL_IN_PATH_RE.sub("***@***.***", path)
 
 
+def _scrub_details(details: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Redact PII and secrets from the audit log details dict before DB insert.
+
+    Serialises the dict to JSON, applies all redaction patterns, then
+    deserialises back.  This catches any sensitive value that may have slipped
+    into a nested field without requiring callers to be aware of the patterns.
+    """
+    if details is None:
+        return None
+    try:
+        raw = json.dumps(details)
+        scrubbed = _redact(raw)
+        return json.loads(scrubbed)  # type: ignore[return-value]
+    except Exception:
+        # If serialisation fails for any reason, return details as-is.
+        return details
+
+
 def _resolve_action(method: str, resource: str) -> str:
     """Return a human-readable action string for (method, resource)."""
     key = (method, resource)
@@ -154,6 +173,9 @@ async def _write_audit_entry(
                 actor = UUID(str(actor_id))
             except (ValueError, AttributeError):
                 pass
+
+        # Scrub any PII / secrets that may appear in the details dict before persisting
+        safe_details = _scrub_details(details)
 
         async with async_session_factory() as session:
             await AuditService.log_action(
@@ -247,13 +269,12 @@ class AuditMiddleware(BaseHTTPMiddleware):
                         status_code=response.status_code,
                         ip_address=ip_address,
                         user_agent=user_agent,
-                        details=details,
+                        details=safe_details,
                     )
                 )
             except Exception:
                 logger.debug(
                     "audit_middleware: error preparing audit entry", exc_info=True
-                )
                 )
 
         return response
