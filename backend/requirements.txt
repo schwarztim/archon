@@ -37,6 +37,9 @@ websockets>=14.0
 # Logging
 structlog>=24.0.0
 
+# Scheduling
+croniter>=2.0.0
+
 # Misc
 python-multipart>=0.0.17
 
@@ -67,3 +70,6 @@ urllib3>=2.6.3       # High(x3) + Medium(x2): multiple CVEs in urllib3<2.6.3
 # Testing
 pytest>=8.0.0
 pytest-asyncio>=0.24.0
+
+# Docker (MCP container management)
+aiodocker>=0.22.0

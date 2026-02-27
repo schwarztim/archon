@@ -52,6 +52,10 @@ from app.routes.mcp_security import router as mcp_security_router
 # Workflow routers
 from app.routes.workflows import router as workflows_router
 
+# QA Trigger & Improvement Engine routers
+from app.routes.qa import router as qa_router
+from app.routes.improvements import router as improvements_router
+
 # Phase 4 routers
 from app.routes.a2a import router as a2a_router
 from app.routes.a2a import federation_router as a2a_federation_router
@@ -90,6 +94,9 @@ from app.routes.rbac import router as rbac_router
 
 # Metrics
 from app.metrics import router as metrics_router
+
+# MCP Container management (ToolHive pattern)
+from app.routes.mcp_containers import router as mcp_containers_router
 
 logger = get_logger(__name__)
 
@@ -201,6 +208,10 @@ def create_app() -> FastAPI:
     # -- Workflow routers ---------------------------------------------
     application.include_router(workflows_router, prefix=settings.API_PREFIX)
 
+    # -- QA Trigger & Improvement Engine ---------------------------------
+    application.include_router(qa_router, prefix=settings.API_PREFIX)
+    application.include_router(improvements_router, prefix=settings.API_PREFIX)
+
     # -- Phase 4 routers ----------------------------------------------
     application.include_router(a2a_router, prefix=settings.API_PREFIX)
     application.include_router(a2a_federation_router, prefix=settings.API_PREFIX)
@@ -248,6 +259,9 @@ def create_app() -> FastAPI:
 
     # -- RBAC CRUD (custom roles + group mappings) -------------------
     application.include_router(rbac_router, prefix=settings.API_PREFIX)
+
+    # -- MCP Container management (ToolHive pattern) -----------------
+    application.include_router(mcp_containers_router, prefix=settings.API_PREFIX)
 
     # -- Metrics (Prometheus-compatible) ------------------------------
     application.include_router(metrics_router)

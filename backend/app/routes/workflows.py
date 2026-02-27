@@ -6,10 +6,14 @@ DB-backed storage using SQLModel / AsyncSession.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
+import os
 from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID, uuid4
+
+import redis.asyncio as aioredis
 
 from fastapi import (
     APIRouter,
@@ -36,6 +40,16 @@ from app.services.workflow_engine import (
 
 router = APIRouter(prefix="/workflows", tags=["workflows"])
 logger = logging.getLogger(__name__)
+
+# ── Redis pub/sub helper ─────────────────────────────────────────────
+
+_REDIS_URL = os.getenv("ARCHON_REDIS_URL", "redis://redis:6379/0")
+
+
+async def _get_redis_client() -> aioredis.Redis:
+    """Return an async Redis client from the configured URL."""
+    return aioredis.from_url(_REDIS_URL, decode_responses=True)
+
 
 # ── Default tenant for unauthenticated routes ────────────────────────
 _DEFAULT_TENANT = UUID("00000000-0000-0000-0000-000000000000")
@@ -72,7 +86,7 @@ def _workflow_to_dict(wf: Workflow) -> dict[str, Any]:
 def _run_to_dict(
     run: WorkflowRun, steps: list[dict[str, Any]] | None = None
 ) -> dict[str, Any]:
-    return {
+    d: dict[str, Any] = {
         "id": str(run.id),
         "workflow_id": str(run.workflow_id),
         "status": run.status,
@@ -81,8 +95,12 @@ def _run_to_dict(
         "started_at": run.started_at.isoformat() if run.started_at else None,
         "completed_at": run.completed_at.isoformat() if run.completed_at else None,
         "duration_ms": run.duration_ms,
+        "input_data": run.input_data,
         "steps": steps or [],
     }
+    if run.error:
+        d["error"] = run.error
+    return d
 
 
 def _step_to_dict(step: WorkflowRunStep) -> dict[str, Any]:
@@ -679,9 +697,48 @@ async def fire_event(
 ) -> dict[str, Any]:
     """Match event to workflow trigger rules and fire matching workflows."""
     event_type = event.get("type", "")
-    # Query workflows with event triggers matching this type
-    # For now, return acknowledgment
-    return {"status": "accepted", "event_type": event_type, "matched_workflows": []}
+    event_source = event.get("source")
+
+    # Query all active workflows that have a trigger_config
+    stmt = select(Workflow).where(Workflow.is_active)
+    result = await session.exec(stmt)
+    all_workflows = result.all()
+
+    # Filter workflows whose trigger_config matches this event
+    matched_workflow_ids: list[str] = []
+    created_run_ids: list[str] = []
+
+    for workflow in all_workflows:
+        tc = workflow.trigger_config
+        if not tc or tc.get("type") != "event":
+            continue
+        if tc.get("event_type") != event_type:
+            continue
+        # Optional source filter — only reject if config specifies a source that doesn't match
+        if tc.get("source") and tc.get("source") != event_source:
+            continue
+
+        run = WorkflowRun(
+            id=uuid4(),
+            workflow_id=workflow.id,
+            tenant_id=workflow.tenant_id,
+            status="pending",
+            trigger_type="event",
+            input_data=event,
+        )
+        session.add(run)
+        matched_workflow_ids.append(str(workflow.id))
+        created_run_ids.append(str(run.id))
+
+    if matched_workflow_ids:
+        await session.commit()
+
+    return {
+        "status": "accepted",
+        "event_type": event_type,
+        "matched_workflows": matched_workflow_ids,
+        "created_runs": created_run_ids,
+    }
 
 
 @router.post(
@@ -693,11 +750,35 @@ async def send_signal(
     signal: dict = Body(...),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    """Send data signal to a running workflow run."""
+    """Send data signal to a running workflow run via Redis pub/sub."""
     run = await session.get(WorkflowRun, UUID(run_id))
     if not run or run.workflow_id != UUID(workflow_id):
         raise HTTPException(404, "Workflow run not found")
-    return {"status": "signal_received", "run_id": run_id}
+
+    channel = f"archon:workflow:{workflow_id}:signals"
+    message = {
+        "signal": signal,
+        "run_id": run_id,
+        "timestamp": datetime.now(tz=timezone.utc).isoformat(),
+    }
+
+    published = False
+    try:
+        r = await _get_redis_client()
+        async with r:
+            subscribers = await r.publish(channel, json.dumps(message))
+        published = True
+        logger.debug("Signal published to %s (%d subscriber(s))", channel, subscribers)
+    except Exception as exc:  # noqa: BLE001
+        # Redis unavailable — log and degrade gracefully; signal is still acknowledged
+        logger.warning("Failed to publish signal to Redis channel %s: %s", channel, exc)
+
+    return {
+        "status": "signal_received",
+        "run_id": run_id,
+        "published": published,
+        "channel": channel,
+    }
 
 
 @router.get(
@@ -710,8 +791,21 @@ async def query_run(
     query_name: str,
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    """Query state of a running workflow without modifying it."""
+    """Query state of a running workflow without modifying it.
+
+    Returns full run details including all steps with timing and results.
+    ``query_name`` is accepted for future extensibility (e.g. named sub-queries).
+    """
     run = await session.get(WorkflowRun, UUID(run_id))
     if not run or run.workflow_id != UUID(workflow_id):
         raise HTTPException(404, "Workflow run not found")
-    return {"query": query_name, "run_id": run_id, "status": run.status}
+
+    stmt = select(WorkflowRunStep).where(WorkflowRunStep.run_id == UUID(run_id))
+    result = await session.exec(stmt)
+    steps = [_step_to_dict(s) for s in result.all()]
+
+    return {
+        "query": query_name,
+        "data": {**_run_to_dict(run, steps=steps)},
+        "meta": _meta(),
+    }

@@ -69,10 +69,24 @@ class Settings(BaseSettings):
     # Microsoft Teams
     TEAMS_WEBHOOK_URL: str = ""
 
+    # QA Workflow Trigger (Azure Logic Apps)
+    LOGIC_APPS_QA_ENDPOINT: str = ""  # empty = disabled
+    QA_TRIGGER_TIMEOUT: int = 30
+    QA_CALLBACK_SECRET: str = ""  # optional webhook HMAC auth
+
+    # Improvement Engine
+    IMPROVEMENT_ENGINE_ENABLED: bool = True
+    GAP_ANALYSIS_INTERVAL_HOURS: int = 24
+
     # App
     debug: bool = False
     log_level: str = "INFO"
     cors_origins: list[str] = ["http://localhost:3000"]
+
+    # Docker / MCP container management
+    DOCKER_HOST: str = "unix:///var/run/docker.sock"
+    MCP_CONTAINER_NETWORK: str = "archon-mcp"
+    MCP_CONTAINER_HEALTH_INTERVAL: int = 30
 
 
 settings = Settings()
