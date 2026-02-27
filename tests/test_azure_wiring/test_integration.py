@@ -68,7 +68,9 @@ class TestAzureIntegration:
         session.flush = AsyncMock()
 
         # Test provider registration
-        provider = asyncio.run(register_provider_as_entry(session, seed_data["provider"]))
+        provider = asyncio.run(
+            register_provider_as_entry(session, seed_data["provider"])
+        )
         assert provider.name == "azure-qrg-sandbox"
         assert provider.provider == "azure_openai"
         assert provider.config["is_provider_record"] is True
@@ -301,6 +303,7 @@ class TestAzureErrorHandling:
 
     def test_missing_credentials_handling(self):
         """Test handling when Azure credentials are missing."""
+
         async def mock_validate_connectivity():
             """Mock version that simulates missing credentials."""
             return (

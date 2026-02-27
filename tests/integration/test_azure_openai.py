@@ -53,17 +53,23 @@ class TestAzureOpenAIViaRouter:
 async def test_azure_openai_direct():
     """Call Azure OpenAI directly (NOT through Archon backend) to verify connectivity.
 
-    Uses hardcoded sandbox credentials for the QRG experiment deployment.
+    Uses ARCHON_AZURE_OPENAI_ENDPOINT and ARCHON_AZURE_OPENAI_API_KEY env vars.
     This test validates that the Azure OpenAI service itself is reachable and
     responding — independent of Archon's model router.
     """
+    _azure_endpoint = os.environ.get(
+        "ARCHON_AZURE_OPENAI_ENDPOINT", os.environ.get("AZURE_OPENAI_ENDPOINT", "")
+    )
     async with httpx.AsyncClient() as client:
         resp = await client.post(
-            "https://YOUR_AZURE_ENDPOINT.cognitiveservices.azure.com"
+            f"{_azure_endpoint}"
             "/openai/deployments/gpt-5.2-codex/chat/completions"
             "?api-version=2024-02-15-preview",
             headers={
-                "api-key": "REDACTED_API_KEY",
+                "api-key": os.environ.get(
+                    "ARCHON_AZURE_OPENAI_API_KEY",
+                    os.environ.get("AZURE_OPENAI_API_KEY", ""),
+                ),
                 "Content-Type": "application/json",
             },
             json={

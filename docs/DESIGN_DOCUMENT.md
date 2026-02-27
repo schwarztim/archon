@@ -862,8 +862,8 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="MCP_GATEWAY_")
     
     DEV_MODE: bool = True
-    ENTRA_TENANT_ID: str = "REDACTED_OIDC_TENANT_ID"
-    ENTRA_CLIENT_ID: str = "REDACTED_OIDC_CLIENT_ID"
+    ENTRA_TENANT_ID: str = "<YOUR_OIDC_TENANT_ID>"
+    ENTRA_CLIENT_ID: str = "<YOUR_OIDC_CLIENT_ID>"
     AZURE_OPENAI_ENDPOINT: str = ""
     AZURE_OPENAI_API_KEY: str = ""
     AZURE_OPENAI_MODEL: str = "gpt-5.2-codex"
@@ -924,7 +924,7 @@ services:
       AUTH_DEV_MODE: "true"
       ARCHON_DATABASE_URL: "postgresql+asyncpg://archon:archon@postgres:5432/archon_test"
       ARCHON_AZURE_OPENAI_API_KEY: "${AZURE_OPENAI_API_KEY}"
-      ARCHON_AZURE_OPENAI_ENDPOINT: "https://YOUR_AZURE_ENDPOINT.cognitiveservices.azure.com"
+      ARCHON_AZURE_OPENAI_ENDPOINT: "${ARCHON_AZURE_OPENAI_ENDPOINT}"
     depends_on:
       postgres:
         condition: service_healthy
@@ -1186,7 +1186,7 @@ Phase 4 — SEQUENTIAL (depends on all above)
 ## Global Constraints (Carried Forward)
 
 1. `create_db_and_tables()` — change to `create_all` only (no `drop_all`) before any new table additions
-2. Never hardcode `REDACTED_API_KEY` — always `ARCHON_AZURE_OPENAI_API_KEY` env var
+2. Never hardcode the Azure OpenAI API key — always use `ARCHON_AZURE_OPENAI_API_KEY` env var
 3. Gateway is `gateway/` — completely separate FastAPI app; do NOT import from `backend/`
 4. All new routes must appear in `/openapi.json`
 5. Every workstream outputs a report document in `docs/`

@@ -9,7 +9,9 @@ import os
 import pytest
 import httpx
 
-AZURE_ENDPOINT = "https://YOUR_AZURE_ENDPOINT.cognitiveservices.azure.com"
+AZURE_ENDPOINT = os.environ.get(
+    "ARCHON_AZURE_OPENAI_ENDPOINT", os.environ.get("AZURE_OPENAI_ENDPOINT", "")
+)
 API_KEY = os.getenv("AZURE_OPENAI_API_KEY", "")
 
 pytestmark = pytest.mark.skipif(not API_KEY, reason="AZURE_OPENAI_API_KEY not set")

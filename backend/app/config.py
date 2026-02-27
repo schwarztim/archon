@@ -45,9 +45,7 @@ class Settings(BaseSettings):
     OIDC_TENANT_ID: str = ""  # Entra directory (tenant) ID
 
     # Azure OpenAI
-    AZURE_OPENAI_ENDPOINT: str = (
-        "https://YOUR_AZURE_ENDPOINT.cognitiveservices.azure.com"
-    )
+    AZURE_OPENAI_ENDPOINT: str = ""
     AZURE_OPENAI_API_KEY: str = ""
     AZURE_OPENAI_MODEL: str = "gpt-5.2-codex"
     AZURE_OPENAI_EMBEDDINGS_MODEL: str = "qrg-embedding-experimental"

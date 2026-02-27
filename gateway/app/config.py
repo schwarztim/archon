@@ -48,7 +48,7 @@ class Settings(BaseSettings):
 
     # Azure OpenAI (for built-in tool execution)
     azure_openai_endpoint: str = Field(
-        default="https://YOUR_AZURE_ENDPOINT.cognitiveservices.azure.com",
+        default="",
         alias="AZURE_OPENAI_ENDPOINT",
     )
     azure_openai_api_key: str = Field(default="", alias="AZURE_OPENAI_API_KEY")

@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 AZURE_ENDPOINT = os.getenv(
     "AZURE_OPENAI_ENDPOINT",
-    "https://YOUR_AZURE_ENDPOINT.cognitiveservices.azure.com",
+    "",
 )
 AZURE_API_VERSION = os.getenv("AZURE_OPENAI_API_VERSION", "2025-01-01-preview")
 

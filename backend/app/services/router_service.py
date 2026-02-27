@@ -42,9 +42,7 @@ from app.services.audit_log_service import AuditLogService
 logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
 # ── Azure OpenAI configuration ───────────────────────────────────────
-_AZURE_OPENAI_ENDPOINT = (
-    "https://YOUR_AZURE_ENDPOINT.cognitiveservices.azure.com"
-)
+_AZURE_OPENAI_ENDPOINT = settings.AZURE_OPENAI_ENDPOINT
 _AZURE_OPENAI_MODEL = "gpt-5.2-codex"
 _AZURE_OPENAI_EMBEDDINGS_MODEL = "qrg-embedding-experimental"
 _AZURE_OPENAI_CHAT_URL = (

@@ -152,7 +152,7 @@ dist/assets/index-U68zRER_.js   1,584.19 kB │ gzip: 413.53 kB
 
 ## 5. Azure OpenAI Connectivity
 
-**Endpoint:** `https://YOUR_AZURE_ENDPOINT.cognitiveservices.azure.com/openai/responses?api-version=2025-04-01-preview`  
+**Endpoint:** `https://${ARCHON_AZURE_OPENAI_ENDPOINT}/openai/responses?api-version=2025-04-01-preview`  
 **Model:** `gpt-5.2-codex`  
 **HTTP Status:** `400 Bad Request`
 
@@ -188,17 +188,17 @@ The Azure OpenAI service is **up and responding**; connectivity is confirmed.
 
 ## 6. OIDC Discovery
 
-**URL:** `https://login.microsoftonline.com/REDACTED_OIDC_TENANT_ID/v2.0/.well-known/openid-configuration`  
+**URL:** `https://login.microsoftonline.com/<YOUR_OIDC_TENANT_ID>/v2.0/.well-known/openid-configuration`  
 **Result:** ✅ Valid JSON — all required OIDC keys present
 
 | Key | Value |
 |-----|-------|
-| `authorization_endpoint` | `https://login.microsoftonline.com/REDACTED_OIDC_TENANT_ID/oauth2/v2.0/authorize` |
-| `token_endpoint` | `https://login.microsoftonline.com/REDACTED_OIDC_TENANT_ID/oauth2/v2.0/token` |
-| `jwks_uri` | `https://login.microsoftonline.com/REDACTED_OIDC_TENANT_ID/discovery/v2.0/keys` |
-| `issuer` | `https://login.microsoftonline.com/REDACTED_OIDC_TENANT_ID/v2.0` |
+| `authorization_endpoint` | `https://login.microsoftonline.com/<YOUR_OIDC_TENANT_ID>/oauth2/v2.0/authorize` |
+| `token_endpoint` | `https://login.microsoftonline.com/<YOUR_OIDC_TENANT_ID>/oauth2/v2.0/token` |
+| `jwks_uri` | `https://login.microsoftonline.com/<YOUR_OIDC_TENANT_ID>/discovery/v2.0/keys` |
+| `issuer` | `https://login.microsoftonline.com/<YOUR_OIDC_TENANT_ID>/v2.0` |
 
-OIDC discovery is fully operational for tenant `REDACTED_OIDC_TENANT_ID`.
+OIDC discovery is fully operational for tenant `<YOUR_OIDC_TENANT_ID>`.
 
 ---
 
