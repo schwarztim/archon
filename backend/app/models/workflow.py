@@ -34,6 +34,7 @@ class Workflow(SQLModel, table=True):
     graph_definition: dict[str, Any] | None = Field(
         default=None, sa_column=Column(JSON, nullable=True)
     )
+    trigger_config: dict | None = Field(default=None, sa_column=Column(JSON))
     schedule: str | None = Field(default=None)
     is_active: bool = Field(default=True)
     created_by: str = Field(default="")
@@ -51,6 +52,7 @@ class WorkflowRun(SQLModel, table=True):
     tenant_id: UUID | None = Field(default=None, index=True)
     status: str = Field(default="pending", index=True)
     trigger_type: str = Field(default="manual")
+    input_data: dict | None = Field(default=None, sa_column=Column(JSON))
     triggered_by: str = Field(default="")
     started_at: datetime | None = Field(default=None)
     completed_at: datetime | None = Field(default=None)

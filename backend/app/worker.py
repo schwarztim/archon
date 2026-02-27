@@ -79,7 +79,11 @@ async def _run_rotation_checks() -> None:
                 if reg.expires_at is None:
                     continue
                 # Make comparison timezone-aware
-                expires = reg.expires_at if reg.expires_at.tzinfo else reg.expires_at.replace(tzinfo=timezone.utc)
+                expires = (
+                    reg.expires_at
+                    if reg.expires_at.tzinfo
+                    else reg.expires_at.replace(tzinfo=timezone.utc)
+                )
                 days_until_expiry = (expires - now).days
 
                 if days_until_expiry < 0:
@@ -134,7 +138,13 @@ async def _run_budget_alerts() -> None:
                         if existing.first() is not None:
                             break  # Already alerted at this threshold
 
-                        severity = "critical" if threshold >= 100 else "warning" if threshold >= 75 else "info"
+                        severity = (
+                            "critical"
+                            if threshold >= 100
+                            else "warning"
+                            if threshold >= 75
+                            else "info"
+                        )
                         alert = CostAlert(
                             budget_id=budget.id,
                             alert_type="threshold",
@@ -166,6 +176,139 @@ async def _run_budget_alerts() -> None:
         logger.exception("budget_alert_error")
 
 
+async def _check_scheduled_workflows() -> None:
+    """Check for scheduled workflows that are due and create WorkflowRun records."""
+    logger.debug("scheduled_workflow_tick")
+    try:
+        from croniter import croniter
+
+        from app.database import async_session_factory
+        from app.models.workflow import Workflow, WorkflowRun, WorkflowSchedule
+        from sqlmodel import select
+
+        async with async_session_factory() as session:
+            # Query all enabled schedules joined with their workflow
+            stmt = (
+                select(WorkflowSchedule, Workflow)
+                .join(Workflow, WorkflowSchedule.workflow_id == Workflow.id)
+                .where(
+                    WorkflowSchedule.enabled == True,  # noqa: E712
+                    Workflow.is_active == True,  # noqa: E712
+                )
+            )
+            result = await session.exec(stmt)
+            rows = list(result.all())
+
+            datetime.now(tz=timezone.utc)
+            # Naive UTC for storage (models use TIMESTAMP WITHOUT TIME ZONE)
+            now_naive = datetime.utcnow()
+
+            runs_created = 0
+            for schedule, workflow in rows:
+                try:
+                    # Determine the reference point: last_run_at or a point before now
+                    if schedule.last_run_at is not None:
+                        last_run = schedule.last_run_at
+                        # Ensure naive UTC for croniter
+                        if last_run.tzinfo is not None:
+                            last_run = last_run.replace(tzinfo=None)
+                    else:
+                        # First run: use one interval before now so we fire immediately
+                        cron_iter = croniter(schedule.cron, now_naive)
+                        last_run = cron_iter.get_prev(datetime)
+
+                    cron_iter = croniter(schedule.cron, last_run)
+                    next_run = cron_iter.get_next(datetime)  # naive UTC
+
+                    if next_run <= now_naive:
+                        # Workflow is due — create a run record
+                        run = WorkflowRun(
+                            workflow_id=workflow.id,
+                            tenant_id=workflow.tenant_id,
+                            status="pending",
+                            trigger_type="schedule",
+                            triggered_by="scheduler",
+                        )
+                        session.add(run)
+
+                        # Advance to the following next_run for storage
+                        cron_iter2 = croniter(schedule.cron, next_run)
+                        following_next = cron_iter2.get_next(datetime)
+
+                        schedule.last_run_at = now_naive
+                        schedule.next_run_at = following_next
+                        schedule.updated_at = now_naive
+                        session.add(schedule)
+
+                        runs_created += 1
+                        logger.info(
+                            "scheduled_workflow_triggered",
+                            workflow_id=str(workflow.id),
+                            workflow_name=workflow.name,
+                            cron=schedule.cron,
+                            next_run_at=following_next.isoformat(),
+                        )
+                    else:
+                        # Not due yet — update next_run_at if stale
+                        if schedule.next_run_at is None:
+                            schedule.next_run_at = next_run
+                            schedule.updated_at = now_naive
+                            session.add(schedule)
+
+                except Exception:
+                    logger.exception(
+                        "scheduled_workflow_check_error",
+                        workflow_id=str(workflow.id),
+                        cron=schedule.cron,
+                    )
+
+            if runs_created:
+                await session.commit()
+                logger.info("scheduled_workflow_runs_created", count=runs_created)
+            elif any(s.next_run_at is None for s, _ in rows):
+                await session.commit()
+
+    except Exception:
+        logger.exception("scheduled_workflow_error")
+
+
+_last_improvement_run: datetime | None = None
+
+
+async def _run_improvement_analysis() -> None:
+    """Run the improvement engine analysis cycle on the configured interval.
+
+    Uses GAP_ANALYSIS_INTERVAL_HOURS from settings to throttle runs.
+    Skips if the engine is disabled or the interval has not elapsed.
+    """
+    logger.debug("improvement_analysis_tick")
+    try:
+        from app.config import settings
+
+        if not settings.IMPROVEMENT_ENGINE_ENABLED:
+            return
+
+        global _last_improvement_run
+        now = datetime.now(tz=timezone.utc)
+
+        # Check if enough time has passed since the last run
+        if _last_improvement_run is not None:
+            elapsed_hours = (now - _last_improvement_run).total_seconds() / 3600
+            if elapsed_hours < settings.GAP_ANALYSIS_INTERVAL_HOURS:
+                return
+
+        from app.database import async_session_factory
+        from app.services.improvement_engine import ImprovementEngineService
+
+        async with async_session_factory() as session:
+            summary = await ImprovementEngineService.run_analysis_cycle(session)
+            _last_improvement_run = now
+            logger.info("improvement_analysis_tick_complete", **summary)
+
+    except Exception:
+        logger.exception("improvement_analysis_error")
+
+
 async def main() -> None:
     """Run the worker event loop until shutdown signal."""
     setup_logging(log_level="INFO")
@@ -182,6 +325,8 @@ async def main() -> None:
             await _run_scheduled_scans()
             await _run_rotation_checks()
             await _run_budget_alerts()
+            await _check_scheduled_workflows()
+            await _run_improvement_analysis()
         except Exception:
             logger.exception("worker_tick_error")
 

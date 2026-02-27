@@ -285,6 +285,9 @@ from app.models.oauth import OAuthPendingState  # noqa: E402
 from app.models.rbac import CustomRole  # noqa: E402
 from app.models.custom_role import GroupRoleMapping  # noqa: E402
 from app.models.scim_db import SCIMGroupRecord, SCIMUserRecord  # noqa: E402
+from app.models.qa import QAWorkflowRequest  # noqa: E402
+from app.models.improvement import ImprovementGap, ImprovementProposal  # noqa: E402
+from app.models.mcp_container import MCPServerContainer  # noqa: E402
 
 
 __all__ = [
@@ -381,4 +384,8 @@ __all__ = [
     "GroupRoleMapping",
     "SCIMGroupRecord",
     "SCIMUserRecord",
+    "QAWorkflowRequest",
+    "ImprovementGap",
+    "ImprovementProposal",
+    "MCPServerContainer",
 ]
