@@ -2,9 +2,15 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock
+from contextlib import asynccontextmanager
+from unittest.mock import AsyncMock, patch
 
 import pytest
+import pytest_asyncio
+from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.orm import sessionmaker
+from sqlmodel import SQLModel
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.scim import (
     SCIMEmail,
@@ -15,6 +21,7 @@ from app.models.scim import (
     SCIMPatchOperation,
     SCIMUser,
 )
+from app.models.scim_db import SCIMGroupRecord, SCIMUserRecord  # noqa: F401 — registers tables
 from app.services.scim_service import SCIMService
 
 
@@ -57,9 +64,31 @@ def mock_secrets() -> AsyncMock:
     return secrets
 
 
-@pytest.fixture()
-def svc(mock_secrets: AsyncMock) -> SCIMService:
-    return SCIMService(secrets=mock_secrets)
+@pytest_asyncio.fixture()
+async def svc(mock_secrets: AsyncMock) -> SCIMService:
+    """Build a SCIMService backed by an in-memory SQLite database."""
+    engine = create_async_engine("sqlite+aiosqlite://", echo=False)
+    async with engine.begin() as conn:
+        await conn.run_sync(SQLModel.metadata.create_all)
+
+    _real_factory = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+    @asynccontextmanager
+    async def _patched_factory():
+        """Wrap session so .exec().all()/.first() return model instances."""
+        async with _real_factory() as session:
+            _orig_exec = session.exec
+
+            async def _exec_scalars(stmt, *a, **kw):
+                result = await _orig_exec(stmt, *a, **kw)
+                return result.scalars()
+
+            session.exec = _exec_scalars  # type: ignore[assignment]
+            yield session
+
+    with patch("app.database.async_session_factory", _patched_factory):
+        service = SCIMService(secrets=mock_secrets)
+    return service
 
 
 # ---------------------------------------------------------------------------
@@ -197,10 +226,10 @@ class TestDeleteUser:
     @pytest.mark.asyncio
     async def test_delete_updates_last_modified(self, svc: SCIMService) -> None:
         user = await svc.create_user(_TENANT_A, _make_scim_user())
-        original = user.meta.lastModified
+        original = user.meta.lastModified.replace(tzinfo=None)
         await svc.delete_user(_TENANT_A, user.id)
         deactivated = await svc.get_user(_TENANT_A, user.id)
-        assert deactivated.meta.lastModified >= original
+        assert deactivated.meta.lastModified.replace(tzinfo=None) >= original
 
 
 # ---------------------------------------------------------------------------

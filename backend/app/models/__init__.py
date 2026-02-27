@@ -44,6 +44,7 @@ class Agent(SQLModel, table=True):
     definition: dict[str, Any] = Field(sa_column=Column(JSON, nullable=False))
     status: str = Field(default="draft")
     owner_id: UUID = Field(foreign_key="users.id")
+    tenant_id: str | None = Field(default=None, index=True)
     tags: list[str] = Field(
         default_factory=list, sa_column=Column(JSON, nullable=False)
     )
@@ -176,7 +177,6 @@ class AuditLog(SQLModel, table=True):
     __tablename__ = "audit_logs"
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
-
     # Tenant isolation (set by TenantMiddleware before this is written)
     tenant_id: str = Field(default="default", index=True)
 
