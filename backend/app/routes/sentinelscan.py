@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime
+
+from app.utils.time import utcnow
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -358,7 +360,7 @@ async def _audit(
         resource_type=resource_type,
         resource_id=resource_id,
         details=details or {},
-        created_at=datetime.now(tz=timezone.utc),
+        created_at=utcnow(),
     )
     await AuditLogService.create(session, event)
 

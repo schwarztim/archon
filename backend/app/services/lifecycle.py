@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime
+
+from app.utils.time import utcnow as _utcnow
 from typing import Any
 from uuid import UUID
 
@@ -10,11 +12,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from app.models.lifecycle import DeploymentRecord, HealthCheck, LifecycleEvent
-
-
-def _utcnow() -> datetime:
-    """Return timezone-aware UTC timestamp."""
-    return datetime.now(timezone.utc)
 
 
 class LifecycleManager:
@@ -44,7 +41,9 @@ class LifecycleManager:
         """
         # Find current active deployment for rollback chain
         prev = await LifecycleManager._active_deployment(
-            session, agent_id=agent_id, environment=environment,
+            session,
+            agent_id=agent_id,
+            environment=environment,
         )
 
         initial_traffic = 100
@@ -283,10 +282,7 @@ class LifecycleManager:
         await session.refresh(check)
 
         # Auto-rollback on high error rate
-        if (
-            error_rate > record.error_rate_threshold
-            and record.status == "active"
-        ):
+        if error_rate > record.error_rate_threshold and record.status == "active":
             await LifecycleManager.rollback(
                 session,
                 deployment_id,
@@ -339,8 +335,12 @@ class LifecycleManager:
         count_result = await session.exec(base)
         total = len(count_result.all())
 
-        stmt = base.offset(offset).limit(limit).order_by(
-            DeploymentRecord.created_at.desc()  # type: ignore[union-attr]
+        stmt = (
+            base.offset(offset)
+            .limit(limit)
+            .order_by(
+                DeploymentRecord.created_at.desc()  # type: ignore[union-attr]
+            )
         )
         result = await session.exec(stmt)
         records = list(result.all())
@@ -361,8 +361,12 @@ class LifecycleManager:
         count_result = await session.exec(base)
         total = len(count_result.all())
 
-        stmt = base.offset(offset).limit(limit).order_by(
-            HealthCheck.checked_at.desc()  # type: ignore[union-attr]
+        stmt = (
+            base.offset(offset)
+            .limit(limit)
+            .order_by(
+                HealthCheck.checked_at.desc()  # type: ignore[union-attr]
+            )
         )
         result = await session.exec(stmt)
         checks = list(result.all())
@@ -390,8 +394,12 @@ class LifecycleManager:
         count_result = await session.exec(base)
         total = len(count_result.all())
 
-        stmt = base.offset(offset).limit(limit).order_by(
-            LifecycleEvent.created_at.desc()  # type: ignore[union-attr]
+        stmt = (
+            base.offset(offset)
+            .limit(limit)
+            .order_by(
+                LifecycleEvent.created_at.desc()  # type: ignore[union-attr]
+            )
         )
         result = await session.exec(stmt)
         events = list(result.all())

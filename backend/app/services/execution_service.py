@@ -39,7 +39,7 @@ async def _audit(
         actor_id=UUID(user.id),
         action=action,
         resource_type="execution",
-        resource_id=resource_id,
+        resource_id=str(resource_id),
         details=details,
     )
     session.add(entry)

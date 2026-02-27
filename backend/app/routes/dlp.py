@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
+
+from app.utils.time import utcnow
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -141,25 +143,158 @@ def _audit_event(
 # ── Detector Types ──────────────────────────────────────────────────
 
 BUILT_IN_DETECTORS: list[dict[str, str]] = [
-    {"id": "ssn", "name": "Social Security Number", "category": "pii", "sensitivity": "high", "description": "US Social Security Numbers (XXX-XX-XXXX)", "icon": "shield"},
-    {"id": "credit_card", "name": "Credit Card", "category": "pii", "sensitivity": "high", "description": "Visa, Mastercard, Amex with Luhn validation", "icon": "credit-card"},
-    {"id": "email", "name": "Email Address", "category": "pii", "sensitivity": "medium", "description": "Email addresses in standard format", "icon": "mail"},
-    {"id": "phone", "name": "Phone Number", "category": "pii", "sensitivity": "medium", "description": "US and international phone numbers", "icon": "phone"},
-    {"id": "address", "name": "Street Address", "category": "pii", "sensitivity": "medium", "description": "Physical street addresses and postal codes", "icon": "map-pin"},
-    {"id": "passport", "name": "Passport Number", "category": "pii", "sensitivity": "high", "description": "Passport numbers from various countries", "icon": "book-open"},
-    {"id": "drivers_license", "name": "Driver's License", "category": "pii", "sensitivity": "high", "description": "Driver's license numbers (US formats)", "icon": "id-card"},
-    {"id": "api_key", "name": "API Key", "category": "secret", "sensitivity": "high", "description": "API keys from major cloud providers (AWS, GCP, Azure)", "icon": "key"},
-    {"id": "password", "name": "Password", "category": "secret", "sensitivity": "high", "description": "Passwords and credential strings in config/code", "icon": "lock"},
-    {"id": "jwt_token", "name": "JWT Token", "category": "secret", "sensitivity": "high", "description": "JSON Web Tokens (Bearer tokens)", "icon": "key-round"},
-    {"id": "aws_key", "name": "AWS Access Key", "category": "secret", "sensitivity": "critical", "description": "AWS access key IDs and secret keys", "icon": "cloud"},
-    {"id": "private_key", "name": "Private Key", "category": "secret", "sensitivity": "critical", "description": "RSA, EC, DSA, PGP private key blocks", "icon": "file-lock"},
-    {"id": "oauth_token", "name": "OAuth Token", "category": "secret", "sensitivity": "high", "description": "OAuth bearer and refresh tokens", "icon": "key-round"},
-    {"id": "person_name", "name": "Person Name", "category": "pii", "sensitivity": "low", "description": "Person names and identifiers", "icon": "user"},
-    {"id": "dob", "name": "Date of Birth", "category": "pii", "sensitivity": "medium", "description": "Dates of birth in common formats", "icon": "calendar"},
-    {"id": "ip_address", "name": "IP Address", "category": "network", "sensitivity": "medium", "description": "IPv4 and IPv6 addresses", "icon": "globe"},
-    {"id": "medical_record", "name": "Medical Record", "category": "phi", "sensitivity": "high", "description": "Medical record and health IDs (HIPAA)", "icon": "heart"},
-    {"id": "bank_account", "name": "Bank Account", "category": "pii", "sensitivity": "high", "description": "Bank account and routing numbers", "icon": "landmark"},
-    {"id": "custom", "name": "Custom Regex", "category": "custom", "sensitivity": "configurable", "description": "User-defined regex pattern with test preview", "icon": "settings"},
+    {
+        "id": "ssn",
+        "name": "Social Security Number",
+        "category": "pii",
+        "sensitivity": "high",
+        "description": "US Social Security Numbers (XXX-XX-XXXX)",
+        "icon": "shield",
+    },
+    {
+        "id": "credit_card",
+        "name": "Credit Card",
+        "category": "pii",
+        "sensitivity": "high",
+        "description": "Visa, Mastercard, Amex with Luhn validation",
+        "icon": "credit-card",
+    },
+    {
+        "id": "email",
+        "name": "Email Address",
+        "category": "pii",
+        "sensitivity": "medium",
+        "description": "Email addresses in standard format",
+        "icon": "mail",
+    },
+    {
+        "id": "phone",
+        "name": "Phone Number",
+        "category": "pii",
+        "sensitivity": "medium",
+        "description": "US and international phone numbers",
+        "icon": "phone",
+    },
+    {
+        "id": "address",
+        "name": "Street Address",
+        "category": "pii",
+        "sensitivity": "medium",
+        "description": "Physical street addresses and postal codes",
+        "icon": "map-pin",
+    },
+    {
+        "id": "passport",
+        "name": "Passport Number",
+        "category": "pii",
+        "sensitivity": "high",
+        "description": "Passport numbers from various countries",
+        "icon": "book-open",
+    },
+    {
+        "id": "drivers_license",
+        "name": "Driver's License",
+        "category": "pii",
+        "sensitivity": "high",
+        "description": "Driver's license numbers (US formats)",
+        "icon": "id-card",
+    },
+    {
+        "id": "api_key",
+        "name": "API Key",
+        "category": "secret",
+        "sensitivity": "high",
+        "description": "API keys from major cloud providers (AWS, GCP, Azure)",
+        "icon": "key",
+    },
+    {
+        "id": "password",
+        "name": "Password",
+        "category": "secret",
+        "sensitivity": "high",
+        "description": "Passwords and credential strings in config/code",
+        "icon": "lock",
+    },
+    {
+        "id": "jwt_token",
+        "name": "JWT Token",
+        "category": "secret",
+        "sensitivity": "high",
+        "description": "JSON Web Tokens (Bearer tokens)",
+        "icon": "key-round",
+    },
+    {
+        "id": "aws_key",
+        "name": "AWS Access Key",
+        "category": "secret",
+        "sensitivity": "critical",
+        "description": "AWS access key IDs and secret keys",
+        "icon": "cloud",
+    },
+    {
+        "id": "private_key",
+        "name": "Private Key",
+        "category": "secret",
+        "sensitivity": "critical",
+        "description": "RSA, EC, DSA, PGP private key blocks",
+        "icon": "file-lock",
+    },
+    {
+        "id": "oauth_token",
+        "name": "OAuth Token",
+        "category": "secret",
+        "sensitivity": "high",
+        "description": "OAuth bearer and refresh tokens",
+        "icon": "key-round",
+    },
+    {
+        "id": "person_name",
+        "name": "Person Name",
+        "category": "pii",
+        "sensitivity": "low",
+        "description": "Person names and identifiers",
+        "icon": "user",
+    },
+    {
+        "id": "dob",
+        "name": "Date of Birth",
+        "category": "pii",
+        "sensitivity": "medium",
+        "description": "Dates of birth in common formats",
+        "icon": "calendar",
+    },
+    {
+        "id": "ip_address",
+        "name": "IP Address",
+        "category": "network",
+        "sensitivity": "medium",
+        "description": "IPv4 and IPv6 addresses",
+        "icon": "globe",
+    },
+    {
+        "id": "medical_record",
+        "name": "Medical Record",
+        "category": "phi",
+        "sensitivity": "high",
+        "description": "Medical record and health IDs (HIPAA)",
+        "icon": "heart",
+    },
+    {
+        "id": "bank_account",
+        "name": "Bank Account",
+        "category": "pii",
+        "sensitivity": "high",
+        "description": "Bank account and routing numbers",
+        "icon": "landmark",
+    },
+    {
+        "id": "custom",
+        "name": "Custom Regex",
+        "category": "custom",
+        "sensitivity": "configurable",
+        "description": "User-defined regex pattern with test preview",
+        "icon": "settings",
+    },
 ]
 
 
@@ -192,11 +327,17 @@ async def scan_content(
     )
 
     _audit_event(
-        user, "dlp.scan", "dlp_scan", result.content_id,
+        user,
+        "dlp.scan",
+        "dlp_scan",
+        result.content_id,
         {"direction": body.direction, "risk_level": result.risk_level.value},
     )
 
-    return {"data": result.model_dump(mode="json"), "meta": _meta(request_id=request_id)}
+    return {
+        "data": result.model_dump(mode="json"),
+        "meta": _meta(request_id=request_id),
+    }
 
 
 @router.post("/redact")
@@ -216,7 +357,10 @@ async def redact_content(
     redacted = DLPService.redact_content(body.content, all_findings)
 
     _audit_event(
-        user, "dlp.redact", "dlp_redact", None,
+        user,
+        "dlp.redact",
+        "dlp_redact",
+        None,
         {"findings_count": len(all_findings)},
     )
 
@@ -252,11 +396,17 @@ async def check_guardrails(
     )
 
     _audit_event(
-        user, "dlp.guardrail_check", "guardrail", None,
+        user,
+        "dlp.guardrail_check",
+        "guardrail",
+        None,
         {"passed": result.passed, "violations": len(result.violations)},
     )
 
-    return {"data": result.model_dump(mode="json"), "meta": _meta(request_id=request_id)}
+    return {
+        "data": result.model_dump(mode="json"),
+        "meta": _meta(request_id=request_id),
+    }
 
 
 # ── Policy Endpoints ───────────────────────────────────────────────
@@ -284,7 +434,10 @@ async def create_nl_policy(
     await session.refresh(policy)
 
     _audit_event(
-        user, "dlp.policy_created", "dlp_policy", str(policy.id),
+        user,
+        "dlp.policy_created",
+        "dlp_policy",
+        str(policy.id),
         {"name": policy.name, "rules_count": len(policy.rules)},
     )
 
@@ -297,7 +450,10 @@ async def create_nl_policy(
         },
     )
 
-    return {"data": policy.model_dump(mode="json"), "meta": _meta(request_id=request_id)}
+    return {
+        "data": policy.model_dump(mode="json"),
+        "meta": _meta(request_id=request_id),
+    }
 
 
 @router.get("/policies")
@@ -319,8 +475,12 @@ async def list_policies(
     count_result = await session.exec(base)
     total = len(count_result.all())
 
-    stmt = base.offset(offset).limit(limit).order_by(
-        DLPPolicy.created_at.desc()  # type: ignore[union-attr]
+    stmt = (
+        base.offset(offset)
+        .limit(limit)
+        .order_by(
+            DLPPolicy.created_at.desc()  # type: ignore[union-attr]
+        )
     )
     result = await session.exec(stmt)
     policies = list(result.all())
@@ -362,7 +522,10 @@ async def evaluate_policies(
     )
 
     _audit_event(
-        user, "dlp.policy_evaluated", "dlp_policy", None,
+        user,
+        "dlp.policy_evaluated",
+        "dlp_policy",
+        None,
         {
             "policies_count": len(policies),
             "matched_count": sum(1 for e in evaluations if e.matched),
@@ -406,35 +569,46 @@ async def manual_scan(
 
     detections: list[dict[str, Any]] = []
     for f in secret_findings:
-        detections.append({
-            "type": f.pattern_name,
-            "category": "secret",
-            "preview": f.matched_text_preview,
-            "position": list(f.position),
-            "confidence": f.confidence,
-            "severity": f.severity,
-        })
+        detections.append(
+            {
+                "type": f.pattern_name,
+                "category": "secret",
+                "preview": f.matched_text_preview,
+                "position": list(f.position),
+                "confidence": f.confidence,
+                "severity": f.severity,
+            }
+        )
     for f in pii_findings:
-        detections.append({
-            "type": f.pii_type,
-            "category": "pii",
-            "preview": f.matched_text_preview,
-            "position": list(f.position),
-            "confidence": f.confidence,
-            "severity": "medium",
-        })
+        detections.append(
+            {
+                "type": f.pii_type,
+                "category": "pii",
+                "preview": f.matched_text_preview,
+                "position": list(f.position),
+                "confidence": f.confidence,
+                "severity": "medium",
+            }
+        )
     for h in engine_hits:
         # Avoid duplicates from service layer
         pos = (h.start, h.end)
         if not any(d["position"] == list(pos) for d in detections):
-            detections.append({
-                "type": h.entity_type,
-                "category": "custom" if h.entity_type not in ("ssn", "credit_card", "email", "api_key", "password") else "builtin",
-                "preview": h.matched_text[:8] + "..." if len(h.matched_text) > 8 else h.matched_text,
-                "position": [h.start, h.end],
-                "confidence": h.confidence,
-                "severity": "medium",
-            })
+            detections.append(
+                {
+                    "type": h.entity_type,
+                    "category": "custom"
+                    if h.entity_type
+                    not in ("ssn", "credit_card", "email", "api_key", "password")
+                    else "builtin",
+                    "preview": h.matched_text[:8] + "..."
+                    if len(h.matched_text) > 8
+                    else h.matched_text,
+                    "position": [h.start, h.end],
+                    "confidence": h.confidence,
+                    "severity": "medium",
+                }
+            )
 
     # Determine action
     full_result = DLPService.scan_content(
@@ -536,13 +710,10 @@ async def get_metrics(
         redacted = redacted_result.one_or_none() or 0
 
         # Detection type breakdown
-        stmt_types = (
-            select(ScanResultModel.entity_types_found)
-            .where(
-                ScanResultModel.tenant_id == user.tenant_id,
-                ScanResultModel.created_at >= today_start,
-                ScanResultModel.has_findings == True,  # noqa: E712
-            )
+        stmt_types = select(ScanResultModel.entity_types_found).where(
+            ScanResultModel.tenant_id == user.tenant_id,
+            ScanResultModel.created_at >= today_start,
+            ScanResultModel.has_findings == True,  # noqa: E712
         )
         types_result = await session.exec(stmt_types)
         type_counts: dict[str, int] = {}
@@ -568,10 +739,12 @@ async def get_metrics(
             )
             day_result = await session.exec(stmt_day)
             count = day_result.one_or_none() or 0
-            trend.append({
-                "date": day.strftime("%Y-%m-%d"),
-                "detections": count,
-            })
+            trend.append(
+                {
+                    "date": day.strftime("%Y-%m-%d"),
+                    "detections": count,
+                }
+            )
     except Exception:
         scans_today = 0
         detections = 0
@@ -582,7 +755,12 @@ async def get_metrics(
             hour=0, minute=0, second=0, microsecond=0
         )
         trend = [
-            {"date": (today_start - __import__("datetime").timedelta(days=i)).strftime("%Y-%m-%d"), "detections": 0}
+            {
+                "date": (
+                    today_start - __import__("datetime").timedelta(days=i)
+                ).strftime("%Y-%m-%d"),
+                "detections": 0,
+            }
             for i in range(6, -1, -1)
         ]
 
@@ -617,12 +795,9 @@ async def list_detections(
 
     request_id = str(uuid4())
 
-    base = (
-        select(ScanResultModel)
-        .where(
-            ScanResultModel.tenant_id == user.tenant_id,
-            ScanResultModel.has_findings == True,  # noqa: E712
-        )
+    base = select(ScanResultModel).where(
+        ScanResultModel.tenant_id == user.tenant_id,
+        ScanResultModel.has_findings == True,  # noqa: E712
     )
 
     # Count
@@ -630,8 +805,12 @@ async def list_detections(
     total = len(count_result.all())
 
     # Paginated results
-    stmt = base.offset(offset).limit(limit).order_by(
-        ScanResultModel.created_at.desc()  # type: ignore[union-attr]
+    stmt = (
+        base.offset(offset)
+        .limit(limit)
+        .order_by(
+            ScanResultModel.created_at.desc()  # type: ignore[union-attr]
+        )
     )
     result = await session.exec(stmt)
     detections = list(result.all())
@@ -688,11 +867,17 @@ async def create_structured_policy(
     await session.refresh(policy)
 
     _audit_event(
-        user, "dlp.policy_created", "dlp_policy", str(policy.id),
+        user,
+        "dlp.policy_created",
+        "dlp_policy",
+        str(policy.id),
         {"name": policy.name, "detectors": body.detector_types},
     )
 
-    return {"data": policy.model_dump(mode="json"), "meta": _meta(request_id=request_id)}
+    return {
+        "data": policy.model_dump(mode="json"),
+        "meta": _meta(request_id=request_id),
+    }
 
 
 @router.put("/policies/{policy_id}")
@@ -717,17 +902,23 @@ async def update_policy(
         if hasattr(policy, key):
             setattr(policy, key, value)
 
-    policy.updated_at = datetime.now(tz=timezone.utc)
+    policy.updated_at = utcnow()
     session.add(policy)
     await session.commit()
     await session.refresh(policy)
 
     _audit_event(
-        user, "dlp.policy_updated", "dlp_policy", str(policy.id),
+        user,
+        "dlp.policy_updated",
+        "dlp_policy",
+        str(policy.id),
         {"updated_fields": list(update_data.keys())},
     )
 
-    return {"data": policy.model_dump(mode="json"), "meta": _meta(request_id=request_id)}
+    return {
+        "data": policy.model_dump(mode="json"),
+        "meta": _meta(request_id=request_id),
+    }
 
 
 @router.get("/policies/{policy_id}/stats")

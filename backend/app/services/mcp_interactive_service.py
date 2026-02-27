@@ -5,7 +5,9 @@ from __future__ import annotations
 import logging
 import secrets
 from collections.abc import AsyncIterator
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
+
+from app.utils.time import utcnow as _utcnow
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -27,11 +29,6 @@ _component_types: dict[str, dict[UUID, ComponentType]] = {}
 _update_queues: dict[str, dict[UUID, list[dict[str, Any]]]] = {}
 
 _SESSION_TTL_HOURS = 4
-
-
-def _utcnow() -> datetime:
-    """Return timezone-aware UTC timestamp."""
-    return datetime.now(timezone.utc)
 
 
 def _tenant_sessions(tenant_id: str) -> dict[UUID, ComponentSession]:
@@ -246,11 +243,13 @@ class MCPInteractiveService:
         # Enqueue update for real-time listeners
         queues = _tenant_queues(tenant_id)
         if session_id in queues:
-            queues[session_id].append({
-                "action_type": action.action_type,
-                "payload": action.payload,
-                "timestamp": _utcnow().isoformat(),
-            })
+            queues[session_id].append(
+                {
+                    "action_type": action.action_type,
+                    "payload": action.payload,
+                    "timestamp": _utcnow().isoformat(),
+                }
+            )
 
         logger.info(
             "component.action",

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -11,11 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import col, select
 
 from app.models.tenancy import BillingRecord, Tenant, TenantQuota, UsageMeteringRecord
-
-
-def _utcnow() -> datetime:
-    """Return timezone-aware UTC timestamp."""
-    return datetime.now(timezone.utc)
+from app.utils.time import utcnow as _utcnow
 
 
 # ── Default tier definitions ────────────────────────────────────────
@@ -114,7 +110,10 @@ class TenantManager:
     ) -> dict[str, Any]:
         """Self-service signup: create tenant + quotas and return onboarding payload."""
         tenant = await TenantManager.create_tenant(
-            session, name=name, owner_email=owner_email, tier=tier,
+            session,
+            name=name,
+            owner_email=owner_email,
+            tier=tier,
         )
         quota = await TenantManager.get_quota(session, tenant_id=tenant.id)
         return {
@@ -131,9 +130,7 @@ class TenantManager:
     @staticmethod
     async def get_tenant_by_slug(session: AsyncSession, slug: str) -> Tenant | None:
         """Return a tenant by its unique slug."""
-        result = await session.exec(
-            select(Tenant).where(Tenant.slug == slug).limit(1)
-        )
+        result = await session.exec(select(Tenant).where(Tenant.slug == slug).limit(1))
         return result.first()
 
     @staticmethod
@@ -155,8 +152,12 @@ class TenantManager:
         count_result = await session.exec(base)
         total = len(count_result.all())
 
-        stmt = base.offset(offset).limit(limit).order_by(
-            col(Tenant.created_at).desc(),
+        stmt = (
+            base.offset(offset)
+            .limit(limit)
+            .order_by(
+                col(Tenant.created_at).desc(),
+            )
         )
         result = await session.exec(stmt)
         return list(result.all()), total
@@ -195,7 +196,9 @@ class TenantManager:
     # ── Quota Management ────────────────────────────────────────────
 
     @staticmethod
-    async def get_quota(session: AsyncSession, *, tenant_id: UUID) -> TenantQuota | None:
+    async def get_quota(
+        session: AsyncSession, *, tenant_id: UUID
+    ) -> TenantQuota | None:
         """Return the quota record for a tenant."""
         result = await session.exec(
             select(TenantQuota).where(TenantQuota.tenant_id == tenant_id).limit(1)
@@ -304,7 +307,9 @@ class TenantManager:
 
         return {
             "allowed": allowed,
-            "reason": f"Hard limit exceeded for {resource_type}" if not allowed else None,
+            "reason": f"Hard limit exceeded for {resource_type}"
+            if not allowed
+            else None,
             "resource_type": resource_type,
             "used": current_used,
             "limit": max_allowed,
@@ -383,8 +388,12 @@ class TenantManager:
         count_result = await session.exec(base)
         total = len(count_result.all())
 
-        stmt = base.offset(offset).limit(limit).order_by(
-            col(UsageMeteringRecord.created_at).desc(),
+        stmt = (
+            base.offset(offset)
+            .limit(limit)
+            .order_by(
+                col(UsageMeteringRecord.created_at).desc(),
+            )
         )
         result = await session.exec(stmt)
         return list(result.all()), total
@@ -479,8 +488,12 @@ class TenantManager:
         count_result = await session.exec(base)
         total = len(count_result.all())
 
-        stmt = base.offset(offset).limit(limit).order_by(
-            col(BillingRecord.created_at).desc(),
+        stmt = (
+            base.offset(offset)
+            .limit(limit)
+            .order_by(
+                col(BillingRecord.created_at).desc(),
+            )
         )
         result = await session.exec(stmt)
         return list(result.all()), total

@@ -100,7 +100,7 @@ async def _validate_scim_auth(
             detail="Missing or invalid Authorization header",
         )
 
-    token = auth_header[len("Bearer "):]
+    token = auth_header[len("Bearer ") :]
 
     # Extract tenant_id from the X-Tenant-ID header
     tenant_id = request.headers.get("X-Tenant-ID", "")
@@ -143,7 +143,9 @@ async def list_users(
     )
 
     audit = _audit_event(
-        tenant_id, "scim.users.listed", "scim_user",
+        tenant_id,
+        "scim.users.listed",
+        "scim_user",
         details={"filter": filter, "total": result.totalResults},
     )
     logger.info(
@@ -151,7 +153,7 @@ async def list_users(
         extra={"tenant_id": tenant_id, "audit_id": str(audit.id)},
     )
 
-    return _scim_response(result.model_dump(by_alias=True))
+    return _scim_response(result.model_dump(by_alias=True, mode="json"))
 
 
 @router.get("/Users/{scim_id}")
@@ -167,14 +169,17 @@ async def get_user(
         return _scim_error_response(404, f"User {scim_id} not found")
 
     audit = _audit_event(
-        tenant_id, "scim.user.retrieved", "scim_user", scim_id,
+        tenant_id,
+        "scim.user.retrieved",
+        "scim_user",
+        scim_id,
     )
     logger.info(
         "SCIM user retrieved",
         extra={"tenant_id": tenant_id, "scim_id": scim_id, "audit_id": str(audit.id)},
     )
 
-    return _scim_response(user.model_dump(by_alias=True))
+    return _scim_response(user.model_dump(by_alias=True, mode="json"))
 
 
 @router.post("/Users", status_code=status.HTTP_201_CREATED)
@@ -187,15 +192,24 @@ async def create_user(
     created = await scim_service.create_user(tenant_id=tenant_id, scim_user=body)
 
     audit = _audit_event(
-        tenant_id, "scim.user.created", "scim_user", created.id,
+        tenant_id,
+        "scim.user.created",
+        "scim_user",
+        created.id,
         {"userName": created.userName},
     )
     logger.info(
         "SCIM user created",
-        extra={"tenant_id": tenant_id, "scim_id": created.id, "audit_id": str(audit.id)},
+        extra={
+            "tenant_id": tenant_id,
+            "scim_id": created.id,
+            "audit_id": str(audit.id),
+        },
     )
 
-    return _scim_response(created.model_dump(by_alias=True), status_code=201)
+    return _scim_response(
+        created.model_dump(by_alias=True, mode="json"), status_code=201
+    )
 
 
 @router.patch("/Users/{scim_id}")
@@ -216,7 +230,10 @@ async def update_user(
         return _scim_error_response(404, f"User {scim_id} not found")
 
     audit = _audit_event(
-        tenant_id, "scim.user.updated", "scim_user", scim_id,
+        tenant_id,
+        "scim.user.updated",
+        "scim_user",
+        scim_id,
         {"operations_count": len(body.Operations)},
     )
     logger.info(
@@ -224,7 +241,7 @@ async def update_user(
         extra={"tenant_id": tenant_id, "scim_id": scim_id, "audit_id": str(audit.id)},
     )
 
-    return _scim_response(updated.model_dump(by_alias=True))
+    return _scim_response(updated.model_dump(by_alias=True, mode="json"))
 
 
 @router.delete("/Users/{scim_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -243,7 +260,10 @@ async def delete_user(
         )
 
     audit = _audit_event(
-        tenant_id, "scim.user.deactivated", "scim_user", scim_id,
+        tenant_id,
+        "scim.user.deactivated",
+        "scim_user",
+        scim_id,
     )
     logger.info(
         "SCIM user deactivated",
@@ -271,7 +291,9 @@ async def list_groups(
     )
 
     audit = _audit_event(
-        tenant_id, "scim.groups.listed", "scim_group",
+        tenant_id,
+        "scim.groups.listed",
+        "scim_group",
         details={"filter": filter, "total": result.totalResults},
     )
     logger.info(
@@ -279,7 +301,7 @@ async def list_groups(
         extra={"tenant_id": tenant_id, "audit_id": str(audit.id)},
     )
 
-    return _scim_response(result.model_dump(by_alias=True))
+    return _scim_response(result.model_dump(by_alias=True, mode="json"))
 
 
 @router.post("/Groups", status_code=status.HTTP_201_CREATED)
@@ -292,15 +314,24 @@ async def create_group(
     created = await scim_service.create_group(tenant_id=tenant_id, scim_group=body)
 
     audit = _audit_event(
-        tenant_id, "scim.group.created", "scim_group", created.id,
+        tenant_id,
+        "scim.group.created",
+        "scim_group",
+        created.id,
         {"displayName": created.displayName},
     )
     logger.info(
         "SCIM group created",
-        extra={"tenant_id": tenant_id, "scim_id": created.id, "audit_id": str(audit.id)},
+        extra={
+            "tenant_id": tenant_id,
+            "scim_id": created.id,
+            "audit_id": str(audit.id),
+        },
     )
 
-    return _scim_response(created.model_dump(by_alias=True), status_code=201)
+    return _scim_response(
+        created.model_dump(by_alias=True, mode="json"), status_code=201
+    )
 
 
 @router.patch("/Groups/{scim_id}")
@@ -321,7 +352,10 @@ async def update_group(
         return _scim_error_response(404, f"Group {scim_id} not found")
 
     audit = _audit_event(
-        tenant_id, "scim.group.updated", "scim_group", scim_id,
+        tenant_id,
+        "scim.group.updated",
+        "scim_group",
+        scim_id,
         {"operations_count": len(body.Operations)},
     )
     logger.info(
@@ -329,7 +363,7 @@ async def update_group(
         extra={"tenant_id": tenant_id, "scim_id": scim_id, "audit_id": str(audit.id)},
     )
 
-    return _scim_response(updated.model_dump(by_alias=True))
+    return _scim_response(updated.model_dump(by_alias=True, mode="json"))
 
 
 # ── Discovery routes ─────────────────────────────────────────────────

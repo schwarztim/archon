@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime
+
+from app.utils.time import utcnow as _utcnow
 from typing import Any
 from uuid import UUID
 
@@ -14,12 +16,6 @@ from app.models.sentinelscan import (
     DiscoveryScan,
     RiskClassification,
 )
-
-
-def _utcnow() -> datetime:
-    """Return timezone-aware UTC timestamp."""
-    return datetime.now(timezone.utc)
-
 
 # ── Risk scoring constants ──────────────────────────────────────────
 
@@ -96,8 +92,12 @@ class SentinelScanner:
         count_result = await session.exec(base)
         total = len(count_result.all())
 
-        stmt = base.offset(offset).limit(limit).order_by(
-            DiscoveryScan.created_at.desc()  # type: ignore[union-attr]
+        stmt = (
+            base.offset(offset)
+            .limit(limit)
+            .order_by(
+                DiscoveryScan.created_at.desc()  # type: ignore[union-attr]
+            )
         )
         result = await session.exec(stmt)
         return list(result.all()), total
@@ -148,9 +148,7 @@ class SentinelScanner:
             scan.results_summary = results_summary
 
         # Count discovered services for this scan
-        svc_stmt = select(DiscoveredService).where(
-            DiscoveredService.scan_id == scan_id
-        )
+        svc_stmt = select(DiscoveredService).where(DiscoveredService.scan_id == scan_id)
         svc_result = await session.exec(svc_stmt)
         scan.services_found = len(svc_result.all())
 
@@ -210,8 +208,12 @@ class SentinelScanner:
         count_result = await session.exec(base)
         total = len(count_result.all())
 
-        stmt = base.offset(offset).limit(limit).order_by(
-            DiscoveredService.created_at.desc()  # type: ignore[union-attr]
+        stmt = (
+            base.offset(offset)
+            .limit(limit)
+            .order_by(
+                DiscoveredService.created_at.desc()  # type: ignore[union-attr]
+            )
         )
         result = await session.exec(stmt)
         return list(result.all()), total
@@ -369,8 +371,12 @@ class SentinelScanner:
         count_result = await session.exec(base)
         total = len(count_result.all())
 
-        stmt = base.offset(offset).limit(limit).order_by(
-            RiskClassification.risk_score.desc()  # type: ignore[union-attr]
+        stmt = (
+            base.offset(offset)
+            .limit(limit)
+            .order_by(
+                RiskClassification.risk_score.desc()  # type: ignore[union-attr]
+            )
         )
         result = await session.exec(stmt)
         return list(result.all()), total
@@ -399,7 +405,11 @@ class SentinelScanner:
 
         # Tier breakdown
         tier_counts: dict[str, int] = {
-            "critical": 0, "high": 0, "medium": 0, "low": 0, "informational": 0,
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "informational": 0,
         }
         total_risk_score = 0
         for c in classifications:
@@ -423,7 +433,9 @@ class SentinelScanner:
                 dept_stats[dept]["unsanctioned"] += 1
 
         # Top risks: classifications sorted by score desc, top 5
-        top_risks = sorted(classifications, key=lambda c: c.risk_score, reverse=True)[:5]
+        top_risks = sorted(classifications, key=lambda c: c.risk_score, reverse=True)[
+            :5
+        ]
 
         return {
             "posture_score": posture_score,

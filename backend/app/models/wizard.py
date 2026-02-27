@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 from uuid import uuid4
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # ── Step 1: Describe ────────────────────────────────────────────────
@@ -15,11 +15,14 @@ class NLBuildRequest(BaseModel):
     """Incoming natural-language description of a desired agent."""
 
     description: str = Field(
-        ..., min_length=1, max_length=5000,
+        ...,
+        min_length=1,
+        max_length=5000,
         description="Free-text description of the agent to build",
     )
     workspace_id: str | None = Field(
-        default=None, description="Optional workspace scope",
+        default=None,
+        description="Optional workspace scope",
     )
 
 
@@ -34,8 +37,10 @@ class TemplateMatch(BaseModel):
 class NLAnalysis(BaseModel):
     """Result of the *describe* step — NLP analysis of the request."""
 
+    model_config = ConfigDict(populate_by_name=True)
+
     analysis_id: str = Field(default_factory=lambda: uuid4().hex)
-    original_description: str
+    original_description: str = Field(alias="description")
     intents: list[str] = Field(default_factory=list)
     entities: list[str] = Field(default_factory=list)
     connectors_detected: list[str] = Field(default_factory=list)

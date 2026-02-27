@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime
+
+from app.utils.time import utcnow as _utcnow
 from typing import Any
 from uuid import UUID
 
@@ -10,12 +12,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from app.models.a2a import A2AAgentCard, A2AMessage, A2ATask
-
-
-def _utcnow() -> datetime:
-    """Return timezone-aware UTC timestamp."""
-    return datetime.now(timezone.utc)
-
 
 # ── A2A Client (discovery + outbound communication) ─────────────────
 
@@ -50,8 +46,12 @@ class A2AClient:
 
         total = len(all_rows)
 
-        stmt = base.offset(offset).limit(limit).order_by(
-            A2AAgentCard.created_at.desc()  # type: ignore[union-attr]
+        stmt = (
+            base.offset(offset)
+            .limit(limit)
+            .order_by(
+                A2AAgentCard.created_at.desc()  # type: ignore[union-attr]
+            )
         )
         result = await session.exec(stmt)
         entries = list(result.all())
@@ -184,8 +184,12 @@ class A2AClient:
         count_result = await session.exec(base)
         total = len(count_result.all())
 
-        stmt = base.offset(offset).limit(limit).order_by(
-            A2ATask.created_at.desc()  # type: ignore[union-attr]
+        stmt = (
+            base.offset(offset)
+            .limit(limit)
+            .order_by(
+                A2ATask.created_at.desc()  # type: ignore[union-attr]
+            )
         )
         result = await session.exec(stmt)
         tasks = list(result.all())
@@ -205,8 +209,12 @@ class A2AClient:
         count_result = await session.exec(base)
         total = len(count_result.all())
 
-        stmt = base.offset(offset).limit(limit).order_by(
-            A2AMessage.created_at.asc()  # type: ignore[union-attr]
+        stmt = (
+            base.offset(offset)
+            .limit(limit)
+            .order_by(
+                A2AMessage.created_at.asc()  # type: ignore[union-attr]
+            )
         )
         result = await session.exec(stmt)
         messages = list(result.all())
@@ -292,8 +300,12 @@ class A2APublisher:
         count_result = await session.exec(base)
         total = len(count_result.all())
 
-        stmt = base.offset(offset).limit(limit).order_by(
-            A2AAgentCard.created_at.desc()  # type: ignore[union-attr]
+        stmt = (
+            base.offset(offset)
+            .limit(limit)
+            .order_by(
+                A2AAgentCard.created_at.desc()  # type: ignore[union-attr]
+            )
         )
         result = await session.exec(stmt)
         cards = list(result.all())

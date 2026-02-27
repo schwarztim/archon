@@ -9,7 +9,9 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from datetime import datetime, timezone
+from datetime import datetime
+
+from app.utils.time import utcnow as _utcnow
 from typing import Any
 from uuid import UUID
 
@@ -23,11 +25,6 @@ from app.models.mcp_security import (
     MCPToolAuthorization,
     MCPToolVersion,
 )
-
-
-def _utcnow() -> datetime:
-    """Return timezone-aware UTC timestamp."""
-    return datetime.now(timezone.utc)
 
 
 def _hash_json(data: Any) -> str:
@@ -85,8 +82,12 @@ class ResponseValidationResult:
     """Result of validating an MCP tool response."""
 
     __slots__ = (
-        "is_valid", "injection_detected", "injection_patterns",
-        "anomaly_score", "was_truncated", "action_taken",
+        "is_valid",
+        "injection_detected",
+        "injection_patterns",
+        "anomaly_score",
+        "was_truncated",
+        "action_taken",
     )
 
     def __init__(
@@ -303,8 +304,12 @@ class MCPSecurityGuardian:
         count_result = await session.exec(base)
         total = len(count_result.all())
 
-        stmt = base.offset(offset).limit(limit).order_by(
-            MCPToolAuthorization.created_at.desc()  # type: ignore[union-attr]
+        stmt = (
+            base.offset(offset)
+            .limit(limit)
+            .order_by(
+                MCPToolAuthorization.created_at.desc()  # type: ignore[union-attr]
+            )
         )
         result = await session.exec(stmt)
         return list(result.all()), total
@@ -375,7 +380,8 @@ class MCPSecurityGuardian:
             agent_id=agent_id,
             user_id=user_id,
             status="pending",
-            resource_limits=resource_limits or {
+            resource_limits=resource_limits
+            or {
                 "cpu": "0.5",
                 "memory_mb": 256,
                 "network": "restricted",
@@ -471,8 +477,12 @@ class MCPSecurityGuardian:
         count_result = await session.exec(base)
         total = len(count_result.all())
 
-        stmt = base.offset(offset).limit(limit).order_by(
-            MCPSandboxSession.created_at.desc()  # type: ignore[union-attr]
+        stmt = (
+            base.offset(offset)
+            .limit(limit)
+            .order_by(
+                MCPSandboxSession.created_at.desc()  # type: ignore[union-attr]
+            )
         )
         result = await session.exec(stmt)
         return list(result.all()), total
@@ -623,8 +633,12 @@ class MCPSecurityGuardian:
         count_result = await session.exec(base)
         total = len(count_result.all())
 
-        stmt = base.offset(offset).limit(limit).order_by(
-            MCPToolVersion.created_at.desc()  # type: ignore[union-attr]
+        stmt = (
+            base.offset(offset)
+            .limit(limit)
+            .order_by(
+                MCPToolVersion.created_at.desc()  # type: ignore[union-attr]
+            )
         )
         result = await session.exec(stmt)
         return list(result.all()), total
@@ -769,8 +783,12 @@ class MCPSecurityGuardian:
         count_result = await session.exec(base)
         total = len(count_result.all())
 
-        stmt = base.offset(offset).limit(limit).order_by(
-            MCPSecurityEvent.created_at.desc()  # type: ignore[union-attr]
+        stmt = (
+            base.offset(offset)
+            .limit(limit)
+            .order_by(
+                MCPSecurityEvent.created_at.desc()  # type: ignore[union-attr]
+            )
         )
         result = await session.exec(stmt)
         return list(result.all()), total

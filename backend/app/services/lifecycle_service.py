@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import logging
 import statistics
-from datetime import datetime, timezone
+from datetime import datetime
+
+from app.utils.time import utcnow as _utcnow
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -71,11 +73,6 @@ _PIPELINE_STAGES: list[dict[str, str]] = [
 ]
 
 _STAGE_ORDER: list[str] = ["dev", "staging", "canary", "production"]
-
-
-def _utcnow() -> datetime:
-    """Return timezone-aware UTC timestamp."""
-    return datetime.now(timezone.utc)
 
 
 # ---------------------------------------------------------------------------

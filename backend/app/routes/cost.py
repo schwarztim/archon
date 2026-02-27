@@ -5,6 +5,8 @@ from __future__ import annotations
 import csv
 import io
 from datetime import datetime, timezone
+
+from app.utils.time import utcnow
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -528,7 +530,7 @@ async def upsert_department_budget(
     result = await session.exec(stmt)
     existing = result.first()
 
-    now = datetime.now(tz=timezone.utc)
+    now = utcnow()
 
     if existing:
         existing.budget_usd = Decimal(str(body.budget_usd))
@@ -601,9 +603,109 @@ async def create_budget(
     """Create a new budget."""
     budget = Budget(**body.model_dump(exclude_none=False))
     if budget.period_start is None:
-        budget.period_start = datetime.now(tz=timezone.utc)
+        budget.period_start = utcnow()
     created = await CostEngine.create_budget(session, budget)
     return {"data": created.model_dump(mode="json"), "meta": _meta()}
+
+
+class BudgetWizardCreate(BaseModel):
+    """Budget creation via the Budget Wizard."""
+
+    name: str
+    scope: str = PField(default="tenant", pattern="^(tenant|team|agent|user)$")
+    scope_id: UUID | None = None
+    limit_amount: float = PField(gt=0.0)
+    period: str = PField(default="monthly", pattern="^(daily|weekly|monthly)$")
+    enforcement: str = PField(default="soft", pattern="^(soft|hard)$")
+    alert_thresholds: list[float] = PField(
+        default_factory=lambda: [50.0, 75.0, 90.0, 100.0]
+    )
+
+
+@router.post("/budgets/wizard", status_code=201)
+async def v1_create_budget(
+    body: BudgetWizardCreate,
+    user: AuthenticatedUser = Depends(require_permission("costs", "create")),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Create a budget via the Budget Wizard."""
+    scope_map = {
+        "team": "department",
+        "tenant": "tenant",
+        "agent": "agent",
+        "user": "user",
+    }
+    db_scope = scope_map.get(body.scope, body.scope)
+
+    budget = Budget(
+        tenant_id=user.tenant_id,
+        name=body.name,
+        scope=db_scope,
+        department_id=body.scope_id if db_scope == "department" else None,
+        user_id=body.scope_id if db_scope == "user" else None,
+        agent_id=body.scope_id if db_scope == "agent" else None,
+        limit_amount=body.limit_amount,
+        period=body.period,
+        enforcement=body.enforcement,
+        hard_limit=(body.enforcement == "hard"),
+        alert_thresholds=body.alert_thresholds,
+        period_start=utcnow(),
+    )
+    session.add(budget)
+    await session.commit()
+    await session.refresh(budget)
+
+    from app.services.audit_log_service import AuditLogService
+
+    await AuditLogService.create(
+        session,
+        actor_id=UUID(user.id),
+        action="budget.created",
+        resource_type="budget",
+        resource_id=budget.id,
+        details={"name": budget.name, "scope": db_scope, "limit": body.limit_amount},
+    )
+
+    return {"data": budget.model_dump(mode="json"), "meta": _meta()}
+
+
+@router.get("/budgets/utilization-list")
+async def v1_list_budgets(
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    user: AuthenticatedUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """List budgets with utilization data."""
+    from sqlmodel import select, col
+
+    base = select(Budget).where(Budget.tenant_id == user.tenant_id)
+    count_result = await session.exec(base)
+    total = len(count_result.all())
+
+    stmt = base.offset(offset).limit(limit).order_by(col(Budget.created_at).desc())
+    result = await session.exec(stmt)
+    budgets = list(result.all())
+
+    items = []
+    for b in budgets:
+        pct = round(
+            (b.spent_amount / b.limit_amount * 100) if b.limit_amount > 0 else 0, 2
+        )
+        color = "green" if pct < 75 else ("yellow" if pct < 90 else "red")
+        items.append(
+            {
+                **b.model_dump(mode="json"),
+                "utilization_pct": pct,
+                "utilization_color": color,
+                "remaining": round(b.limit_amount - b.spent_amount, 6),
+            }
+        )
+
+    return {
+        "data": items,
+        "meta": _meta(pagination={"total": total, "limit": limit, "offset": offset}),
+    }
 
 
 @router.get("/budgets/{budget_id}")
@@ -675,7 +777,7 @@ async def set_pricing(
     """Create or update provider pricing."""
     pricing = ProviderPricing(**body.model_dump(exclude_none=False))
     if pricing.effective_from is None:
-        pricing.effective_from = datetime.now(tz=timezone.utc)
+        pricing.effective_from = utcnow()
     created = await CostEngine.set_pricing(session, pricing)
     return {"data": created.model_dump(mode="json"), "meta": _meta()}
 
@@ -923,7 +1025,7 @@ async def v1_cost_chart(
     from datetime import timedelta
     from collections import defaultdict
 
-    now = datetime.now(tz=timezone.utc)
+    now = utcnow()
     if since is None:
         since = now - timedelta(days=30)
     if until is None:
@@ -982,106 +1084,6 @@ async def v1_cost_chart(
             "series": chart_data,
         },
         "meta": _meta(),
-    }
-
-
-class BudgetWizardCreate(BaseModel):
-    """Budget creation via the Budget Wizard."""
-
-    name: str
-    scope: str = PField(default="tenant", pattern="^(tenant|team|agent|user)$")
-    scope_id: UUID | None = None
-    limit_amount: float = PField(gt=0.0)
-    period: str = PField(default="monthly", pattern="^(daily|weekly|monthly)$")
-    enforcement: str = PField(default="soft", pattern="^(soft|hard)$")
-    alert_thresholds: list[float] = PField(
-        default_factory=lambda: [50.0, 75.0, 90.0, 100.0]
-    )
-
-
-@router.post("/budgets/wizard", status_code=201)
-async def v1_create_budget(
-    body: BudgetWizardCreate,
-    user: AuthenticatedUser = Depends(require_permission("costs", "create")),
-    session: AsyncSession = Depends(get_session),
-) -> dict[str, Any]:
-    """Create a budget via the Budget Wizard."""
-    scope_map = {
-        "team": "department",
-        "tenant": "tenant",
-        "agent": "agent",
-        "user": "user",
-    }
-    db_scope = scope_map.get(body.scope, body.scope)
-
-    budget = Budget(
-        tenant_id=user.tenant_id,
-        name=body.name,
-        scope=db_scope,
-        department_id=body.scope_id if db_scope == "department" else None,
-        user_id=body.scope_id if db_scope == "user" else None,
-        agent_id=body.scope_id if db_scope == "agent" else None,
-        limit_amount=body.limit_amount,
-        period=body.period,
-        enforcement=body.enforcement,
-        hard_limit=(body.enforcement == "hard"),
-        alert_thresholds=body.alert_thresholds,
-        period_start=datetime.now(tz=timezone.utc),
-    )
-    session.add(budget)
-    await session.commit()
-    await session.refresh(budget)
-
-    from app.services.audit_log_service import AuditLogService
-
-    await AuditLogService.create(
-        session,
-        actor_id=UUID(user.id),
-        action="budget.created",
-        resource_type="budget",
-        resource_id=budget.id,
-        details={"name": budget.name, "scope": db_scope, "limit": body.limit_amount},
-    )
-
-    return {"data": budget.model_dump(mode="json"), "meta": _meta()}
-
-
-@router.get("/budgets/utilization-list")
-async def v1_list_budgets(
-    limit: int = Query(default=20, ge=1, le=100),
-    offset: int = Query(default=0, ge=0),
-    user: AuthenticatedUser = Depends(get_current_user),
-    session: AsyncSession = Depends(get_session),
-) -> dict[str, Any]:
-    """List budgets with utilization data."""
-    from sqlmodel import select, col
-
-    base = select(Budget).where(Budget.tenant_id == user.tenant_id)
-    count_result = await session.exec(base)
-    total = len(count_result.all())
-
-    stmt = base.offset(offset).limit(limit).order_by(col(Budget.created_at).desc())
-    result = await session.exec(stmt)
-    budgets = list(result.all())
-
-    items = []
-    for b in budgets:
-        pct = round(
-            (b.spent_amount / b.limit_amount * 100) if b.limit_amount > 0 else 0, 2
-        )
-        color = "green" if pct < 75 else ("yellow" if pct < 90 else "red")
-        items.append(
-            {
-                **b.model_dump(mode="json"),
-                "utilization_pct": pct,
-                "utilization_color": color,
-                "remaining": round(b.limit_amount - b.spent_amount, 6),
-            }
-        )
-
-    return {
-        "data": items,
-        "meta": _meta(pagination={"total": total, "limit": limit, "offset": offset}),
     }
 
 
@@ -1146,7 +1148,7 @@ async def v1_update_budget(
             setattr(budget, key, value)
     if "enforcement" in data:
         budget.hard_limit = data["enforcement"] == "hard"
-    budget.updated_at = datetime.now(tz=timezone.utc)
+    budget.updated_at = utcnow()
     session.add(budget)
     await session.commit()
     await session.refresh(budget)
@@ -1177,7 +1179,7 @@ async def v1_export_report(
     """Export chargeback report as CSV or PDF."""
     from datetime import timedelta
 
-    now = datetime.now(tz=timezone.utc)
+    now = utcnow()
     if since is None:
         since = now - timedelta(days=30)
     if until is None:

@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime
+
+from app.utils.time import utcnow as _utcnow
 from typing import Any
 from uuid import UUID
 
@@ -18,11 +20,6 @@ from app.models.governance import (
     ComplianceRecord,
     compute_entry_hash,
 )
-
-
-def _utcnow() -> datetime:
-    """Return timezone-aware UTC timestamp."""
-    return datetime.now(timezone.utc)
 
 
 class GovernanceEngine:
@@ -72,8 +69,12 @@ class GovernanceEngine:
         count_result = await session.exec(base)
         total = len(count_result.all())
 
-        stmt = base.offset(offset).limit(limit).order_by(
-            CompliancePolicy.created_at.desc()  # type: ignore[union-attr]
+        stmt = (
+            base.offset(offset)
+            .limit(limit)
+            .order_by(
+                CompliancePolicy.created_at.desc()  # type: ignore[union-attr]
+            )
         )
         result = await session.exec(stmt)
         return list(result.all()), total
@@ -141,9 +142,7 @@ class GovernanceEngine:
 
         records: list[ComplianceRecord] = []
         for policy in policies:
-            status, details = GovernanceEngine._evaluate_policy(
-                policy, registry_entry
-            )
+            status, details = GovernanceEngine._evaluate_policy(policy, registry_entry)
             record = ComplianceRecord(
                 agent_id=agent_id,
                 policy_id=policy.id,
@@ -303,8 +302,12 @@ class GovernanceEngine:
         count_result = await session.exec(base)
         total = len(count_result.all())
 
-        stmt = base.offset(offset).limit(limit).order_by(
-            AuditEntry.created_at.desc()  # type: ignore[union-attr]
+        stmt = (
+            base.offset(offset)
+            .limit(limit)
+            .order_by(
+                AuditEntry.created_at.desc()  # type: ignore[union-attr]
+            )
         )
         result = await session.exec(stmt)
         return list(result.all()), total
@@ -328,9 +331,7 @@ class GovernanceEngine:
         agent_id: UUID,
     ) -> AgentRegistryEntry | None:
         """Look up an agent's governance registry entry by agent_id."""
-        stmt = select(AgentRegistryEntry).where(
-            AgentRegistryEntry.agent_id == agent_id
-        )
+        stmt = select(AgentRegistryEntry).where(AgentRegistryEntry.agent_id == agent_id)
         result = await session.exec(stmt)
         return result.first()
 
@@ -356,8 +357,12 @@ class GovernanceEngine:
         count_result = await session.exec(base)
         total = len(count_result.all())
 
-        stmt = base.offset(offset).limit(limit).order_by(
-            AgentRegistryEntry.registered_at.desc()  # type: ignore[union-attr]
+        stmt = (
+            base.offset(offset)
+            .limit(limit)
+            .order_by(
+                AgentRegistryEntry.registered_at.desc()  # type: ignore[union-attr]
+            )
         )
         result = await session.exec(stmt)
         return list(result.all()), total
@@ -369,9 +374,7 @@ class GovernanceEngine:
         data: dict[str, Any],
     ) -> AgentRegistryEntry | None:
         """Partial-update an agent's governance registry entry."""
-        stmt = select(AgentRegistryEntry).where(
-            AgentRegistryEntry.agent_id == agent_id
-        )
+        stmt = select(AgentRegistryEntry).where(AgentRegistryEntry.agent_id == agent_id)
         result = await session.exec(stmt)
         entry = result.first()
         if entry is None:
@@ -393,9 +396,7 @@ class GovernanceEngine:
         agent_id: UUID,
     ) -> dict[str, Any] | None:
         """Return agent registry entry with compliance scan history and risk score."""
-        stmt = select(AgentRegistryEntry).where(
-            AgentRegistryEntry.agent_id == agent_id
-        )
+        stmt = select(AgentRegistryEntry).where(AgentRegistryEntry.agent_id == agent_id)
         result = await session.exec(stmt)
         entry = result.first()
         if entry is None:
@@ -448,9 +449,7 @@ class GovernanceEngine:
         agent_id: UUID,
     ) -> dict[str, Any]:
         """Run a full compliance scan for an agent against all active policies."""
-        records = await GovernanceEngine.check_compliance(
-            session, agent_id=agent_id
-        )
+        records = await GovernanceEngine.check_compliance(session, agent_id=agent_id)
 
         total = len(records)
         passed = sum(1 for r in records if r.status == "compliant")
@@ -498,8 +497,12 @@ class GovernanceEngine:
         count_result = await session.exec(base)
         total = len(count_result.all())
 
-        stmt = base.offset(offset).limit(limit).order_by(
-            ApprovalRequest.created_at.desc()  # type: ignore[union-attr]
+        stmt = (
+            base.offset(offset)
+            .limit(limit)
+            .order_by(
+                ApprovalRequest.created_at.desc()  # type: ignore[union-attr]
+            )
         )
         result = await session.exec(stmt)
         return list(result.all()), total

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import os
 from datetime import datetime, timezone
+
+from app.utils.time import utcnow
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -610,7 +612,7 @@ async def store_provider_credentials(
         secret_data["api_key"] = body.api_key
     await secrets.put_secret(vault_path, secret_data, tenant_id="")
     entry.vault_secret_path = vault_path
-    entry.updated_at = datetime.now(tz=timezone.utc)
+    entry.updated_at = utcnow()
     session.add(entry)
     await session.commit()
     await session.refresh(entry)
@@ -635,7 +637,7 @@ async def store_provider_api_key(
     vault_path = f"archon/providers/{provider_id}/api_key"
     await secrets.put_secret(vault_path, {"api_key": body.api_key}, tenant_id="")
     entry.vault_secret_path = vault_path
-    entry.updated_at = datetime.now(tz=timezone.utc)
+    entry.updated_at = utcnow()
     session.add(entry)
     await session.commit()
     await session.refresh(entry)

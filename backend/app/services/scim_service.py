@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
+
+from app.utils.time import utcnow
 from typing import Any
 
 from app.models.scim import (
@@ -121,7 +123,7 @@ class SCIMService:
                 totalResults=total,
                 startIndex=start_index,
                 itemsPerPage=len(page),
-                Resources=[u.model_dump(by_alias=True) for u in page],
+                Resources=[u.model_dump(by_alias=True, mode="json") for u in page],
             )
 
     async def get_user(self, tenant_id: str, scim_id: str) -> SCIMUser:
@@ -176,7 +178,7 @@ class SCIMService:
         from uuid import UUID
 
         scim_id = uuid.uuid4().hex
-        now = datetime.now(timezone.utc)
+        now = utcnow()
 
         scim_user.id = scim_id
         scim_user.meta = SCIMMeta(
@@ -238,7 +240,7 @@ class SCIMService:
             user_dict = self._apply_patch_op(user_dict, op)
 
         updated = SCIMUser.model_validate(user_dict)
-        updated.meta.lastModified = datetime.now(timezone.utc)
+        updated.meta.lastModified = utcnow()
 
         async with self._session_factory() as session:
             stmt = (
@@ -254,7 +256,7 @@ class SCIMService:
                 record.active = updated.active
                 record.emails = [e.model_dump() for e in (updated.emails or [])]
                 record.groups = [g.model_dump() for g in (updated.groups or [])]
-                record.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+                record.updated_at = utcnow()
                 session.add(record)
                 await session.commit()
 
@@ -285,7 +287,7 @@ class SCIMService:
 
         user = await self.get_user(tenant_id, scim_id)
         user.active = False
-        user.meta.lastModified = datetime.now(timezone.utc)
+        user.meta.lastModified = utcnow()
 
         async with self._session_factory() as session:
             stmt = (
@@ -297,7 +299,7 @@ class SCIMService:
             record = result.first()
             if record:
                 record.active = False
-                record.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+                record.updated_at = utcnow()
                 session.add(record)
                 await session.commit()
 
@@ -359,7 +361,7 @@ class SCIMService:
                 totalResults=total,
                 startIndex=start_index,
                 itemsPerPage=len(page),
-                Resources=[g.model_dump(by_alias=True) for g in page],
+                Resources=[g.model_dump(by_alias=True, mode="json") for g in page],
             )
 
     async def create_group(self, tenant_id: str, scim_group: SCIMGroup) -> SCIMGroup:
@@ -376,7 +378,7 @@ class SCIMService:
         from uuid import UUID
 
         scim_id = uuid.uuid4().hex
-        now = datetime.now(timezone.utc)
+        now = utcnow()
 
         scim_group.id = scim_id
         scim_group.meta = SCIMMeta(
@@ -446,11 +448,11 @@ class SCIMService:
                 group_dict = self._apply_patch_op(group_dict, op)
 
             updated = SCIMGroup.model_validate(group_dict)
-            updated.meta.lastModified = datetime.now(timezone.utc)
+            updated.meta.lastModified = utcnow()
 
             group_record.display_name = updated.displayName
             group_record.members = [m.model_dump() for m in (updated.members or [])]
-            group_record.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+            group_record.updated_at = utcnow()
             session.add(group_record)
             await session.commit()
 

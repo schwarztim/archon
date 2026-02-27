@@ -11,7 +11,9 @@ from __future__ import annotations
 import hashlib
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import datetime
+
+from app.utils.time import utcnow
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -78,10 +80,7 @@ def _user_has_doc_access(
         return False
 
     for perm in perms:
-        if (
-            perm.permission_type == PermissionType.USER
-            and perm.principal_id == user.id
-        ):
+        if perm.permission_type == PermissionType.USER and perm.principal_id == user.id:
             return True
         if (
             perm.permission_type == PermissionType.ROLE
@@ -149,13 +148,12 @@ class DocForgeService:
         from app.services.connector_service import ConnectorService
 
         connector = await ConnectorService.get_connector(
-            tenant_id, source.connector_id,
+            tenant_id,
+            source.connector_id,
         )
 
         # --- Simulate content fetch from connector -------------------
-        raw_content = (
-            f"[Content from {connector.type}:{source.resource_id}]"
-        )
+        raw_content = f"[Content from {connector.type}:{source.resource_id}]"
         resolved_title = title or f"{connector.type}/{source.resource_id}"
 
         # --- DLP scan ------------------------------------------------
@@ -292,19 +290,24 @@ class DocForgeService:
                 else:
                     continue
 
-                hits.append(SearchHit(
-                    document_id=doc.id,
-                    chunk_id=chunk.id,
-                    content_preview=chunk.content[:200],
-                    score=round(score, 4),
-                    citation=f"{doc.title} [chunk {chunk.chunk_index}]",
-                    metadata=chunk.metadata,
-                ))
+                hits.append(
+                    SearchHit(
+                        document_id=doc.id,
+                        chunk_id=chunk.id,
+                        content_preview=chunk.content[:200],
+                        score=round(score, 4),
+                        citation=f"{doc.title} [chunk {chunk.chunk_index}]",
+                        metadata=chunk.metadata,
+                    )
+                )
 
         # Sort by score descending, apply pagination
         hits.sort(key=lambda h: h.score, reverse=True)
         total = len(hits)
-        paginated = hits[effective_filters.offset : effective_filters.offset + effective_filters.limit]
+        paginated = hits[
+            effective_filters.offset : effective_filters.offset
+            + effective_filters.limit
+        ]
 
         elapsed_ms = round((time.monotonic() - start) * 1000, 2)
         return SearchResult(
@@ -371,7 +374,10 @@ class DocForgeService:
             results.append(doc)
 
         total = len(results)
-        page = results[effective_filters.offset : effective_filters.offset + effective_filters.limit]
+        page = results[
+            effective_filters.offset : effective_filters.offset
+            + effective_filters.limit
+        ]
         return page, total
 
     @staticmethod
@@ -459,7 +465,7 @@ class DocForgeService:
         _chunks[str(doc_id)] = new_chunks
         doc.chunk_count = len(new_chunks)
         doc.embedding_status = EmbeddingStatus.COMPLETED
-        doc.updated_at = datetime.now(tz=timezone.utc)
+        doc.updated_at = utcnow()
 
         logger.info(
             "document.reprocessed",
@@ -476,9 +482,7 @@ class DocForgeService:
     @staticmethod
     async def get_collections(tenant_id: str) -> list[Collection]:
         """Return all document collections for a tenant."""
-        return [
-            c for c in _collections.values() if c.tenant_id == tenant_id
-        ]
+        return [c for c in _collections.values() if c.tenant_id == tenant_id]
 
     @staticmethod
     async def create_collection(

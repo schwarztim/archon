@@ -12,7 +12,9 @@ import hashlib
 import hmac
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime
+
+from app.utils.time import utcnow
 from typing import Any
 from uuid import UUID
 
@@ -123,7 +125,7 @@ async def _audit(
         actor_id=UUID(user.id),
         action=action,
         resource_type="agent_version",
-        resource_id=resource_id,
+        resource_id=str(resource_id),
         details=details,
     )
     session.add(entry)
@@ -221,11 +223,17 @@ class VersioningService:
         session.add(db_version)
         await session.flush()
 
-        await _audit(session, user, "version.created", db_version.id, {
-            "agent_id": str(agent_id),
-            "version": next_version,
-            "tenant_id": tenant_id,
-        })
+        await _audit(
+            session,
+            user,
+            "version.created",
+            db_version.id,
+            {
+                "agent_id": str(agent_id),
+                "version": next_version,
+                "tenant_id": tenant_id,
+            },
+        )
         await session.commit()
         await session.refresh(db_version)
 
@@ -347,7 +355,9 @@ class VersioningService:
         secrets_b = _extract_secret_paths(vb.definition)
 
         total = len(added) + len(removed) + len(modified)
-        summary = f"{total} node change(s): +{len(added)} -{len(removed)} ~{len(modified)}"
+        summary = (
+            f"{total} node change(s): +{len(added)} -{len(removed)} ~{len(modified)}"
+        )
 
         return VersionDiff(
             version_a=str(version_a_id),
@@ -388,7 +398,9 @@ class VersioningService:
 
         # Pre-flight checks
         preflight = await VersioningService._preflight_check(
-            target.definition, tenant_id, secrets=secrets,
+            target.definition,
+            tenant_id,
+            secrets=secrets,
         )
         if preflight.issues:
             logger.warning(
@@ -402,12 +414,12 @@ class VersioningService:
         # Create definition copy without old signature
         rollback_definition = dict(target.definition)
         rollback_definition.pop("_signature", None)
-        
+
         canonical = _canonical_json(rollback_definition)
         content_hash = _compute_hash(canonical)
         signing_key = await _get_signing_key(secrets, tenant_id)
         signature = _sign(content_hash, signing_key)
-        
+
         # Store new signature
         rollback_definition["_signature"] = signature
 
@@ -421,12 +433,18 @@ class VersioningService:
         session.add(db_version)
         await session.flush()
 
-        await _audit(session, user, "version.rollback", db_version.id, {
-            "agent_id": str(agent_id),
-            "target_version": str(target_version_id),
-            "new_version": next_version,
-            "tenant_id": tenant_id,
-        })
+        await _audit(
+            session,
+            user,
+            "version.rollback",
+            db_version.id,
+            {
+                "agent_id": str(agent_id),
+                "target_version": str(target_version_id),
+                "new_version": next_version,
+                "tenant_id": tenant_id,
+            },
+        )
         await session.commit()
         await session.refresh(db_version)
 
@@ -484,11 +502,17 @@ class VersioningService:
 
         approvals_required = _APPROVAL_REQUIREMENTS.get(target_env, 0)
 
-        await _audit(session, user, "version.promoted", version_id, {
-            "source_env": current_env,
-            "target_env": target_env,
-            "tenant_id": tenant_id,
-        })
+        await _audit(
+            session,
+            user,
+            "version.promoted",
+            version_id,
+            {
+                "source_env": current_env,
+                "target_env": target_env,
+                "tenant_id": tenant_id,
+            },
+        )
         await session.commit()
 
         return DeploymentPromotion(
@@ -498,7 +522,7 @@ class VersioningService:
             status="promoted",
             approvals_required=approvals_required,
             approvals_received=approvals_required,
-            promoted_at=datetime.now(tz=timezone.utc),
+            promoted_at=utcnow(),
         )
 
     # ── Verify signature ────────────────────────────────────────────
@@ -518,19 +542,23 @@ class VersioningService:
 
         # Extract stored signature from definition metadata
         stored_signature = db_ver.definition.get("_signature", "")
-        
+
         # Create a copy without the signature for verification
         definition_copy = dict(db_ver.definition)
         definition_copy.pop("_signature", None)
-        
+
         canonical = _canonical_json(definition_copy)
         content_hash = _compute_hash(canonical)
         signing_key = await _get_signing_key(secrets, tenant_id)
         expected_sig = _sign(content_hash, signing_key)
 
         # Constant-time comparison to prevent timing attacks
-        valid = hmac.compare_digest(expected_sig, stored_signature) if stored_signature else False
-        
+        valid = (
+            hmac.compare_digest(expected_sig, stored_signature)
+            if stored_signature
+            else False
+        )
+
         return SignatureVerification(
             version_id=version_id,
             valid=valid,
@@ -560,16 +588,22 @@ class VersioningService:
 
         records = []
         for row in rows:
-            records.append({
-                "id": str(row.id),
-                "version": row.version,
-                "change_log": row.change_log,
-                "created_by": str(row.created_by),
-                "created_at": row.created_at.isoformat() if row.created_at else None,
-            })
+            records.append(
+                {
+                    "id": str(row.id),
+                    "version": row.version,
+                    "change_log": row.change_log,
+                    "created_by": str(row.created_by),
+                    "created_at": row.created_at.isoformat()
+                    if row.created_at
+                    else None,
+                }
+            )
 
         if fmt == "json":
-            return json.dumps({"versions": records}, indent=2, default=str).encode("utf-8")
+            return json.dumps({"versions": records}, indent=2, default=str).encode(
+                "utf-8"
+            )
 
         # PDF placeholder — production would use a PDF library
         content = "Version History Report\n\n"
@@ -624,7 +658,9 @@ class VersioningService:
         if isinstance(connectors, list):
             for conn in connectors:
                 if isinstance(conn, dict) and conn.get("status") == "disabled":
-                    issues.append(f"Connector '{conn.get('name', 'unknown')}' is disabled")
+                    issues.append(
+                        f"Connector '{conn.get('name', 'unknown')}' is disabled"
+                    )
                     connectors_ok = False
 
         return RollbackPreFlight(

@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter
+from fastapi.responses import JSONResponse
 
 from app.logging_config import get_logger
 
@@ -174,9 +175,12 @@ async def health_v1_endpoint() -> dict[str, Any]:
 
 
 @router.get("/ready")
-async def ready_endpoint() -> dict[str, Any]:
-    """Readiness probe."""
-    return await readiness_check()
+async def ready_endpoint():
+    """Readiness probe — returns 503 when not ready."""
+    result = await readiness_check()
+    if result["status"] != "ready":
+        return JSONResponse(content=result, status_code=503)
+    return result
 
 
 __all__ = ["health_check", "health_check_full", "readiness_check", "router"]

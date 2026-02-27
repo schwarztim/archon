@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -32,9 +32,7 @@ from app.models.edge import (
 from app.services.audit_log_service import AuditLogService
 
 
-def _utcnow() -> datetime:
-    """Return timezone-aware UTC timestamp."""
-    return datetime.now(timezone.utc)
+from app.utils.time import utcnow as _utcnow
 
 
 class EdgeService:
@@ -152,9 +150,7 @@ class EdgeService:
         }
         # Simulate JWT signing — in production, use PyJWT with device key
         token_raw = json.dumps(token_payload, default=str)
-        token_hash = hashlib.sha256(
-            f"{token_raw}:{enc_key}".encode()
-        ).hexdigest()
+        token_hash = hashlib.sha256(f"{token_raw}:{enc_key}".encode()).hexdigest()
         signed_token = f"eyJ.{token_hash[:64]}.{secrets.token_urlsafe(32)}"
 
         await AuditLogService.create(
@@ -163,7 +159,10 @@ class EdgeService:
             action="edge.offline_token.provisioned",
             resource_type="edge_device",
             resource_id=device_id,
-            details={"ttl_days": config.ttl_days, "agent_count": len(config.allowed_agents)},
+            details={
+                "ttl_days": config.ttl_days,
+                "agent_count": len(config.allowed_agents),
+            },
         )
 
         return OfflineToken(
@@ -262,7 +261,9 @@ class EdgeService:
             conflict_strategy="last_write_wins",
             records_sent=len(sync_data.local_changes),
             records_received=0,
-            bytes_transferred=len(json.dumps(sync_data.local_changes, default=str).encode()),
+            bytes_transferred=len(
+                json.dumps(sync_data.local_changes, default=str).encode()
+            ),
             last_sync_cursor=sync_data.last_sync_checkpoint,
             started_at=_utcnow(),
             completed_at=_utcnow(),
@@ -330,9 +331,14 @@ class EdgeService:
         offset: int = 0,
     ) -> list[EdgeDeviceResponse]:
         """List all devices in the tenant fleet."""
-        stmt = select(EdgeDevice).order_by(
-            EdgeDevice.created_at.desc()  # type: ignore[union-attr]
-        ).offset(offset).limit(limit)
+        stmt = (
+            select(EdgeDevice)
+            .order_by(
+                EdgeDevice.created_at.desc()  # type: ignore[union-attr]
+            )
+            .offset(offset)
+            .limit(limit)
+        )
         result = await session.exec(stmt)
         devices = list(result.all())
 
@@ -341,20 +347,22 @@ class EdgeService:
             meta = d.extra_metadata or {}
             if meta.get("tenant_id") != tenant_id:
                 continue
-            fleet.append(EdgeDeviceResponse(
-                id=d.id,
-                tenant_id=tenant_id,
-                device_name=d.name,
-                platform=d.device_type,
-                status=d.status,
-                last_sync=d.last_heartbeat_at,
-                firmware_version=meta.get("firmware_version", "1.0.0"),
-                hardware_id=meta.get("hardware_id"),
-                location=d.location,
-                region=d.region,
-                created_at=d.created_at,
-                updated_at=d.updated_at,
-            ))
+            fleet.append(
+                EdgeDeviceResponse(
+                    id=d.id,
+                    tenant_id=tenant_id,
+                    device_name=d.name,
+                    platform=d.device_type,
+                    status=d.status,
+                    last_sync=d.last_heartbeat_at,
+                    firmware_version=meta.get("firmware_version", "1.0.0"),
+                    hardware_id=meta.get("hardware_id"),
+                    location=d.location,
+                    region=d.region,
+                    created_at=d.created_at,
+                    updated_at=d.updated_at,
+                )
+            )
         return fleet
 
     # ── Remote Command ──────────────────────────────────────────────
@@ -489,7 +497,8 @@ class EdgeService:
         all_devices = list(result.all())
 
         devices = [
-            d for d in all_devices
+            d
+            for d in all_devices
             if (d.extra_metadata or {}).get("tenant_id") == tenant_id
         ]
 
@@ -517,7 +526,9 @@ class EdgeService:
                 )
                 if len(completed) >= 2:
                     intervals = [
-                        (completed[i + 1].completed_at - completed[i].completed_at).total_seconds()  # type: ignore[operator]
+                        (
+                            completed[i + 1].completed_at - completed[i].completed_at
+                        ).total_seconds()  # type: ignore[operator]
                         for i in range(len(completed) - 1)
                     ]
                     avg_interval = sum(intervals) / len(intervals) if intervals else 0.0

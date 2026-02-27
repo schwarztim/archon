@@ -7,7 +7,7 @@ entries and full attribution chains.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -42,9 +42,7 @@ from app.services.audit_log_service import AuditLogService
 logger = logging.getLogger(__name__)
 
 
-def _utcnow() -> datetime:
-    """Return timezone-aware UTC timestamp."""
-    return datetime.now(timezone.utc)
+from app.utils.time import utcnow as _utcnow
 
 
 # ── Default provider pricing (per 1M tokens, USD) ───────────────────

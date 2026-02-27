@@ -10,10 +10,12 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
+from sqlalchemy import select as sa_select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from app.models import AuditLog
+from app.services.audit_service import _compute_hash
 
 
 class AuditLogService:
@@ -37,7 +39,31 @@ class AuditLogService:
         """Create and persist a new AuditLog entry.
 
         Adds the entry to the session, commits, and refreshes before returning.
+        Maintains the tamper-evident hash chain for the tenant.
         """
+        # Fetch previous hash for this tenant's chain
+        prev_result = await session.execute(
+            sa_select(AuditLog.hash)
+            .where(AuditLog.tenant_id == tenant_id)
+            .order_by(AuditLog.created_at.desc())
+            .limit(1)
+        )
+        prev_hash: str = prev_result.scalar() or "genesis"
+
+        # Build canonical entry data for hashing (immutable fields only)
+        from datetime import datetime as _datetime
+
+        created_at = _datetime.utcnow()
+        entry_data = {
+            "tenant_id": tenant_id,
+            "actor_id": str(actor_id) if actor_id is not None else None,
+            "action": action,
+            "resource_type": resource_type,
+            "resource_id": str(resource_id) if resource_id is not None else None,
+            "created_at": created_at.isoformat(),
+        }
+        entry_hash = _compute_hash(prev_hash, entry_data)
+
         entry = AuditLog(
             actor_id=actor_id,
             action=action,
@@ -45,6 +71,9 @@ class AuditLogService:
             resource_id=str(resource_id) if resource_id is not None else None,
             details=details,
             tenant_id=tenant_id,
+            hash=entry_hash,
+            prev_hash=prev_hash,
+            created_at=created_at,
         )
         session.add(entry)
         await session.commit()

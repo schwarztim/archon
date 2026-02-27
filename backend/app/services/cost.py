@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
+
+from app.utils.time import utcnow as _utcnow
 from typing import Any
 from uuid import UUID
 
@@ -10,12 +12,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select, col
 
 from app.models.cost import Budget, CostAlert, ProviderPricing, TokenLedger
-
-
-def _utcnow() -> datetime:
-    """Return timezone-aware UTC timestamp."""
-    return datetime.now(timezone.utc)
-
 
 # ── Default provider pricing (per 1M tokens, USD) ───────────────────
 
@@ -118,7 +114,8 @@ class CostEngine:
 
     @staticmethod
     async def get_ledger_entry(
-        session: AsyncSession, entry_id: UUID,
+        session: AsyncSession,
+        entry_id: UUID,
     ) -> TokenLedger | None:
         """Return a single ledger entry by ID."""
         return await session.get(TokenLedger, entry_id)
@@ -157,8 +154,10 @@ class CostEngine:
         count_result = await session.exec(base)
         total = len(count_result.all())
 
-        stmt = base.offset(offset).limit(limit).order_by(
-            col(TokenLedger.created_at).desc()
+        stmt = (
+            base.offset(offset)
+            .limit(limit)
+            .order_by(col(TokenLedger.created_at).desc())
         )
         result = await session.exec(stmt)
         entries = list(result.all())
@@ -268,12 +267,15 @@ class CostEngine:
             total_cost += e.total_cost
 
             key = str(getattr(e, group_by, "unknown") or "unknown")
-            group = groups.setdefault(key, {
-                "input_tokens": 0,
-                "output_tokens": 0,
-                "total_cost": 0.0,
-                "call_count": 0,
-            })
+            group = groups.setdefault(
+                key,
+                {
+                    "input_tokens": 0,
+                    "output_tokens": 0,
+                    "total_cost": 0.0,
+                    "call_count": 0,
+                },
+            )
             group["input_tokens"] += e.input_tokens
             group["output_tokens"] += e.output_tokens
             group["total_cost"] += e.total_cost
@@ -359,7 +361,9 @@ class CostEngine:
                 exhaustion_dt = now + timedelta(days=days_left)
                 exhaustion_date = exhaustion_dt.isoformat()
 
-        confidence = "high" if num_days >= 14 else ("medium" if num_days >= 7 else "low")
+        confidence = (
+            "high" if num_days >= 14 else ("medium" if num_days >= 7 else "low")
+        )
 
         return {
             "daily_avg_cost": round(daily_avg, 6),
@@ -403,9 +407,7 @@ class CostEngine:
         count_result = await session.exec(base)
         total = len(count_result.all())
 
-        stmt = base.offset(offset).limit(limit).order_by(
-            col(Budget.created_at).desc()
-        )
+        stmt = base.offset(offset).limit(limit).order_by(col(Budget.created_at).desc())
         result = await session.exec(stmt)
         budgets = list(result.all())
         return budgets, total
@@ -475,7 +477,9 @@ class CostEngine:
 
         for b in budgets_to_check:
             remaining = b.limit_amount - b.spent_amount
-            pct_used = (b.spent_amount / b.limit_amount * 100) if b.limit_amount > 0 else 0.0
+            pct_used = (
+                (b.spent_amount / b.limit_amount * 100) if b.limit_amount > 0 else 0.0
+            )
             status = {
                 "budget_id": str(b.id),
                 "name": b.name,
@@ -502,7 +506,8 @@ class CostEngine:
 
     @staticmethod
     async def set_pricing(
-        session: AsyncSession, pricing: ProviderPricing,
+        session: AsyncSession,
+        pricing: ProviderPricing,
     ) -> ProviderPricing:
         """Create or update provider pricing."""
         session.add(pricing)
@@ -528,8 +533,10 @@ class CostEngine:
         count_result = await session.exec(base)
         total = len(count_result.all())
 
-        stmt = base.offset(offset).limit(limit).order_by(
-            col(ProviderPricing.provider), col(ProviderPricing.model_id)
+        stmt = (
+            base.offset(offset)
+            .limit(limit)
+            .order_by(col(ProviderPricing.provider), col(ProviderPricing.model_id))
         )
         result = await session.exec(stmt)
         entries = list(result.all())
@@ -556,8 +563,8 @@ class CostEngine:
         count_result = await session.exec(base)
         total = len(count_result.all())
 
-        stmt = base.offset(offset).limit(limit).order_by(
-            col(CostAlert.created_at).desc()
+        stmt = (
+            base.offset(offset).limit(limit).order_by(col(CostAlert.created_at).desc())
         )
         result = await session.exec(stmt)
         alerts = list(result.all())
@@ -618,17 +625,23 @@ class CostEngine:
                 continue
             seen.add(b.id)
 
-            old_pct = (b.spent_amount / b.limit_amount * 100) if b.limit_amount > 0 else 0.0
+            old_pct = (
+                (b.spent_amount / b.limit_amount * 100) if b.limit_amount > 0 else 0.0
+            )
             b.spent_amount += total_cost
-            new_pct = (b.spent_amount / b.limit_amount * 100) if b.limit_amount > 0 else 0.0
+            new_pct = (
+                (b.spent_amount / b.limit_amount * 100) if b.limit_amount > 0 else 0.0
+            )
             b.updated_at = _utcnow()
             session.add(b)
 
             # Check threshold crossings
-            for threshold in (b.alert_thresholds or []):
+            for threshold in b.alert_thresholds or []:
                 if old_pct < threshold <= new_pct:
-                    severity = "critical" if threshold >= 100 else (
-                        "warning" if threshold >= 75 else "info"
+                    severity = (
+                        "critical"
+                        if threshold >= 100
+                        else ("warning" if threshold >= 75 else "info")
                     )
                     alert = CostAlert(
                         budget_id=b.id,

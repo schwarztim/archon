@@ -5,6 +5,8 @@ from __future__ import annotations
 import logging
 import secrets
 from datetime import datetime, timedelta, timezone
+
+from app.utils.time import utcnow
 from typing import Any
 from uuid import uuid4
 
@@ -190,7 +192,7 @@ _DEV_USERS: dict[str, dict[str, Any]] = {
 
 def _dev_create_token(user_info: dict[str, Any], email: str, ttl_hours: int = 8) -> str:
     """Mint an HS256 JWT for dev mode."""
-    now = datetime.now(tz=timezone.utc)
+    now = utcnow()
     payload = {
         "sub": user_info["id"],
         "email": email,
@@ -258,7 +260,7 @@ async def dev_login(body: DevLoginRequest) -> dict[str, Any]:
     forwarded to Keycloak's direct-access grant.
     """
     request_id = str(uuid4())
-    now = datetime.now(tz=timezone.utc)
+    now = utcnow()
 
     # ── Dev-mode path ───────────────────────────────────────────────
     if _is_dev_mode():

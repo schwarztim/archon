@@ -12,7 +12,9 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import datetime
+
+from app.utils.time import utcnow as _utcnow
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -33,11 +35,6 @@ from app.secrets.manager import VaultSecretsManager
 from app.services.dlp_service import DLPService
 
 logger = logging.getLogger(__name__)
-
-
-def _utcnow() -> datetime:
-    """Return timezone-aware UTC timestamp."""
-    return datetime.now(timezone.utc)
 
 
 def _audit_event(
@@ -64,7 +61,13 @@ _TRUST_PERMISSIONS: dict[TrustLevel, set[str]] = {
     TrustLevel.UNTRUSTED: {"discover"},
     TrustLevel.VERIFIED: {"discover", "send_message"},
     TrustLevel.TRUSTED: {"discover", "send_message", "receive_message", "publish"},
-    TrustLevel.FEDERATED: {"discover", "send_message", "receive_message", "publish", "delegate"},
+    TrustLevel.FEDERATED: {
+        "discover",
+        "send_message",
+        "receive_message",
+        "publish",
+        "delegate",
+    },
 }
 
 
@@ -121,7 +124,10 @@ class A2AService:
         )
 
         audit = _audit_event(
-            user, "a2a.partner.registered", "a2a_partner", str(partner_id),
+            user,
+            "a2a.partner.registered",
+            "a2a_partner",
+            str(partner_id),
             {"partner_name": partner.name, "base_url": partner.base_url},
         )
         logger.info(
@@ -196,14 +202,23 @@ class A2AService:
             name=f"agent-{agent_id[:8]}",
             description="Published A2A agent card",
             capabilities=["messaging", "task_delegation"],
-            input_schema={"type": "object", "properties": {"message": {"type": "string"}}},
-            output_schema={"type": "object", "properties": {"response": {"type": "string"}}},
+            input_schema={
+                "type": "object",
+                "properties": {"message": {"type": "string"}},
+            },
+            output_schema={
+                "type": "object",
+                "properties": {"response": {"type": "string"}},
+            },
             version="1.0.0",
             published_at=now,
         )
 
         audit = _audit_event(
-            user, "a2a.agent_card.published", "a2a_agent_card", agent_id,
+            user,
+            "a2a.agent_card.published",
+            "a2a_agent_card",
+            agent_id,
             {"agent_id": agent_id},
         )
         logger.info(
@@ -265,7 +280,9 @@ class A2AService:
 
         # DLP scan on outbound data
         dlp_result = DLPService.scan_content(
-            tenant_id, message, ScanDirection.OUTPUT,
+            tenant_id,
+            message,
+            ScanDirection.OUTPUT,
             context={"partner_id": partner_id, "agent_id": agent_id},
         )
         if dlp_result.action.value == "block":
@@ -287,7 +304,10 @@ class A2AService:
         message_id = uuid4()
 
         audit = _audit_event(
-            user, "a2a.message.sent", "a2a_message", str(message_id),
+            user,
+            "a2a.message.sent",
+            "a2a_message",
+            str(message_id),
             {"partner_id": partner_id, "agent_id": agent_id},
         )
         logger.info(
@@ -326,8 +346,13 @@ class A2AService:
 
         # DLP scan on inbound data
         dlp_result = DLPService.scan_content(
-            tenant_id, message.content, ScanDirection.INPUT,
-            context={"partner_id": partner_id, "sender_agent_id": str(message.sender_agent_id)},
+            tenant_id,
+            message.content,
+            ScanDirection.INPUT,
+            context={
+                "partner_id": partner_id,
+                "sender_agent_id": str(message.sender_agent_id),
+            },
         )
         if dlp_result.action.value == "block":
             logger.warning(
@@ -391,7 +416,10 @@ class A2AService:
         )
 
         audit = _audit_event(
-            user, "a2a.partner.trust_updated", "a2a_partner", partner_id,
+            user,
+            "a2a.partner.trust_updated",
+            "a2a_partner",
+            partner_id,
             {"trust_level": trust_level.value, "partner_id": partner_id},
         )
         logger.info(

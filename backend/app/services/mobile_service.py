@@ -8,6 +8,8 @@ import logging
 import secrets
 import uuid
 from datetime import datetime, timezone
+
+from app.utils.time import utcnow
 from typing import Any
 
 from app.interfaces.models.enterprise import AuthenticatedUser
@@ -64,7 +66,7 @@ class MobileService:
             A new DeviceSession for the registered device.
         """
         device_id = str(uuid.uuid4())
-        now = datetime.now(timezone.utc)
+        now = utcnow()
 
         session = DeviceSession(
             device_id=device_id,
@@ -359,10 +361,19 @@ class MobileService:
         sessions: list[DeviceSession] = []
         if isinstance(data, dict):
             for _key, device_data in data.items():
-                if isinstance(device_data, dict) and device_data.get("user_id") == user_id:
-                    sessions.append(DeviceSession(**{
-                        k: v for k, v in device_data.items() if k != "push_token"
-                    }))
+                if (
+                    isinstance(device_data, dict)
+                    and device_data.get("user_id") == user_id
+                ):
+                    sessions.append(
+                        DeviceSession(
+                            **{
+                                k: v
+                                for k, v in device_data.items()
+                                if k != "push_token"
+                            }
+                        )
+                    )
 
         return sessions
 
@@ -407,7 +418,9 @@ class MobileService:
     # ------------------------------------------------------------------
 
     async def _load_device(
-        self, tenant_id: str, device_id: str,
+        self,
+        tenant_id: str,
+        device_id: str,
     ) -> dict[str, Any] | None:
         """Load device data from Vault."""
         vault_path = f"{_VAULT_MOBILE_PREFIX}/{tenant_id}/{device_id}"
@@ -420,7 +433,10 @@ class MobileService:
             return None
 
     async def _touch_device(
-        self, tenant_id: str, device_id: str, device_data: dict[str, Any],
+        self,
+        tenant_id: str,
+        device_id: str,
+        device_data: dict[str, Any],
     ) -> None:
         """Update last_active timestamp for a device."""
         vault_path = f"{_VAULT_MOBILE_PREFIX}/{tenant_id}/{device_id}"

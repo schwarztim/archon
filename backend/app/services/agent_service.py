@@ -88,10 +88,7 @@ class AgentService:
         tenant_id: UUID,
     ) -> Agent | None:
         """Return a single agent scoped to *tenant_id*, excluding soft-deleted."""
-        stmt = (
-            _tenant_base_query(tenant_id)
-            .where(Agent.id == agent_id)
-        )
+        stmt = _tenant_base_query(tenant_id).where(Agent.id == agent_id)
         result = await session.exec(stmt)
         agent = result.first()
         if agent is not None and getattr(agent, "deleted_at", None) is not None:
@@ -163,7 +160,9 @@ class AgentService:
         if hasattr(agent, "updated_at"):
             agent.updated_at = _utcnow()
         session.add(agent)
-        await _audit(session, user, "agent.updated", agent.id, {"before": before, "after": data})
+        await _audit(
+            session, user, "agent.updated", agent.id, {"before": before, "after": data}
+        )
         await session.commit()
         await session.refresh(agent)
         return agent
@@ -247,7 +246,10 @@ class AgentService:
         )
         session.add(cloned)
         await _audit(
-            session, user, "agent.cloned", cloned.id,
+            session,
+            user,
+            "agent.cloned",
+            cloned.id,
             {"source_id": str(agent_id), "name": cloned.name},
         )
         await session.commit()
@@ -277,7 +279,10 @@ class AgentService:
                 agent.updated_at = _utcnow()
             session.add(agent)
             await _audit(
-                session, user, "agent.status_changed", agent.id,
+                session,
+                user,
+                "agent.status_changed",
+                agent.id,
                 {"new_status": new_status},
             )
             updated.append(agent)
@@ -299,7 +304,10 @@ class AgentService:
         count = 0
         for aid in agent_ids:
             deleted = await AgentService.delete(
-                session, aid, tenant_id=tenant_id, user=user,
+                session,
+                aid,
+                tenant_id=tenant_id,
+                user=user,
             )
             if deleted:
                 count += 1
@@ -309,6 +317,7 @@ class AgentService:
 # ── Backward-compatible module-level functions ──────────────────────
 # Existing routes import these directly; keep them working.
 # These wrappers construct a minimal AuthenticatedUser for audit purposes.
+
 
 async def create_agent(session: AsyncSession, agent: Agent) -> Agent:
     """Persist a new agent and return it (legacy compatibility)."""
@@ -362,6 +371,13 @@ async def delete_agent(session: AsyncSession, agent_id: UUID) -> bool:
     agent = await session.get(Agent, agent_id)
     if agent is None:
         return False
+    # Delete child AgentVersion records to avoid FK constraint violations
+    from app.models import AgentVersion
+    from sqlmodel import delete as sql_delete
+
+    await session.exec(
+        sql_delete(AgentVersion).where(AgentVersion.agent_id == agent_id)
+    )
     await session.delete(agent)
     await session.commit()
     return True

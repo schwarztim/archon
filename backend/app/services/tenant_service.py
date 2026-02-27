@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -35,9 +35,7 @@ from app.services.audit_log_service import AuditLogService
 logger = logging.getLogger(__name__)
 
 
-def _utcnow() -> datetime:
-    """Return timezone-aware UTC timestamp."""
-    return datetime.now(timezone.utc)
+from app.utils.time import utcnow as _utcnow
 
 
 def _slugify(name: str) -> str:
@@ -94,7 +92,9 @@ class TenantService:
         if existing.first() is not None:
             raise ValueError(f"Tenant slug '{slug}' already exists")
 
-        tier_value = config.tier.value if isinstance(config.tier, TenantTier) else config.tier
+        tier_value = (
+            config.tier.value if isinstance(config.tier, TenantTier) else config.tier
+        )
         settings: dict[str, Any] = {}
         if config.custom_domain:
             settings["custom_domain"] = config.custom_domain
@@ -111,9 +111,7 @@ class TenantService:
 
         # Provision default quotas from tier
         tier_limits = TIER_LIMITS.get(tier_value, TIER_LIMITS[TenantTier.FREE])
-        quota_fields = {
-            k: v for k, v in tier_limits.items() if k != "max_seats"
-        }
+        quota_fields = {k: v for k, v in tier_limits.items() if k != "max_seats"}
         quota = TenantQuota(tenant_id=tenant.id, **quota_fields)
         session.add(quota)
 
@@ -484,7 +482,11 @@ class TenantService:
 
         logger.info(
             "Tenant tier changed",
-            extra={"tenant_id": str(tenant_id), "old_tier": old_tier, "new_tier": tier_value},
+            extra={
+                "tenant_id": str(tenant_id),
+                "old_tier": old_tier,
+                "new_tier": tier_value,
+            },
         )
         return tenant
 
@@ -636,14 +638,21 @@ class TenantService:
             period_start=period_start.replace(tzinfo=None),
             period_end=period_end.replace(tzinfo=None),
             description=f"Invoice for {period}",
-            extra_metadata={"invoice_id": str(invoice.id), "line_item_count": len(line_items)},
+            extra_metadata={
+                "invoice_id": str(invoice.id),
+                "line_item_count": len(line_items),
+            },
         )
         session.add(billing_record)
         await session.commit()
 
         logger.info(
             "Invoice generated",
-            extra={"tenant_id": str(tenant_id), "total": total, "items": len(line_items)},
+            extra={
+                "tenant_id": str(tenant_id),
+                "total": total,
+                "items": len(line_items),
+            },
         )
         return invoice
 
@@ -675,7 +684,9 @@ class TenantService:
                 key="tenant_created",
                 label="Tenant account created",
                 completed=True,
-                completed_at=tenant.created_at.replace(tzinfo=timezone.utc) if tenant.created_at else None,
+                completed_at=tenant.created_at.replace(tzinfo=timezone.utc)
+                if tenant.created_at
+                else None,
             ),
             OnboardingStep(
                 key="vault_namespace",

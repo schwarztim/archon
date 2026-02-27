@@ -11,7 +11,9 @@ import base64
 import logging
 import time
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
+
+from app.utils.time import utcnow
 from typing import Any
 from xml.etree import ElementTree as ET
 
@@ -47,7 +49,14 @@ _metrics_store: dict[str, dict[str, Any]] = {}
 # ── Content classification keywords ─────────────────────────────────
 
 _TOPIC_KEYWORDS: dict[str, list[str]] = {
-    "code_generation": ["code", "function", "class", "implement", "program", "algorithm"],
+    "code_generation": [
+        "code",
+        "function",
+        "class",
+        "implement",
+        "program",
+        "algorithm",
+    ],
     "data_analysis": ["data", "analyze", "chart", "statistics", "dataset", "query"],
     "summarization": ["summarize", "summary", "tldr", "brief", "overview"],
     "translation": ["translate", "language", "convert", "localize"],
@@ -55,7 +64,13 @@ _TOPIC_KEYWORDS: dict[str, list[str]] = {
 }
 
 _SENSITIVITY_KEYWORDS: dict[str, list[str]] = {
-    "restricted": ["ssn", "social security", "credit card", "secret key", "private key"],
+    "restricted": [
+        "ssn",
+        "social security",
+        "credit card",
+        "secret key",
+        "private key",
+    ],
     "confidential": ["salary", "revenue", "password", "credential", "api key", "token"],
     "internal": ["internal", "proprietary", "draft", "confidential"],
 }
@@ -103,19 +118,23 @@ class SecurityProxyService:
         if request_body_str:
             req_hits = DLPEngine.scan_text(request_body_str)
             for hit in req_hits:
-                dlp_findings.append(DLPFinding(
-                    entity_type=hit.entity_type,
-                    confidence=hit.confidence,
-                    redacted_value=hit.redacted,
-                    direction="request",
-                ))
+                dlp_findings.append(
+                    DLPFinding(
+                        entity_type=hit.entity_type,
+                        confidence=hit.confidence,
+                        redacted_value=hit.redacted,
+                        direction="request",
+                    )
+                )
 
         # 2. Resolve upstream
         upstream = await self._resolve_upstream(tenant_id, proxy_request.url)
 
         # 3. Inject credentials from Vault
         await self.inject_credentials(
-            tenant_id, upstream.provider_type.value, proxy_request,
+            tenant_id,
+            upstream.provider_type.value,
+            proxy_request,
         )
 
         # 4. Forward request (simulated — real impl uses httpx)
@@ -131,12 +150,14 @@ class SecurityProxyService:
         if response_body_str:
             resp_hits = DLPEngine.scan_text(response_body_str)
             for hit in resp_hits:
-                dlp_findings.append(DLPFinding(
-                    entity_type=hit.entity_type,
-                    confidence=hit.confidence,
-                    redacted_value=hit.redacted,
-                    direction="response",
-                ))
+                dlp_findings.append(
+                    DLPFinding(
+                        entity_type=hit.entity_type,
+                        confidence=hit.confidence,
+                        redacted_value=hit.redacted,
+                        direction="response",
+                    )
+                )
 
         elapsed_ms = (time.monotonic() - start) * 1000
 
@@ -202,9 +223,7 @@ class SecurityProxyService:
         issuer_el = root.find(f".//{{{_NS_SAML2}}}Issuer")
         if issuer_el is None or issuer_el.text != issuer:
             received = issuer_el.text if issuer_el is not None else None
-            raise ValueError(
-                f"Issuer mismatch: expected={issuer}, received={received}"
-            )
+            raise ValueError(f"Issuer mismatch: expected={issuer}, received={received}")
 
         # Validate status
         status_el = root.find(f".//{{{_NS_SAML2P}}}StatusCode")
@@ -244,7 +263,7 @@ class SecurityProxyService:
             user_id=user_id,
             tenant_id=tenant_id or issuer,
             authenticated_via="saml",
-            expires_at=datetime.now(timezone.utc) + timedelta(hours=_SESSION_TTL_HOURS),
+            expires_at=utcnow() + timedelta(hours=_SESSION_TTL_HOURS),
             email=email,
             roles=roles,
         )
@@ -328,7 +347,7 @@ class SecurityProxyService:
         self._validate_tenant(tenant_id)
 
         upstream.tenant_id = tenant_id
-        upstream.updated_at = datetime.now(timezone.utc)
+        upstream.updated_at = utcnow()
 
         if tenant_id not in _upstream_store:
             _upstream_store[tenant_id] = []
@@ -383,7 +402,8 @@ class SecurityProxyService:
                 name=name,
                 request_count=data.get("count", 0),
                 avg_latency_ms=round(
-                    data.get("total_latency", 0.0) / max(data.get("count", 1), 1), 2,
+                    data.get("total_latency", 0.0) / max(data.get("count", 1), 1),
+                    2,
                 ),
             )
             for name, data in sorted(
@@ -469,6 +489,7 @@ class SecurityProxyService:
         if isinstance(body, str):
             return body
         import json
+
         return json.dumps(body)
 
     async def _resolve_upstream(

@@ -5,7 +5,9 @@ All endpoints require the ``admin`` role and are tenant-scoped.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime
+
+from app.utils.time import utcnow as _utcnow
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -23,11 +25,6 @@ router = APIRouter(prefix="/rbac", tags=["RBAC"])
 
 
 # ── Helpers ───────────────────────────────────────────────────────────
-
-
-def _utcnow() -> datetime:
-    """Return timezone-aware UTC timestamp."""
-    return datetime.now(timezone.utc)
 
 
 def _meta(*, request_id: str | None = None, **extra: Any) -> dict[str, Any]:

@@ -12,6 +12,8 @@ import hashlib
 import json
 import logging
 from datetime import datetime, timezone
+
+from app.utils.time import utcnow
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -39,12 +41,42 @@ logger = logging.getLogger(__name__)
 # ── Well-known categories ────────────────────────────────────────────
 
 _CATEGORIES: list[TemplateCategory] = [
-    TemplateCategory(slug="customer-service", name="Customer Service", description="Templates for support agents", icon="headset"),
-    TemplateCategory(slug="data-analysis", name="Data Analysis", description="Templates for analytical workflows", icon="chart"),
-    TemplateCategory(slug="content-generation", name="Content Generation", description="Templates for writing and media", icon="pencil"),
-    TemplateCategory(slug="devops", name="DevOps", description="Templates for CI/CD and infrastructure automation", icon="server"),
-    TemplateCategory(slug="security", name="Security", description="Templates for security operations", icon="shield"),
-    TemplateCategory(slug="general", name="General", description="General-purpose templates", icon="cube"),
+    TemplateCategory(
+        slug="customer-service",
+        name="Customer Service",
+        description="Templates for support agents",
+        icon="headset",
+    ),
+    TemplateCategory(
+        slug="data-analysis",
+        name="Data Analysis",
+        description="Templates for analytical workflows",
+        icon="chart",
+    ),
+    TemplateCategory(
+        slug="content-generation",
+        name="Content Generation",
+        description="Templates for writing and media",
+        icon="pencil",
+    ),
+    TemplateCategory(
+        slug="devops",
+        name="DevOps",
+        description="Templates for CI/CD and infrastructure automation",
+        icon="server",
+    ),
+    TemplateCategory(
+        slug="security",
+        name="Security",
+        description="Templates for security operations",
+        icon="shield",
+    ),
+    TemplateCategory(
+        slug="general",
+        name="General",
+        description="General-purpose templates",
+        icon="cube",
+    ),
 ]
 
 
@@ -176,7 +208,7 @@ class TemplateService:
         for key, value in data.items():
             if hasattr(template, key):
                 setattr(template, key, value)
-        template.updated_at = datetime.now(timezone.utc)
+        template.updated_at = utcnow()
         session.add(template)
         await session.commit()
         await session.refresh(template)
@@ -251,24 +283,34 @@ class TemplateService:
         total: int = count_result.one()
 
         offset = (page - 1) * page_size
-        stmt = base.offset(offset).limit(page_size).order_by(
-            Template.created_at.desc()  # type: ignore[union-attr]
+        stmt = (
+            base.offset(offset)
+            .limit(page_size)
+            .order_by(
+                Template.created_at.desc()  # type: ignore[union-attr]
+            )
         )
         result = await session.exec(stmt)
         rows = list(result.all())
 
         # In-memory filters for JSON columns
         if filters.tags:
-            rows = [t for t in rows if any(tag in (t.tags or []) for tag in filters.tags)]
+            rows = [
+                t for t in rows if any(tag in (t.tags or []) for tag in filters.tags)
+            ]
         if filters.difficulty is not None:
             rows = [
-                t for t in rows
-                if (t.definition or {}).get("_meta", {}).get("difficulty") == filters.difficulty.value
+                t
+                for t in rows
+                if (t.definition or {}).get("_meta", {}).get("difficulty")
+                == filters.difficulty.value
             ]
         if filters.min_rating is not None:
             rows = [
-                t for t in rows
-                if float((t.definition or {}).get("_meta", {}).get("avg_rating", 0)) >= filters.min_rating
+                t
+                for t in rows
+                if float((t.definition or {}).get("_meta", {}).get("avg_rating", 0))
+                >= filters.min_rating
             ]
 
         # Tag tenant_id onto response for visibility
@@ -328,7 +370,9 @@ class TemplateService:
             author_id=UUID(user.id),
         )
         session.add(template)
-        await _audit(session, user, "template.created", template.id, {"name": data.name})
+        await _audit(
+            session, user, "template.created", template.id, {"name": data.name}
+        )
         await session.commit()
         await session.refresh(template)
 
@@ -356,7 +400,8 @@ class TemplateService:
         # Sign content hash using Vault transit engine
         try:
             signing_data = await secrets.get_secret(
-                "platform/signing-key", tenant_id,
+                "platform/signing-key",
+                tenant_id,
             )
             signing_key = signing_data.get("key", "platform")
         except Exception:
@@ -365,7 +410,11 @@ class TemplateService:
         signature_input = f"{content_hash}:{signing_key}:{tenant_id}"
         signature = hashlib.sha256(signature_input.encode()).hexdigest()
 
-        meta = template.definition.get("_meta", {}) if isinstance(template.definition, dict) else {}
+        meta = (
+            template.definition.get("_meta", {})
+            if isinstance(template.definition, dict)
+            else {}
+        )
         meta["status"] = "published"
         meta["content_hash"] = content_hash
         meta["signature"] = signature
@@ -374,12 +423,18 @@ class TemplateService:
 
         updated_def = {**template.definition, "_meta": meta}
         template.definition = updated_def
-        template.updated_at = datetime.now(timezone.utc)
+        template.updated_at = utcnow()
         session.add(template)
 
-        await _audit(session, user, "template.published", template_id, {
-            "content_hash": content_hash,
-        })
+        await _audit(
+            session,
+            user,
+            "template.published",
+            template_id,
+            {
+                "content_hash": content_hash,
+            },
+        )
         await session.commit()
         await session.refresh(template)
 
@@ -404,7 +459,11 @@ class TemplateService:
             return None
 
         # Check credential manifests against tenant Vault
-        meta = template.definition.get("_meta", {}) if isinstance(template.definition, dict) else {}
+        meta = (
+            template.definition.get("_meta", {})
+            if isinstance(template.definition, dict)
+            else {}
+        )
         cred_manifests = meta.get("credential_manifests", [])
         cred_statuses: list[CredentialStatus] = []
         for cred in cred_manifests:
@@ -415,23 +474,31 @@ class TemplateService:
                 available = True
             except Exception:
                 pass
-            cred_statuses.append(CredentialStatus(
-                vault_path=vault_path,
-                name=cred.get("name", vault_path),
-                available=available,
-            ))
+            cred_statuses.append(
+                CredentialStatus(
+                    vault_path=vault_path,
+                    name=cred.get("name", vault_path),
+                    available=available,
+                )
+            )
 
         # Bump usage count
         template.usage_count = (template.usage_count or 0) + 1
         session.add(template)
 
         install_id = uuid4()
-        now = datetime.now(timezone.utc)
+        now = utcnow()
 
-        await _audit(session, user, "template.installed", template_id, {
-            "install_id": str(install_id),
-            "config_overrides": config_overrides or {},
-        })
+        await _audit(
+            session,
+            user,
+            "template.installed",
+            template_id,
+            {
+                "install_id": str(install_id),
+                "config_overrides": config_overrides or {},
+            },
+        )
         await session.commit()
         await session.refresh(template)
 
@@ -461,10 +528,14 @@ class TemplateService:
             return None
 
         rating_id = uuid4()
-        now = datetime.now(timezone.utc)
+        now = utcnow()
 
         # Update aggregate rating in template meta
-        meta = template.definition.get("_meta", {}) if isinstance(template.definition, dict) else {}
+        meta = (
+            template.definition.get("_meta", {})
+            if isinstance(template.definition, dict)
+            else {}
+        )
         current_count = int(meta.get("review_count", 0))
         current_avg = float(meta.get("avg_rating", 0.0))
 
@@ -478,10 +549,16 @@ class TemplateService:
         template.updated_at = now
         session.add(template)
 
-        await _audit(session, user, "template.rated", template_id, {
-            "rating": data.rating,
-            "rating_id": str(rating_id),
-        })
+        await _audit(
+            session,
+            user,
+            "template.rated",
+            template_id,
+            {
+                "rating": data.rating,
+                "rating_id": str(rating_id),
+            },
+        )
         await session.commit()
         await session.refresh(template)
 
@@ -504,10 +581,15 @@ class TemplateService:
     ) -> list[TemplateResponse]:
         """Text (and optionally semantic) search across templates."""
         pattern = f"%{query}%"
-        stmt = select(Template).where(
-            Template.name.ilike(pattern)  # type: ignore[union-attr]
-            | Template.description.ilike(pattern)  # type: ignore[union-attr]
-        ).order_by(Template.usage_count.desc()).limit(50)  # type: ignore[union-attr]
+        stmt = (
+            select(Template)
+            .where(
+                Template.name.ilike(pattern)  # type: ignore[union-attr]
+                | Template.description.ilike(pattern)  # type: ignore[union-attr]
+            )
+            .order_by(Template.usage_count.desc())
+            .limit(50)
+        )  # type: ignore[union-attr]
 
         result = await session.exec(stmt)
         rows = list(result.all())
@@ -535,7 +617,11 @@ class TemplateService:
             return None
 
         content_hash = _compute_content_hash(original.definition)
-        original_meta = original.definition.get("_meta", {}) if isinstance(original.definition, dict) else {}
+        original_meta = (
+            original.definition.get("_meta", {})
+            if isinstance(original.definition, dict)
+            else {}
+        )
 
         new_meta: dict[str, Any] = {
             "tenant_id": tenant_id,
@@ -563,9 +649,15 @@ class TemplateService:
         )
         session.add(forked)
 
-        await _audit(session, user, "template.forked", forked.id, {
-            "source_id": str(template_id),
-        })
+        await _audit(
+            session,
+            user,
+            "template.forked",
+            forked.id,
+            {
+                "source_id": str(template_id),
+            },
+        )
         await session.commit()
         await session.refresh(forked)
 

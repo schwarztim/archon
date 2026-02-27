@@ -13,6 +13,8 @@ import logging
 import textwrap
 import time
 from datetime import datetime, timedelta, timezone
+
+from app.utils.time import utcnow
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -43,11 +45,15 @@ class SandboxResourceLimits(BaseModel):
     """Resource limits applied to each sandbox execution."""
 
     max_execution_time: int = Field(
-        default=30, ge=1, le=300,
+        default=30,
+        ge=1,
+        le=300,
         description="Maximum execution time in seconds",
     )
     max_memory_mb: int = Field(
-        default=256, ge=16, le=4096,
+        default=256,
+        ge=16,
+        le=4096,
         description="Maximum memory in megabytes",
     )
 
@@ -55,9 +61,15 @@ class SandboxResourceLimits(BaseModel):
 class SandboxExecuteRequest(BaseModel):
     """Payload for executing code inside a sandbox."""
 
-    code: str = Field(..., min_length=1, max_length=100_000, description="Python code to execute")
-    resource_limits: SandboxResourceLimits = Field(default_factory=SandboxResourceLimits)
-    session_id: UUID | None = Field(default=None, description="Reuse an existing sandbox session")
+    code: str = Field(
+        ..., min_length=1, max_length=100_000, description="Python code to execute"
+    )
+    resource_limits: SandboxResourceLimits = Field(
+        default_factory=SandboxResourceLimits
+    )
+    session_id: UUID | None = Field(
+        default=None, description="Reuse an existing sandbox session"
+    )
 
 
 class SandboxExecuteResult(BaseModel):
@@ -69,7 +81,9 @@ class SandboxExecuteResult(BaseModel):
     stderr: str = ""
     exit_code: int | None = None
     execution_time_ms: float = 0.0
-    resource_limits: SandboxResourceLimits = Field(default_factory=SandboxResourceLimits)
+    resource_limits: SandboxResourceLimits = Field(
+        default_factory=SandboxResourceLimits
+    )
 
 
 class SandboxSession(BaseModel):
@@ -77,7 +91,9 @@ class SandboxSession(BaseModel):
 
     id: UUID = Field(default_factory=uuid4)
     status: str = SandboxStatus.CREATING
-    resource_limits: SandboxResourceLimits = Field(default_factory=SandboxResourceLimits)
+    resource_limits: SandboxResourceLimits = Field(
+        default_factory=SandboxResourceLimits
+    )
     created_at: datetime = Field(default_factory=lambda: datetime.now(tz=timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(tz=timezone.utc))
 
@@ -163,7 +179,7 @@ class SandboxService:
         if session is None:
             return False
         session.status = SandboxStatus.DESTROYED
-        session.updated_at = datetime.now(tz=timezone.utc)
+        session.updated_at = utcnow()
         del self._sessions[session_id]
         logger.info("Sandbox session destroyed", extra={"session_id": str(session_id)})
         return True
@@ -184,7 +200,7 @@ class SandboxService:
             session = self.create_session(limits)
 
         session.status = SandboxStatus.RUNNING
-        session.updated_at = datetime.now(tz=timezone.utc)
+        session.updated_at = utcnow()
 
         wrapper = textwrap.dedent(f"""\
             import resource, sys, json
@@ -206,7 +222,9 @@ class SandboxService:
         start = time.monotonic()
         try:
             proc = await asyncio.create_subprocess_exec(
-                "python3", "-c", wrapper,
+                "python3",
+                "-c",
+                wrapper,
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
@@ -218,7 +236,9 @@ class SandboxService:
             )
             elapsed_ms = (time.monotonic() - start) * 1000
             exit_code = proc.returncode or 0
-            run_status = SandboxStatus.COMPLETED if exit_code == 0 else SandboxStatus.FAILED
+            run_status = (
+                SandboxStatus.COMPLETED if exit_code == 0 else SandboxStatus.FAILED
+            )
 
         except asyncio.TimeoutError:
             elapsed_ms = (time.monotonic() - start) * 1000
@@ -237,13 +257,15 @@ class SandboxService:
             run_status = SandboxStatus.FAILED
 
         session.status = run_status
-        session.updated_at = datetime.now(tz=timezone.utc)
+        session.updated_at = utcnow()
 
         return SandboxExecuteResult(
             session_id=session.id,
             status=run_status,
             stdout=stdout_bytes.decode(errors="replace").rstrip(),
-            stderr=stderr_bytes.decode(errors="replace").rstrip() if isinstance(stderr_bytes, bytes) else stderr_bytes,
+            stderr=stderr_bytes.decode(errors="replace").rstrip()
+            if isinstance(stderr_bytes, bytes)
+            else stderr_bytes,
             exit_code=exit_code,
             execution_time_ms=round(elapsed_ms, 2),
             resource_limits=limits,
@@ -263,7 +285,7 @@ class SandboxService:
         if not check_permission(user, "sandbox", "create"):
             raise PermissionError("Insufficient permissions: sandbox:create required")
 
-        now = datetime.now(tz=timezone.utc)
+        now = utcnow()
         sandbox = Sandbox(
             id=uuid4(),
             tenant_id=tenant_id,
@@ -275,10 +297,16 @@ class SandboxService:
         )
         self._sandboxes[sandbox.id] = sandbox
 
-        _audit_log(user, "sandbox.created", "sandbox", str(sandbox.id), {
-            "ttl_seconds": config.ttl_seconds,
-            "network_policy": config.network_policy.value,
-        })
+        _audit_log(
+            user,
+            "sandbox.created",
+            "sandbox",
+            str(sandbox.id),
+            {
+                "ttl_seconds": config.ttl_seconds,
+                "network_policy": config.network_policy.value,
+            },
+        )
 
         logger.info(
             "Enterprise sandbox created",
@@ -308,7 +336,7 @@ class SandboxService:
         if sandbox.status == SandboxStatus.DESTROYED:
             raise ValueError("Sandbox has been destroyed")
 
-        now = datetime.now(tz=timezone.utc)
+        now = utcnow()
         if sandbox.expires_at and now > sandbox.expires_at:
             sandbox.status = SandboxStatus.DESTROYED
             raise ValueError("Sandbox has expired")
@@ -347,7 +375,9 @@ class SandboxService:
             agent_id=agent_id,
             status=ExecutionStatus.RUNNING,
             input_data=input_data,
-            output_data={"_credential_warning": _credential_warning} if _credential_warning else None,
+            output_data={"_credential_warning": _credential_warning}
+            if _credential_warning
+            else None,
             credential_lease_id=lease_id,
         )
 
@@ -363,7 +393,12 @@ class SandboxService:
                 execution.output_data = {"error": "Cost guardrail: budget exceeded"}
 
                 if user:
-                    _audit_log(user, "sandbox.execution.cost_limit", "sandbox_execution", str(execution.execution_id))
+                    _audit_log(
+                        user,
+                        "sandbox.execution.cost_limit",
+                        "sandbox_execution",
+                        str(execution.execution_id),
+                    )
             else:
                 execution.status = ExecutionStatus.COMPLETED
                 execution.cost = simulated_cost
@@ -389,11 +424,17 @@ class SandboxService:
         self._executions[execution.execution_id] = execution
 
         if user:
-            _audit_log(user, "sandbox.execution.completed", "sandbox_execution", str(execution.execution_id), {
-                "agent_id": str(agent_id),
-                "status": execution.status.value,
-                "cost": execution.cost,
-            })
+            _audit_log(
+                user,
+                "sandbox.execution.completed",
+                "sandbox_execution",
+                str(execution.execution_id),
+                {
+                    "agent_id": str(agent_id),
+                    "status": execution.status.value,
+                    "cost": execution.cost,
+                },
+            )
 
         return execution
 
@@ -418,16 +459,14 @@ class SandboxService:
     ) -> tuple[list[Sandbox], int]:
         """Return paginated sandboxes filtered by tenant_id."""
         tenant_sandboxes = [
-            s for s in self._sandboxes.values()
-            if s.tenant_id == tenant_id
+            s for s in self._sandboxes.values() if s.tenant_id == tenant_id
         ]
 
         if filters:
             status_filter = filters.get("status")
             if status_filter:
                 tenant_sandboxes = [
-                    s for s in tenant_sandboxes
-                    if s.status == status_filter
+                    s for s in tenant_sandboxes if s.status == status_filter
                 ]
 
         total = len(tenant_sandboxes)
@@ -512,12 +551,14 @@ class SandboxService:
                 total_latency += elapsed
                 total_cost += simulated_cost
 
-                agent_results.append({
-                    "test_case": tc.get("name", tc.get("id", "")),
-                    "latency_ms": round(elapsed, 2),
-                    "cost": simulated_cost,
-                    "status": "completed",
-                })
+                agent_results.append(
+                    {
+                        "test_case": tc.get("name", tc.get("id", "")),
+                        "latency_ms": round(elapsed, 2),
+                        "cost": simulated_cost,
+                        "status": "completed",
+                    }
+                )
 
             n = max(len(test_cases), 1)
             avg_latency = total_latency / n
@@ -525,15 +566,17 @@ class SandboxService:
             # Composite score: lower latency and cost is better
             composite = 100.0 / (1.0 + avg_latency + avg_cost * 1000)
 
-            results_per_agent.append(AgentArenaMetrics(
-                agent_id=agent_id,
-                avg_latency_ms=round(avg_latency, 2),
-                avg_cost=round(avg_cost, 6),
-                accuracy_score=1.0,
-                quality_score=1.0,
-                composite_score=round(composite, 4),
-                test_results=agent_results,
-            ))
+            results_per_agent.append(
+                AgentArenaMetrics(
+                    agent_id=agent_id,
+                    avg_latency_ms=round(avg_latency, 2),
+                    avg_cost=round(avg_cost, 6),
+                    accuracy_score=1.0,
+                    quality_score=1.0,
+                    composite_score=round(composite, 4),
+                    test_results=agent_results,
+                )
+            )
 
         # Determine winner by highest composite score
         best = max(results_per_agent, key=lambda r: r.composite_score)
@@ -542,9 +585,13 @@ class SandboxService:
         ]
         # Confidence: proportional distance from runner-up
         max_runner = max(runner_up_scores) if runner_up_scores else 0.0
-        confidence = min(1.0, (best.composite_score - max_runner) / max(best.composite_score, 0.001))
+        confidence = min(
+            1.0, (best.composite_score - max_runner) / max(best.composite_score, 0.001)
+        )
 
-        statistical_method = config.statistical_method if config else StatisticalMethod.PAIRED_T_TEST
+        statistical_method = (
+            config.statistical_method if config else StatisticalMethod.PAIRED_T_TEST
+        )
 
         result = ArenaResult(
             arena_id=arena_id,
@@ -559,11 +606,17 @@ class SandboxService:
             },
         )
 
-        _audit_log(user, "sandbox.arena.completed", "arena", str(arena_id), {
-            "agent_ids": [str(a) for a in agent_ids],
-            "winner": str(best.agent_id),
-            "confidence": result.confidence_score,
-        })
+        _audit_log(
+            user,
+            "sandbox.arena.completed",
+            "arena",
+            str(arena_id),
+            {
+                "agent_ids": [str(a) for a in agent_ids],
+                "winner": str(best.agent_id),
+                "confidence": result.confidence_score,
+            },
+        )
 
         return result
 
@@ -605,14 +658,16 @@ class SandboxService:
             accuracy = 1.0
             accuracy_scores.append(accuracy)
 
-            test_results.append({
-                "test_case_id": tc.id,
-                "name": tc.name,
-                "latency_ms": round(elapsed, 2),
-                "cost": cost,
-                "accuracy": accuracy,
-                "status": "completed",
-            })
+            test_results.append(
+                {
+                    "test_case_id": tc.id,
+                    "name": tc.name,
+                    "latency_ms": round(elapsed, 2),
+                    "cost": cost,
+                    "accuracy": accuracy,
+                    "status": "completed",
+                }
+            )
 
         n = max(len(bench.test_cases), 1)
         avg_accuracy = sum(accuracy_scores) / n if accuracy_scores else 0.0
@@ -640,11 +695,17 @@ class SandboxService:
             test_results=test_results,
         )
 
-        _audit_log(user, "sandbox.benchmark.completed", "benchmark", str(result.benchmark_id), {
-            "agent_id": str(agent_id),
-            "benchmark_set_id": str(benchmark_set_id),
-            "composite_score": result.scores.get("composite", 0.0),
-        })
+        _audit_log(
+            user,
+            "sandbox.benchmark.completed",
+            "benchmark",
+            str(result.benchmark_id),
+            {
+                "agent_id": str(agent_id),
+                "benchmark_set_id": str(benchmark_set_id),
+                "composite_score": result.scores.get("composite", 0.0),
+            },
+        )
 
         return result
 

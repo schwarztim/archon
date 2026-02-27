@@ -7,6 +7,8 @@ import logging
 import secrets
 import time
 from datetime import datetime, timezone
+
+from app.utils.time import utcnow
 from typing import Any
 from urllib.parse import urlencode
 from uuid import UUID, uuid4
@@ -353,7 +355,7 @@ class ConnectorService:
                 exc,
             )
 
-        expires_at = datetime.now(tz=timezone.utc)
+        expires_at = utcnow()
 
         # Mark connector as active
         instance = _connectors.get(str(connector_id))
@@ -410,7 +412,7 @@ class ConnectorService:
         try:
             await secrets_mgr.get_secret(vault_path, tenant_id)
             latency = (time.monotonic() - start) * 1000
-            instance.last_health_check = datetime.now(tz=timezone.utc)
+            instance.last_health_check = utcnow()
             return ConnectionTestResult(
                 connector_id=connector_id,
                 status="ok",

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime
+
+from app.utils.time import utcnow as _utcnow
 from typing import Any
 from uuid import UUID
 
@@ -10,11 +12,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from app.models.mesh import MeshMessage, MeshNode, TrustRelationship
-
-
-def _utcnow() -> datetime:
-    """Return timezone-aware UTC timestamp."""
-    return datetime.now(timezone.utc)
 
 
 class MeshGateway:
@@ -80,8 +77,12 @@ class MeshGateway:
         count_result = await session.exec(base)
         total = len(count_result.all())
 
-        stmt = base.offset(offset).limit(limit).order_by(
-            MeshNode.created_at.desc()  # type: ignore[union-attr]
+        stmt = (
+            base.offset(offset)
+            .limit(limit)
+            .order_by(
+                MeshNode.created_at.desc()  # type: ignore[union-attr]
+            )
         )
         result = await session.exec(stmt)
         nodes = list(result.all())
@@ -168,8 +169,12 @@ class MeshGateway:
         count_result = await session.exec(base)
         total = len(count_result.all())
 
-        stmt = base.offset(offset).limit(limit).order_by(
-            TrustRelationship.created_at.desc()  # type: ignore[union-attr]
+        stmt = (
+            base.offset(offset)
+            .limit(limit)
+            .order_by(
+                TrustRelationship.created_at.desc()  # type: ignore[union-attr]
+            )
         )
         result = await session.exec(stmt)
         relationships = list(result.all())
@@ -269,8 +274,12 @@ class MeshGateway:
         count_result = await session.exec(base)
         total = len(count_result.all())
 
-        stmt = base.offset(offset).limit(limit).order_by(
-            MeshMessage.created_at.desc()  # type: ignore[union-attr]
+        stmt = (
+            base.offset(offset)
+            .limit(limit)
+            .order_by(
+                MeshMessage.created_at.desc()  # type: ignore[union-attr]
+            )
         )
         result = await session.exec(stmt)
         messages = list(result.all())

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -38,9 +38,7 @@ from app.services.audit_log_service import AuditLogService
 logger = logging.getLogger(__name__)
 
 
-def _utcnow() -> datetime:
-    """Return timezone-aware UTC timestamp."""
-    return datetime.now(timezone.utc)
+from app.utils.time import utcnow as _utcnow
 
 
 class MeshService:
@@ -79,7 +77,8 @@ class MeshService:
         node = MeshNode(
             name=org_config.name,
             organization=org_config.domain,
-            endpoint_url=org_config.token_endpoint or f"https://{org_config.domain}/.well-known/openid-configuration",
+            endpoint_url=org_config.token_endpoint
+            or f"https://{org_config.domain}/.well-known/openid-configuration",
             public_key=org_config.public_key,
             capabilities=[],
             extra_metadata={
@@ -100,10 +99,17 @@ class MeshService:
             action="mesh.organization.registered",
             resource_type="mesh_node",
             resource_id=node.id,
-            details={"name": org_config.name, "domain": org_config.domain, "tenant_id": tenant_id},
+            details={
+                "name": org_config.name,
+                "domain": org_config.domain,
+                "tenant_id": tenant_id,
+            },
         )
 
-        logger.info("Mesh organization registered", extra={"tenant_id": tenant_id, "node_id": str(node.id)})
+        logger.info(
+            "Mesh organization registered",
+            extra={"tenant_id": tenant_id, "node_id": str(node.id)},
+        )
 
         return MeshOrganization(
             id=node.id,
@@ -361,16 +367,20 @@ class MeshService:
             if not agent_id_str:
                 continue
 
-            agents.append(MeshAgent(
-                id=UUID(agent_id_str),
-                org_id=cfg.node_id,
-                name=cfg.name.replace("agent-share-", ""),
-                description=f"Shared agent ({visibility})",
-                capabilities=[],
-                data_classification=rules.get("data_classification", "internal"),
-            ))
+            agents.append(
+                MeshAgent(
+                    id=UUID(agent_id_str),
+                    org_id=cfg.node_id,
+                    name=cfg.name.replace("agent-share-", ""),
+                    description=f"Shared agent ({visibility})",
+                    capabilities=[],
+                    data_classification=rules.get("data_classification", "internal"),
+                )
+            )
 
-        logger.info("Mesh agent discovery", extra={"tenant_id": tenant_id, "count": len(agents)})
+        logger.info(
+            "Mesh agent discovery", extra={"tenant_id": tenant_id, "count": len(agents)}
+        )
         return agents
 
     # ── Remote Invocation ──────────────────────────────────────────
@@ -502,13 +512,14 @@ class MeshService:
         nodes_result = await session.exec(nodes_stmt)
         nodes = nodes_result.all()
 
-        edges_stmt = select(TrustRelationship).where(TrustRelationship.status == "active")
+        edges_stmt = select(TrustRelationship).where(
+            TrustRelationship.status == "active"
+        )
         edges_result = await session.exec(edges_stmt)
         edges = edges_result.all()
 
         topo_nodes = [
-            MeshTopologyNode(id=n.id, name=n.name, status=n.status)
-            for n in nodes
+            MeshTopologyNode(id=n.id, name=n.name, status=n.status) for n in nodes
         ]
         topo_edges = [
             MeshTopologyEdge(
@@ -569,7 +580,11 @@ class MeshService:
         if trust is None:
             raise ValueError(f"No active trust relationship with partner {partner_id}")
 
-        previous = TrustLevel(trust.trust_level) if trust.trust_level in TrustLevel.__members__.values() else TrustLevel.UNTRUSTED
+        previous = (
+            TrustLevel(trust.trust_level)
+            if trust.trust_level in TrustLevel.__members__.values()
+            else TrustLevel.UNTRUSTED
+        )
         trust.trust_level = level.value
         trust.updated_at = _utcnow()
         session.add(trust)
@@ -581,7 +596,11 @@ class MeshService:
             action="mesh.trust.updated",
             resource_type="trust_relationship",
             resource_id=trust.id,
-            details={"previous": previous.value, "new": level.value, "tenant_id": tenant_id},
+            details={
+                "previous": previous.value,
+                "new": level.value,
+                "tenant_id": tenant_id,
+            },
         )
 
         return TrustUpdate(

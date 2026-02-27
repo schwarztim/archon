@@ -10,6 +10,8 @@ import json
 import logging
 import os
 from datetime import datetime, timezone
+
+from app.utils.time import utcnow
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -27,6 +29,7 @@ from fastapi import (
 )
 from pydantic import BaseModel, Field as PField
 from sqlalchemy import select
+from sqlmodel import delete as sql_delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from starlette.responses import Response
@@ -134,7 +137,7 @@ def _compute_next_runs(
     min_str, hour_str, dom_str, _mon_str, dow_str = parts
     target_min = 0 if min_str == "*" else int(min_str)
     target_hour = None if hour_str == "*" else int(hour_str)
-    now = datetime.now(tz=timezone.utc)
+    now = utcnow()
     results: list[str] = []
     candidate = now.replace(second=0, microsecond=0)
     for _ in range(count * 400):
@@ -340,6 +343,24 @@ async def delete_workflow(
     wf = await session.get(Workflow, UUID(workflow_id))
     if wf is None:
         raise HTTPException(status_code=404, detail="Workflow not found")
+    # Delete child WorkflowRunStep records first
+    run_ids_stmt = select(WorkflowRun.id).where(
+        WorkflowRun.workflow_id == UUID(workflow_id)
+    )
+    await session.exec(
+        sql_delete(WorkflowRunStep).where(WorkflowRunStep.run_id.in_(run_ids_stmt))
+    )
+    # Delete child WorkflowRun records
+    await session.exec(
+        sql_delete(WorkflowRun).where(WorkflowRun.workflow_id == UUID(workflow_id))
+    )
+    # Delete child WorkflowSchedule records
+    await session.exec(
+        sql_delete(WorkflowSchedule).where(
+            WorkflowSchedule.workflow_id == UUID(workflow_id)
+        )
+    )
+    # Now delete the workflow
     await session.delete(wf)
     await session.commit()
     return Response(status_code=204)

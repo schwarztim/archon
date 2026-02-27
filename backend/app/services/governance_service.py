@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
+
+from app.utils.time import utcnow as _utcnow
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -33,11 +35,6 @@ from app.models.governance import (
 )
 
 logger = logging.getLogger(__name__)
-
-
-def _utcnow() -> datetime:
-    """Return timezone-aware UTC timestamp."""
-    return datetime.now(timezone.utc)
 
 
 class GovernanceService:
@@ -197,7 +194,10 @@ class GovernanceService:
             action="elevation.requested",
             resource_type="elevation_request",
             resource_id=elevation.id,
-            details={"requested_role": role, "duration_hours": elevation.duration_hours},
+            details={
+                "requested_role": role,
+                "duration_hours": elevation.duration_hours,
+            },
         )
 
         logger.info(
@@ -238,12 +238,14 @@ class GovernanceService:
         recommendations: list[str] = []
 
         if registry is None:
-            factors.append(RiskFactor(
-                name="registration",
-                weight=0.3,
-                score=100.0,
-                description="Agent not registered in governance registry",
-            ))
+            factors.append(
+                RiskFactor(
+                    name="registration",
+                    weight=0.3,
+                    score=100.0,
+                    description="Agent not registered in governance registry",
+                )
+            )
             recommendations.append("Register agent in governance registry")
         else:
             # Data sensitivity factor
@@ -251,50 +253,72 @@ class GovernanceService:
             accessed = set(registry.data_accessed)
             sensitive_overlap = accessed & sensitive_types
             data_score = min(100.0, len(sensitive_overlap) * 25.0)
-            factors.append(RiskFactor(
-                name="data_sensitivity",
-                weight=0.3,
-                score=data_score,
-                description=f"Accesses {len(sensitive_overlap)} sensitive data types",
-            ))
+            factors.append(
+                RiskFactor(
+                    name="data_sensitivity",
+                    weight=0.3,
+                    score=data_score,
+                    description=f"Accesses {len(sensitive_overlap)} sensitive data types",
+                )
+            )
             if data_score > 50:
-                recommendations.append("Review data access permissions — sensitive data detected")
+                recommendations.append(
+                    "Review data access permissions — sensitive data detected"
+                )
 
             # Approval status factor
-            approval_scores = {"published": 0, "approved": 10, "review": 40, "draft": 70, "deprecated": 90}
+            approval_scores = {
+                "published": 0,
+                "approved": 10,
+                "review": 40,
+                "draft": 70,
+                "deprecated": 90,
+            }
             approval_score = float(approval_scores.get(registry.approval_status, 50))
-            factors.append(RiskFactor(
-                name="approval_status",
-                weight=0.25,
-                score=approval_score,
-                description=f"Approval status: {registry.approval_status}",
-            ))
+            factors.append(
+                RiskFactor(
+                    name="approval_status",
+                    weight=0.25,
+                    score=approval_score,
+                    description=f"Approval status: {registry.approval_status}",
+                )
+            )
             if approval_score > 40:
-                recommendations.append("Complete approval workflow before production deployment")
+                recommendations.append(
+                    "Complete approval workflow before production deployment"
+                )
 
             # Risk level factor
             risk_scores = {"low": 10, "medium": 40, "high": 70, "critical": 95}
             risk_score = float(risk_scores.get(registry.risk_level, 50))
-            factors.append(RiskFactor(
-                name="risk_classification",
-                weight=0.25,
-                score=risk_score,
-                description=f"Classified risk level: {registry.risk_level}",
-            ))
+            factors.append(
+                RiskFactor(
+                    name="risk_classification",
+                    weight=0.25,
+                    score=risk_score,
+                    description=f"Classified risk level: {registry.risk_level}",
+                )
+            )
 
             # Model usage factor
             model_score = min(100.0, len(registry.models_used) * 15.0)
-            factors.append(RiskFactor(
-                name="model_usage",
-                weight=0.2,
-                score=model_score,
-                description=f"Uses {len(registry.models_used)} AI models",
-            ))
+            factors.append(
+                RiskFactor(
+                    name="model_usage",
+                    weight=0.2,
+                    score=model_score,
+                    description=f"Uses {len(registry.models_used)} AI models",
+                )
+            )
 
         # Compute weighted overall score
         if factors:
             total_weight = sum(f.weight for f in factors)
-            overall = sum(f.weight * f.score for f in factors) / total_weight if total_weight > 0 else 0.0
+            overall = (
+                sum(f.weight * f.score for f in factors) / total_weight
+                if total_weight > 0
+                else 0.0
+            )
         else:
             overall = 0.0
 
@@ -365,12 +389,14 @@ class GovernanceService:
                 if latest.status == "compliant":
                     passing += 1
 
-            controls.append(ControlStatus(
-                control_id=str(policy.id),
-                name=policy.name,
-                status=ctrl_status,
-                evidence=evidence,
-            ))
+            controls.append(
+                ControlStatus(
+                    control_id=str(policy.id),
+                    name=policy.name,
+                    status=ctrl_status,
+                    evidence=evidence,
+                )
+            )
 
         if total == 0:
             overall = "unknown"
@@ -465,7 +491,12 @@ class GovernanceService:
         Returns:
             The managed OPAPolicy.
         """
-        action_map = {"create": "create", "update": "update", "delete": "delete", "get": "read"}
+        action_map = {
+            "create": "create",
+            "update": "update",
+            "delete": "delete",
+            "get": "read",
+        }
         check_permission(user, "governance", action_map.get(action, "read"))
 
         rego_content = policy_data.get("rego_content", "")
@@ -496,7 +527,11 @@ class GovernanceService:
 
         logger.info(
             "OPA policy managed",
-            extra={"tenant_id": tenant_id, "action": action, "policy_name": policy.name},
+            extra={
+                "tenant_id": tenant_id,
+                "action": action,
+                "policy_name": policy.name,
+            },
         )
         return policy
 
@@ -602,8 +637,12 @@ class GovernanceService:
         limit = min(filters.get("limit", 20), 100)
         offset = filters.get("offset", 0)
 
-        stmt = base.offset(offset).limit(limit).order_by(
-            AuditEntry.created_at.desc()  # type: ignore[union-attr]
+        stmt = (
+            base.offset(offset)
+            .limit(limit)
+            .order_by(
+                AuditEntry.created_at.desc()  # type: ignore[union-attr]
+            )
         )
         result = await session.exec(stmt)
         entries = list(result.all())
@@ -616,7 +655,9 @@ class GovernanceService:
                         {
                             "action": entry.action,
                             "resource_type": entry.resource_type,
-                            "resource_id": str(entry.resource_id) if entry.resource_id else None,
+                            "resource_id": str(entry.resource_id)
+                            if entry.resource_id
+                            else None,
                             "actor_id": str(entry.actor_id) if entry.actor_id else None,
                             "agent_id": str(entry.agent_id) if entry.agent_id else None,
                             "outcome": entry.outcome,

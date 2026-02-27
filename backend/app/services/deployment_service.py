@@ -9,7 +9,9 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
+
+from app.utils.time import utcnow as _utcnow
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -38,11 +40,6 @@ _component_replicas: dict[str, int] = {}
 # ── Permitted roles for infrastructure operations ───────────────────
 
 _INFRA_ROLES: set[str] = {"admin", "infra_admin"}
-
-
-def _utcnow() -> datetime:
-    """Return timezone-aware UTC timestamp."""
-    return datetime.now(timezone.utc)
 
 
 def _validate_tenant(tenant_id: str) -> None:
@@ -138,11 +135,17 @@ class DeploymentService:
         deployment.status = DeploymentState.COMPLETED
         deployment.completed_at = _utcnow()
 
-        _audit_log(user, "deployment.created", "deployment", str(deployment.id), {
-            "environment": config.environment.value,
-            "version": config.version,
-            "components": [c.name for c in config.components],
-        })
+        _audit_log(
+            user,
+            "deployment.created",
+            "deployment",
+            str(deployment.id),
+            {
+                "environment": config.environment.value,
+                "version": config.version,
+                "components": [c.name for c in config.components],
+            },
+        )
 
         logger.info(
             "Environment deployed",
@@ -235,10 +238,16 @@ class DeploymentService:
         previous = _component_replicas.get(replica_key, 1)
         _component_replicas[replica_key] = replicas
 
-        _audit_log(user, "deployment.scaled", "component", component, {
-            "previous_replicas": previous,
-            "new_replicas": replicas,
-        })
+        _audit_log(
+            user,
+            "deployment.scaled",
+            "component",
+            component,
+            {
+                "previous_replicas": previous,
+                "new_replicas": replicas,
+            },
+        )
 
         logger.info(
             "Component scaled",
@@ -275,7 +284,8 @@ class DeploymentService:
         if secrets_manager is not None:
             try:
                 await secrets_manager.get_secret(
-                    "health/ping", tenant_id,
+                    "health/ping",
+                    tenant_id,
                 )
                 vault_status = ComponentStatus.HEALTHY
             except Exception:
@@ -343,10 +353,16 @@ class DeploymentService:
 
         next_rotation = _utcnow() + timedelta(days=30)
 
-        _audit_log(user, "deployment.certs_rotated", "tls", tenant_id, {
-            "certificates_rotated": rotated,
-            "errors": errors,
-        })
+        _audit_log(
+            user,
+            "deployment.certs_rotated",
+            "tls",
+            tenant_id,
+            {
+                "certificates_rotated": rotated,
+                "errors": errors,
+            },
+        )
 
         logger.info(
             "TLS certificates rotated",
@@ -388,10 +404,16 @@ class DeploymentService:
             duration_seconds=round(duration, 3),
         )
 
-        _audit_log(user, "deployment.backup_created", "backup", str(result.backup_id), {
-            "size_mb": size_mb,
-            "components": components_backed_up,
-        })
+        _audit_log(
+            user,
+            "deployment.backup_created",
+            "backup",
+            str(result.backup_id),
+            {
+                "size_mb": size_mb,
+                "components": components_backed_up,
+            },
+        )
 
         logger.info(
             "Backup completed",

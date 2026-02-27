@@ -11,7 +11,9 @@ from __future__ import annotations
 import json
 import logging
 import re
-from datetime import datetime, timezone
+from datetime import datetime
+
+from app.utils.time import utcnow as _utcnow
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -25,11 +27,6 @@ from app.models.redteam import (
 )
 
 logger = logging.getLogger(__name__)
-
-
-def _utcnow() -> datetime:
-    """Return timezone-aware UTC timestamp."""
-    return datetime.now(timezone.utc)
 
 
 def _cvss_for_severity(severity: Severity) -> float:
@@ -47,10 +44,22 @@ def _cvss_for_severity(severity: Severity) -> float:
 
 _CREDENTIAL_PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     ("AWS Access Key", "credential_leak", re.compile(r"AKIA[0-9A-Z]{16}")),
-    ("Generic API Key", "credential_leak", re.compile(r"(?i)api[_-]?key\s*[:=]\s*['\"][A-Za-z0-9_\-]{20,}['\"]")),
+    (
+        "Generic API Key",
+        "credential_leak",
+        re.compile(r"(?i)api[_-]?key\s*[:=]\s*['\"][A-Za-z0-9_\-]{20,}['\"]"),
+    ),
     ("Bearer Token", "credential_leak", re.compile(r"Bearer\s+[A-Za-z0-9\-_\.]{20,}")),
-    ("Private Key Block", "credential_leak", re.compile(r"-----BEGIN\s+(RSA\s+)?PRIVATE\s+KEY-----")),
-    ("Email Address (PII)", "pii_leak", re.compile(r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+")),
+    (
+        "Private Key Block",
+        "credential_leak",
+        re.compile(r"-----BEGIN\s+(RSA\s+)?PRIVATE\s+KEY-----"),
+    ),
+    (
+        "Email Address (PII)",
+        "pii_leak",
+        re.compile(r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+"),
+    ),
     ("SSN Pattern (PII)", "pii_leak", re.compile(r"\b\d{3}-\d{2}-\d{4}\b")),
 ]
 
@@ -124,8 +133,7 @@ class RedTeamService:
         severity_order = list(Severity)
         threshold_idx = severity_order.index(config.severity_threshold)
         findings = [
-            f for f in findings
-            if severity_order.index(f.severity) <= threshold_idx
+            f for f in findings if severity_order.index(f.severity) <= threshold_idx
         ]
 
         summary = self._build_summary(findings)
@@ -168,64 +176,88 @@ class RedTeamService:
         findings: list[VulnerabilityFinding] = []
 
         # Test 1: Expired token acceptance
-        findings.append(VulnerabilityFinding(
-            id=uuid4(),
-            category=AttackCategory.jwt_attacks,
-            severity=Severity.critical,
-            title="Expired JWT token accepted",
-            description=(
-                "The agent endpoint accepted a JWT token with an 'exp' claim "
-                "set in the past. This allows replay attacks with stale tokens."
-            ),
-            cvss_score=_cvss_for_severity(Severity.critical),
-            remediation="Enforce exp claim validation in JWT middleware. Reject tokens where exp < now.",
-            evidence={"test": "expired_token", "agent_id": str(agent_id), "tenant_id": tenant_id},
-        ))
+        findings.append(
+            VulnerabilityFinding(
+                id=uuid4(),
+                category=AttackCategory.jwt_attacks,
+                severity=Severity.critical,
+                title="Expired JWT token accepted",
+                description=(
+                    "The agent endpoint accepted a JWT token with an 'exp' claim "
+                    "set in the past. This allows replay attacks with stale tokens."
+                ),
+                cvss_score=_cvss_for_severity(Severity.critical),
+                remediation="Enforce exp claim validation in JWT middleware. Reject tokens where exp < now.",
+                evidence={
+                    "test": "expired_token",
+                    "agent_id": str(agent_id),
+                    "tenant_id": tenant_id,
+                },
+            )
+        )
 
         # Test 2: Algorithm confusion (none → HS256)
-        findings.append(VulnerabilityFinding(
-            id=uuid4(),
-            category=AttackCategory.jwt_attacks,
-            severity=Severity.critical,
-            title="JWT algorithm confusion vulnerability",
-            description=(
-                "The agent accepted a JWT signed with 'none' algorithm. "
-                "An attacker can forge tokens without a signing key."
-            ),
-            cvss_score=_cvss_for_severity(Severity.critical),
-            remediation="Explicitly whitelist allowed algorithms (e.g., RS256). Never accept 'none'.",
-            evidence={"test": "alg_none", "agent_id": str(agent_id), "tenant_id": tenant_id},
-        ))
+        findings.append(
+            VulnerabilityFinding(
+                id=uuid4(),
+                category=AttackCategory.jwt_attacks,
+                severity=Severity.critical,
+                title="JWT algorithm confusion vulnerability",
+                description=(
+                    "The agent accepted a JWT signed with 'none' algorithm. "
+                    "An attacker can forge tokens without a signing key."
+                ),
+                cvss_score=_cvss_for_severity(Severity.critical),
+                remediation="Explicitly whitelist allowed algorithms (e.g., RS256). Never accept 'none'.",
+                evidence={
+                    "test": "alg_none",
+                    "agent_id": str(agent_id),
+                    "tenant_id": tenant_id,
+                },
+            )
+        )
 
         # Test 3: Modified claims (tenant_id tampering)
-        findings.append(VulnerabilityFinding(
-            id=uuid4(),
-            category=AttackCategory.jwt_attacks,
-            severity=Severity.high,
-            title="JWT tenant_id claim modification not detected",
-            description=(
-                "Modifying the tenant_id claim in a valid JWT did not result "
-                "in rejection. Cross-tenant access may be possible."
-            ),
-            cvss_score=_cvss_for_severity(Severity.high),
-            remediation="Validate tenant_id claim against server-side tenant context on every request.",
-            evidence={"test": "tenant_claim_tampering", "agent_id": str(agent_id), "tenant_id": tenant_id},
-        ))
+        findings.append(
+            VulnerabilityFinding(
+                id=uuid4(),
+                category=AttackCategory.jwt_attacks,
+                severity=Severity.high,
+                title="JWT tenant_id claim modification not detected",
+                description=(
+                    "Modifying the tenant_id claim in a valid JWT did not result "
+                    "in rejection. Cross-tenant access may be possible."
+                ),
+                cvss_score=_cvss_for_severity(Severity.high),
+                remediation="Validate tenant_id claim against server-side tenant context on every request.",
+                evidence={
+                    "test": "tenant_claim_tampering",
+                    "agent_id": str(agent_id),
+                    "tenant_id": tenant_id,
+                },
+            )
+        )
 
         # Test 4: Missing required claims
-        findings.append(VulnerabilityFinding(
-            id=uuid4(),
-            category=AttackCategory.jwt_attacks,
-            severity=Severity.medium,
-            title="JWT accepted with missing required claims",
-            description=(
-                "A JWT missing the 'sub' or 'email' claim was not rejected. "
-                "Identity resolution may fail silently."
-            ),
-            cvss_score=_cvss_for_severity(Severity.medium),
-            remediation="Validate presence of sub, email, tenant_id, and exp claims before processing.",
-            evidence={"test": "missing_claims", "agent_id": str(agent_id), "tenant_id": tenant_id},
-        ))
+        findings.append(
+            VulnerabilityFinding(
+                id=uuid4(),
+                category=AttackCategory.jwt_attacks,
+                severity=Severity.medium,
+                title="JWT accepted with missing required claims",
+                description=(
+                    "A JWT missing the 'sub' or 'email' claim was not rejected. "
+                    "Identity resolution may fail silently."
+                ),
+                cvss_score=_cvss_for_severity(Severity.medium),
+                remediation="Validate presence of sub, email, tenant_id, and exp claims before processing.",
+                evidence={
+                    "test": "missing_claims",
+                    "agent_id": str(agent_id),
+                    "tenant_id": tenant_id,
+                },
+            )
+        )
 
         return findings
 
@@ -240,27 +272,31 @@ class RedTeamService:
         findings: list[VulnerabilityFinding] = []
 
         for idx, payload in enumerate(test_payloads):
-            findings.append(VulnerabilityFinding(
-                id=uuid4(),
-                category=AttackCategory.prompt_injection,
-                severity=Severity.high if idx < 3 else Severity.medium,
-                title=f"Prompt injection vector #{idx + 1} not blocked",
-                description=(
-                    f"The agent did not reject or sanitize a known prompt injection payload. "
-                    f"Payload category: {'direct override' if idx < 3 else 'encoding bypass'}."
-                ),
-                cvss_score=_cvss_for_severity(Severity.high if idx < 3 else Severity.medium),
-                remediation=(
-                    "Implement input sanitization, use system-prompt anchoring, "
-                    "and deploy a prompt-injection detection classifier."
-                ),
-                evidence={
-                    "test": f"prompt_injection_{idx + 1}",
-                    "payload_preview": payload[:80],
-                    "agent_id": str(agent_id),
-                    "tenant_id": tenant_id,
-                },
-            ))
+            findings.append(
+                VulnerabilityFinding(
+                    id=uuid4(),
+                    category=AttackCategory.prompt_injection,
+                    severity=Severity.high if idx < 3 else Severity.medium,
+                    title=f"Prompt injection vector #{idx + 1} not blocked",
+                    description=(
+                        f"The agent did not reject or sanitize a known prompt injection payload. "
+                        f"Payload category: {'direct override' if idx < 3 else 'encoding bypass'}."
+                    ),
+                    cvss_score=_cvss_for_severity(
+                        Severity.high if idx < 3 else Severity.medium
+                    ),
+                    remediation=(
+                        "Implement input sanitization, use system-prompt anchoring, "
+                        "and deploy a prompt-injection detection classifier."
+                    ),
+                    evidence={
+                        "test": f"prompt_injection_{idx + 1}",
+                        "payload_preview": payload[:80],
+                        "agent_id": str(agent_id),
+                        "tenant_id": tenant_id,
+                    },
+                )
+            )
 
         return findings
 
@@ -273,49 +309,67 @@ class RedTeamService:
         findings: list[VulnerabilityFinding] = []
 
         # Test 1: Cross-tenant agent access
-        findings.append(VulnerabilityFinding(
-            id=uuid4(),
-            category=AttackCategory.tenant_isolation,
-            severity=Severity.critical,
-            title="Cross-tenant agent access possible",
-            description=(
-                "Simulated request from tenant B was able to read agent data "
-                "belonging to the scanned tenant. RLS or query filter missing."
-            ),
-            cvss_score=_cvss_for_severity(Severity.critical),
-            remediation="Add tenant_id filter to all database queries. Enable PostgreSQL RLS policies.",
-            evidence={"test": "cross_tenant_read", "agent_id": str(agent_id), "tenant_id": tenant_id},
-        ))
+        findings.append(
+            VulnerabilityFinding(
+                id=uuid4(),
+                category=AttackCategory.tenant_isolation,
+                severity=Severity.critical,
+                title="Cross-tenant agent access possible",
+                description=(
+                    "Simulated request from tenant B was able to read agent data "
+                    "belonging to the scanned tenant. RLS or query filter missing."
+                ),
+                cvss_score=_cvss_for_severity(Severity.critical),
+                remediation="Add tenant_id filter to all database queries. Enable PostgreSQL RLS policies.",
+                evidence={
+                    "test": "cross_tenant_read",
+                    "agent_id": str(agent_id),
+                    "tenant_id": tenant_id,
+                },
+            )
+        )
 
         # Test 2: Tenant ID header injection
-        findings.append(VulnerabilityFinding(
-            id=uuid4(),
-            category=AttackCategory.tenant_isolation,
-            severity=Severity.high,
-            title="Tenant ID header injection accepted",
-            description=(
-                "Setting X-Tenant-ID header to a different tenant resulted in "
-                "the request being processed under the spoofed tenant context."
-            ),
-            cvss_score=_cvss_for_severity(Severity.high),
-            remediation="Derive tenant_id exclusively from the verified JWT claims, never from headers.",
-            evidence={"test": "header_injection", "agent_id": str(agent_id), "tenant_id": tenant_id},
-        ))
+        findings.append(
+            VulnerabilityFinding(
+                id=uuid4(),
+                category=AttackCategory.tenant_isolation,
+                severity=Severity.high,
+                title="Tenant ID header injection accepted",
+                description=(
+                    "Setting X-Tenant-ID header to a different tenant resulted in "
+                    "the request being processed under the spoofed tenant context."
+                ),
+                cvss_score=_cvss_for_severity(Severity.high),
+                remediation="Derive tenant_id exclusively from the verified JWT claims, never from headers.",
+                evidence={
+                    "test": "header_injection",
+                    "agent_id": str(agent_id),
+                    "tenant_id": tenant_id,
+                },
+            )
+        )
 
         # Test 3: Shared resource namespace collision
-        findings.append(VulnerabilityFinding(
-            id=uuid4(),
-            category=AttackCategory.tenant_isolation,
-            severity=Severity.medium,
-            title="Shared resource namespace allows cross-tenant enumeration",
-            description=(
-                "Agent names or IDs from other tenants are enumerable via "
-                "sequential ID patterns or predictable naming."
-            ),
-            cvss_score=_cvss_for_severity(Severity.medium),
-            remediation="Use UUIDs for all resource identifiers. Never expose sequential IDs.",
-            evidence={"test": "namespace_enum", "agent_id": str(agent_id), "tenant_id": tenant_id},
-        ))
+        findings.append(
+            VulnerabilityFinding(
+                id=uuid4(),
+                category=AttackCategory.tenant_isolation,
+                severity=Severity.medium,
+                title="Shared resource namespace allows cross-tenant enumeration",
+                description=(
+                    "Agent names or IDs from other tenants are enumerable via "
+                    "sequential ID patterns or predictable naming."
+                ),
+                cvss_score=_cvss_for_severity(Severity.medium),
+                remediation="Use UUIDs for all resource identifiers. Never expose sequential IDs.",
+                evidence={
+                    "test": "namespace_enum",
+                    "agent_id": str(agent_id),
+                    "tenant_id": tenant_id,
+                },
+            )
+        )
 
         return findings
 
@@ -328,29 +382,33 @@ class RedTeamService:
         findings: list[VulnerabilityFinding] = []
 
         for label, leak_type, pattern in _CREDENTIAL_PATTERNS:
-            severity = Severity.critical if leak_type == "credential_leak" else Severity.high
-            findings.append(VulnerabilityFinding(
-                id=uuid4(),
-                category=AttackCategory.credential_leak,
-                severity=severity,
-                title=f"{label} pattern detected in agent output",
-                description=(
-                    f"The agent output matched the pattern for '{label}'. "
-                    f"This may indicate leaked credentials or PII in responses."
-                ),
-                cvss_score=_cvss_for_severity(severity),
-                remediation=(
-                    "Implement output DLP scanning. Strip or mask sensitive patterns "
-                    "before returning responses to users."
-                ),
-                evidence={
-                    "test": f"credential_scan_{leak_type}",
-                    "pattern_name": label,
-                    "regex": pattern.pattern,
-                    "agent_id": str(agent_id),
-                    "tenant_id": tenant_id,
-                },
-            ))
+            severity = (
+                Severity.critical if leak_type == "credential_leak" else Severity.high
+            )
+            findings.append(
+                VulnerabilityFinding(
+                    id=uuid4(),
+                    category=AttackCategory.credential_leak,
+                    severity=severity,
+                    title=f"{label} pattern detected in agent output",
+                    description=(
+                        f"The agent output matched the pattern for '{label}'. "
+                        f"This may indicate leaked credentials or PII in responses."
+                    ),
+                    cvss_score=_cvss_for_severity(severity),
+                    remediation=(
+                        "Implement output DLP scanning. Strip or mask sensitive patterns "
+                        "before returning responses to users."
+                    ),
+                    evidence={
+                        "test": f"credential_scan_{leak_type}",
+                        "pattern_name": label,
+                        "regex": pattern.pattern,
+                        "agent_id": str(agent_id),
+                        "tenant_id": tenant_id,
+                    },
+                )
+            )
 
         return findings
 
@@ -365,15 +423,17 @@ class RedTeamService:
 
             if rule_id not in seen_rules:
                 seen_rules.add(rule_id)
-                rules.append({
-                    "id": rule_id,
-                    "shortDescription": {"text": finding.title},
-                    "fullDescription": {"text": finding.description},
-                    "helpUri": "https://archon.dev/docs/security",
-                    "properties": {
-                        "security-severity": str(finding.cvss_score),
-                    },
-                })
+                rules.append(
+                    {
+                        "id": rule_id,
+                        "shortDescription": {"text": finding.title},
+                        "fullDescription": {"text": finding.description},
+                        "helpUri": "https://archon.dev/docs/security",
+                        "properties": {
+                            "security-severity": str(finding.cvss_score),
+                        },
+                    }
+                )
 
             level_map = {
                 Severity.critical: "error",
@@ -383,17 +443,19 @@ class RedTeamService:
                 Severity.info: "note",
             }
 
-            results.append({
-                "ruleId": rule_id,
-                "level": level_map[finding.severity],
-                "message": {"text": finding.description},
-                "properties": {
-                    "cvss_score": finding.cvss_score,
-                    "severity": finding.severity.value,
-                    "remediation": finding.remediation,
-                    "finding_id": str(finding.id),
-                },
-            })
+            results.append(
+                {
+                    "ruleId": rule_id,
+                    "level": level_map[finding.severity],
+                    "message": {"text": finding.description},
+                    "properties": {
+                        "cvss_score": finding.cvss_score,
+                        "severity": finding.severity.value,
+                        "remediation": finding.remediation,
+                        "finding_id": str(finding.id),
+                    },
+                }
+            )
 
         sarif = {
             "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/main/sarif-2.1/schema/sarif-schema-2.1.0.json",
@@ -473,28 +535,30 @@ class RedTeamService:
         ]
 
         for label, url in ssrf_vectors:
-            findings.append(VulnerabilityFinding(
-                id=uuid4(),
-                category=AttackCategory.ssrf,
-                severity=Severity.high,
-                title=f"SSRF vector: {label}",
-                description=(
-                    f"The agent attempted to fetch '{url}' without URL validation. "
-                    f"An attacker could access internal services or cloud metadata."
-                ),
-                cvss_score=_cvss_for_severity(Severity.high),
-                remediation=(
-                    "Implement URL allowlisting. Block requests to private IP ranges, "
-                    "link-local addresses, and cloud metadata endpoints."
-                ),
-                evidence={
-                    "test": "ssrf",
-                    "vector": label,
-                    "url": url,
-                    "agent_id": str(agent_id),
-                    "tenant_id": tenant_id,
-                },
-            ))
+            findings.append(
+                VulnerabilityFinding(
+                    id=uuid4(),
+                    category=AttackCategory.ssrf,
+                    severity=Severity.high,
+                    title=f"SSRF vector: {label}",
+                    description=(
+                        f"The agent attempted to fetch '{url}' without URL validation. "
+                        f"An attacker could access internal services or cloud metadata."
+                    ),
+                    cvss_score=_cvss_for_severity(Severity.high),
+                    remediation=(
+                        "Implement URL allowlisting. Block requests to private IP ranges, "
+                        "link-local addresses, and cloud metadata endpoints."
+                    ),
+                    evidence={
+                        "test": "ssrf",
+                        "vector": label,
+                        "url": url,
+                        "agent_id": str(agent_id),
+                        "tenant_id": tenant_id,
+                    },
+                )
+            )
 
         return findings
 

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime
+
+from app.utils.time import utcnow as _utcnow
 from typing import Any
 from uuid import UUID
 
@@ -15,11 +17,6 @@ from app.models.mcp import (
     MCPInteraction,
     MCPSession,
 )
-
-
-def _utcnow() -> datetime:
-    """Return timezone-aware UTC timestamp."""
-    return datetime.now(timezone.utc)
 
 
 class MCPService:
@@ -137,8 +134,12 @@ class MCPService:
         count_result = await session.exec(base)
         total = len(count_result.all())
 
-        stmt = base.offset(offset).limit(limit).order_by(
-            MCPComponent.created_at.desc()  # type: ignore[union-attr]
+        stmt = (
+            base.offset(offset)
+            .limit(limit)
+            .order_by(
+                MCPComponent.created_at.desc()  # type: ignore[union-attr]
+            )
         )
         result = await session.exec(stmt)
         components = list(result.all())
@@ -252,8 +253,12 @@ class MCPService:
         count_result = await session.exec(base)
         total = len(count_result.all())
 
-        stmt = base.offset(offset).limit(limit).order_by(
-            MCPSession.created_at.desc()  # type: ignore[union-attr]
+        stmt = (
+            base.offset(offset)
+            .limit(limit)
+            .order_by(
+                MCPSession.created_at.desc()  # type: ignore[union-attr]
+            )
         )
         result = await session.exec(stmt)
         sessions = list(result.all())
@@ -333,8 +338,12 @@ class MCPService:
         count_result = await session.exec(base)
         total = len(count_result.all())
 
-        stmt = base.offset(offset).limit(limit).order_by(
-            MCPInteraction.created_at.desc()  # type: ignore[union-attr]
+        stmt = (
+            base.offset(offset)
+            .limit(limit)
+            .order_by(
+                MCPInteraction.created_at.desc()  # type: ignore[union-attr]
+            )
         )
         result = await session.exec(stmt)
         interactions = list(result.all())
