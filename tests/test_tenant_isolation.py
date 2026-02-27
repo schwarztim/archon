@@ -79,7 +79,7 @@ class TestAuditLogTenantIsolation:
 
     def test_audit_logs_filtered_by_tenant(self, session: Session):
         actor = uuid4()
-        resource = uuid4()
+        resource = str(uuid4())
         logs = [
             AuditLog(
                 actor_id=actor,
@@ -116,7 +116,7 @@ class TestAuditLogTenantIsolation:
 
     def test_null_tenant_not_returned(self, session: Session):
         actor = uuid4()
-        resource = uuid4()
+        resource = str(uuid4())
         session.add(
             AuditLog(
                 actor_id=actor,

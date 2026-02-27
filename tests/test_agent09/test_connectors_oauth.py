@@ -37,7 +37,8 @@ def _mock_secrets_mgr() -> AsyncMock:
 class TestOAuthFlowIntegration:
     """End-to-end OAuth flow tests."""
 
-    def test_full_authorize_callback_cycle_salesforce(self) -> None:
+    @pytest.mark.asyncio
+    async def test_full_authorize_callback_cycle_salesforce(self) -> None:
         """Full authorize → store state → pop state cycle for Salesforce."""
         url, state, verifier = OAuthProviderRegistry.build_authorize_url(
             "salesforce",
@@ -54,12 +55,13 @@ class TestOAuthFlowIntegration:
             code_verifier=verifier,
         )
 
-        pending = OAuthProviderRegistry.pop_pending_state(state)
+        pending = await OAuthProviderRegistry.pop_pending_state(state)
         assert pending is not None
         assert pending["tenant_id"] == TENANT_ID
         assert pending["provider_type"] == "salesforce"
 
-    def test_full_authorize_callback_cycle_slack(self) -> None:
+    @pytest.mark.asyncio
+    async def test_full_authorize_callback_cycle_slack(self) -> None:
         """Full authorize → store state → pop state cycle for Slack."""
         url, state, verifier = OAuthProviderRegistry.build_authorize_url(
             "slack",
@@ -79,11 +81,12 @@ class TestOAuthFlowIntegration:
             code_verifier=verifier,
         )
 
-        pending = OAuthProviderRegistry.pop_pending_state(state)
+        pending = await OAuthProviderRegistry.pop_pending_state(state)
         assert pending is not None
         assert pending["provider_type"] == "slack"
 
-    def test_full_authorize_callback_cycle_github(self) -> None:
+    @pytest.mark.asyncio
+    async def test_full_authorize_callback_cycle_github(self) -> None:
         """Full authorize → store state → pop state cycle for GitHub."""
         url, state, _ = OAuthProviderRegistry.build_authorize_url(
             "github",
@@ -101,10 +104,11 @@ class TestOAuthFlowIntegration:
             redirect_uri="https://app.example.com/callback",
         )
 
-        pending = OAuthProviderRegistry.pop_pending_state(state)
+        pending = await OAuthProviderRegistry.pop_pending_state(state)
         assert pending["provider_type"] == "github"
 
-    def test_full_authorize_callback_cycle_google(self) -> None:
+    @pytest.mark.asyncio
+    async def test_full_authorize_callback_cycle_google(self) -> None:
         """Full authorize → store state → pop state cycle for Google."""
         url, state, _ = OAuthProviderRegistry.build_authorize_url(
             "google",
@@ -122,10 +126,11 @@ class TestOAuthFlowIntegration:
             redirect_uri="https://app.example.com/callback",
         )
 
-        pending = OAuthProviderRegistry.pop_pending_state(state)
+        pending = await OAuthProviderRegistry.pop_pending_state(state)
         assert pending["provider_type"] == "google"
 
-    def test_full_authorize_callback_cycle_microsoft365(self) -> None:
+    @pytest.mark.asyncio
+    async def test_full_authorize_callback_cycle_microsoft365(self) -> None:
         """Full authorize → store state → pop state cycle for Microsoft 365."""
         url, state, _ = OAuthProviderRegistry.build_authorize_url(
             "microsoft365",
@@ -143,7 +148,7 @@ class TestOAuthFlowIntegration:
             redirect_uri="https://app.example.com/callback",
         )
 
-        pending = OAuthProviderRegistry.pop_pending_state(state)
+        pending = await OAuthProviderRegistry.pop_pending_state(state)
         assert pending["provider_type"] == "microsoft365"
 
     @pytest.mark.asyncio
@@ -223,7 +228,8 @@ class TestOAuthSecurity:
         assert verifier is not None
         assert len(verifier) >= 40
 
-    def test_replay_prevention(self) -> None:
+    @pytest.mark.asyncio
+    async def test_replay_prevention(self) -> None:
         """State can only be consumed once (replay prevention)."""
         OAuthProviderRegistry.store_pending_state(
             "replay-state",
@@ -233,13 +239,14 @@ class TestOAuthSecurity:
             redirect_uri="https://example.com/cb",
         )
 
-        first = OAuthProviderRegistry.pop_pending_state("replay-state")
+        first = await OAuthProviderRegistry.pop_pending_state("replay-state")
         assert first is not None
 
-        second = OAuthProviderRegistry.pop_pending_state("replay-state")
+        second = await OAuthProviderRegistry.pop_pending_state("replay-state")
         assert second is None
 
-    def test_tenant_isolation_in_state(self) -> None:
+    @pytest.mark.asyncio
+    async def test_tenant_isolation_in_state(self) -> None:
         """State stores are tenant-scoped."""
         OAuthProviderRegistry.store_pending_state(
             "tenant-state",
@@ -249,7 +256,7 @@ class TestOAuthSecurity:
             redirect_uri="https://example.com/cb",
         )
 
-        pending = OAuthProviderRegistry.pop_pending_state("tenant-state")
+        pending = await OAuthProviderRegistry.pop_pending_state("tenant-state")
         assert pending is not None
         assert pending["tenant_id"] == "tenant-A"
 
@@ -263,7 +270,9 @@ class TestOAuthProviderCoverage:
     def test_all_required_providers_present(self) -> None:
         """Salesforce, Slack, GitHub, Google, Microsoft 365 must be supported."""
         for provider in ["salesforce", "slack", "github", "google", "microsoft365"]:
-            assert OAuthProviderRegistry.is_supported(provider), f"Provider {provider} should be supported"
+            assert OAuthProviderRegistry.is_supported(provider), (
+                f"Provider {provider} should be supported"
+            )
 
     def test_authorize_url_format_for_each_provider(self) -> None:
         """Each provider's authorize URL should contain the correct domain."""

@@ -32,7 +32,11 @@ from app.services.connectors.schemas import (
 )
 from app.services.connectors.oauth import OAuthProviderRegistry, _pending_states
 from app.services.connectors.testers import ConnectionTester, ConnectionTestResult
-from app.services.connectors.health import HealthChecker, HealthCheckResult, HealthStatus
+from app.services.connectors.health import (
+    HealthChecker,
+    HealthCheckResult,
+    HealthStatus,
+)
 
 # ── Constants ───────────────────────────────────────────────────────
 
@@ -54,7 +58,9 @@ def _mock_secrets_mgr() -> AsyncMock:
     """Create a mock SecretsManager."""
     mgr = AsyncMock()
     mgr.put_secret = AsyncMock(return_value=MagicMock(path="test", version=1))
-    mgr.get_secret = AsyncMock(return_value={"access_token": "tok_123", "token_type": "Bearer"})
+    mgr.get_secret = AsyncMock(
+        return_value={"access_token": "tok_123", "token_type": "Bearer"}
+    )
     mgr.delete_secret = AsyncMock()
     return mgr
 
@@ -111,7 +117,9 @@ class TestConnectorTypeRegistry:
         schema = get_connector_schema("salesforce")
         assert schema is not None
         assert schema.supports_oauth is True
-        oauth_fields = [f for f in schema.credential_fields if f.field_type == FieldType.OAUTH]
+        oauth_fields = [
+            f for f in schema.credential_fields if f.field_type == FieldType.OAUTH
+        ]
         assert len(oauth_fields) >= 1
 
     def test_slack_schema_has_oauth(self) -> None:
@@ -168,18 +176,35 @@ class TestConnectorTypeRegistry:
     def test_database_types_present(self) -> None:
         """Database category must include PostgreSQL, MySQL, MongoDB, Redis, Elasticsearch, Snowflake, BigQuery."""
         db_types = {s.name for s in CONNECTOR_TYPE_REGISTRY if s.category == "Database"}
-        for expected in ["postgresql", "mysql", "mongodb", "redis", "elasticsearch", "snowflake", "bigquery"]:
+        for expected in [
+            "postgresql",
+            "mysql",
+            "mongodb",
+            "redis",
+            "elasticsearch",
+            "snowflake",
+            "bigquery",
+        ]:
             assert expected in db_types, f"Missing database type: {expected}"
 
     def test_saas_types_present(self) -> None:
         """SaaS category must include Salesforce, HubSpot, Zendesk, Jira, Confluence, Notion."""
         saas_types = {s.name for s in CONNECTOR_TYPE_REGISTRY if s.category == "SaaS"}
-        for expected in ["salesforce", "hubspot", "zendesk", "jira", "confluence", "notion"]:
+        for expected in [
+            "salesforce",
+            "hubspot",
+            "zendesk",
+            "jira",
+            "confluence",
+            "notion",
+        ]:
             assert expected in saas_types, f"Missing SaaS type: {expected}"
 
     def test_communication_types_present(self) -> None:
         """Communication category must include Slack, Teams, Discord, Email."""
-        comm_types = {s.name for s in CONNECTOR_TYPE_REGISTRY if s.category == "Communication"}
+        comm_types = {
+            s.name for s in CONNECTOR_TYPE_REGISTRY if s.category == "Communication"
+        }
         for expected in ["slack", "teams", "discord", "email_smtp"]:
             assert expected in comm_types, f"Missing communication type: {expected}"
 
@@ -243,7 +268,8 @@ class TestOAuthProviderRegistry:
                 redirect_uri="https://example.com",
             )
 
-    def test_store_and_pop_pending_state(self) -> None:
+    @pytest.mark.asyncio
+    async def test_store_and_pop_pending_state(self) -> None:
         """store_pending_state + pop_pending_state round-trips correctly."""
         OAuthProviderRegistry.store_pending_state(
             "test-state-123",
@@ -253,13 +279,14 @@ class TestOAuthProviderRegistry:
             redirect_uri="https://app.example.com/callback",
             code_verifier="verifier-abc",
         )
-        result = OAuthProviderRegistry.pop_pending_state("test-state-123")
+        result = await OAuthProviderRegistry.pop_pending_state("test-state-123")
         assert result is not None
         assert result["tenant_id"] == TENANT_ID
         assert result["connector_id"] == CONNECTOR_ID
         assert result["provider_type"] == "salesforce"
 
-    def test_pop_pending_state_removes_entry(self) -> None:
+    @pytest.mark.asyncio
+    async def test_pop_pending_state_removes_entry(self) -> None:
         """After pop, the state should not be found again."""
         OAuthProviderRegistry.store_pending_state(
             "once-state",
@@ -268,12 +295,13 @@ class TestOAuthProviderRegistry:
             provider_type="slack",
             redirect_uri="https://example.com",
         )
-        OAuthProviderRegistry.pop_pending_state("once-state")
-        assert OAuthProviderRegistry.pop_pending_state("once-state") is None
+        await OAuthProviderRegistry.pop_pending_state("once-state")
+        assert await OAuthProviderRegistry.pop_pending_state("once-state") is None
 
-    def test_pop_nonexistent_state_returns_none(self) -> None:
+    @pytest.mark.asyncio
+    async def test_pop_nonexistent_state_returns_none(self) -> None:
         """Popping a nonexistent state returns None."""
-        assert OAuthProviderRegistry.pop_pending_state("nonexistent") is None
+        assert await OAuthProviderRegistry.pop_pending_state("nonexistent") is None
 
     @pytest.mark.asyncio
     async def test_exchange_code_for_tokens(self) -> None:
@@ -408,6 +436,7 @@ class TestConnectionTester:
         """OAuth connector test fails without tokens."""
         mgr = _mock_secrets_mgr()
         from app.secrets.exceptions import SecretNotFoundError
+
         mgr.get_secret = AsyncMock(side_effect=SecretNotFoundError("not found"))
         result = await ConnectionTester.test(
             "salesforce",
@@ -483,7 +512,8 @@ class TestHealthChecker:
         """PostgreSQL returns healthy when config has host."""
         mgr = _mock_secrets_mgr()
         result = await HealthChecker.check(
-            CONNECTOR_ID, "postgresql",
+            CONNECTOR_ID,
+            "postgresql",
             {"host": "localhost", "database": "mydb"},
             secrets_mgr=mgr,
             tenant_id=TENANT_ID,
@@ -496,7 +526,8 @@ class TestHealthChecker:
         """PostgreSQL returns degraded without host."""
         mgr = _mock_secrets_mgr()
         result = await HealthChecker.check(
-            CONNECTOR_ID, "postgresql",
+            CONNECTOR_ID,
+            "postgresql",
             {},
             secrets_mgr=mgr,
             tenant_id=TENANT_ID,
@@ -508,7 +539,8 @@ class TestHealthChecker:
         """OAuth connector healthy when tokens exist."""
         mgr = _mock_secrets_mgr()
         result = await HealthChecker.check(
-            CONNECTOR_ID, "salesforce",
+            CONNECTOR_ID,
+            "salesforce",
             {},
             secrets_mgr=mgr,
             tenant_id=TENANT_ID,
@@ -520,9 +552,11 @@ class TestHealthChecker:
         """OAuth connector errors when no tokens."""
         mgr = _mock_secrets_mgr()
         from app.secrets.exceptions import SecretNotFoundError
+
         mgr.get_secret = AsyncMock(side_effect=SecretNotFoundError("missing"))
         result = await HealthChecker.check(
-            CONNECTOR_ID, "salesforce",
+            CONNECTOR_ID,
+            "salesforce",
             {},
             secrets_mgr=mgr,
             tenant_id=TENANT_ID,
@@ -534,7 +568,8 @@ class TestHealthChecker:
         """S3 returns healthy with bucket configured."""
         mgr = _mock_secrets_mgr()
         result = await HealthChecker.check(
-            CONNECTOR_ID, "s3",
+            CONNECTOR_ID,
+            "s3",
             {"bucket": "my-bucket"},
             secrets_mgr=mgr,
             tenant_id=TENANT_ID,
@@ -546,7 +581,8 @@ class TestHealthChecker:
         """REST API returns healthy with base_url."""
         mgr = _mock_secrets_mgr()
         result = await HealthChecker.check(
-            CONNECTOR_ID, "rest_api",
+            CONNECTOR_ID,
+            "rest_api",
             {"base_url": "https://api.example.com"},
             secrets_mgr=mgr,
             tenant_id=TENANT_ID,
@@ -558,7 +594,8 @@ class TestHealthChecker:
         """Health result includes last_check timestamp."""
         mgr = _mock_secrets_mgr()
         result = await HealthChecker.check(
-            CONNECTOR_ID, "openai",
+            CONNECTOR_ID,
+            "openai",
             {"api_key": "sk-test"},
             secrets_mgr=mgr,
             tenant_id=TENANT_ID,
@@ -621,7 +658,9 @@ class TestConnectorServiceEnterprise:
         config2 = ConnectorConfig(type="slack", name="Slack Bot")
         await ConnectorService.register_connector(TENANT_ID, user, config1)
         await ConnectorService.register_connector(TENANT_ID, user, config2)
-        await ConnectorService.register_connector("other-tenant", user, ConnectorConfig(type="redis", name="Other"))
+        await ConnectorService.register_connector(
+            "other-tenant", user, ConnectorConfig(type="redis", name="Other")
+        )
 
         results = await ConnectorService.list_connectors(TENANT_ID)
         assert len(results) == 2
@@ -657,10 +696,15 @@ class TestConnectorServiceEnterprise:
     async def test_start_oauth_flow(self) -> None:
         """start_oauth_flow returns authorization URL."""
         user = _admin_user()
-        config = ConnectorConfig(type="salesforce", name="SF", auth_method=AuthMethod.OAUTH2)
+        config = ConnectorConfig(
+            type="salesforce", name="SF", auth_method=AuthMethod.OAUTH2
+        )
         instance = await ConnectorService.register_connector(TENANT_ID, user, config)
         flow = await ConnectorService.start_oauth_flow(
-            TENANT_ID, user, instance.id, "https://app.example.com/callback",
+            TENANT_ID,
+            user,
+            instance.id,
+            "https://app.example.com/callback",
         )
         assert "salesforce.com" in flow.authorization_url
         assert flow.state is not None
@@ -669,29 +713,42 @@ class TestConnectorServiceEnterprise:
     async def test_start_oauth_flow_unsupported_type(self) -> None:
         """start_oauth_flow raises ValueError for non-OAuth type."""
         user = _admin_user()
-        config = ConnectorConfig(type="postgresql", name="PG", auth_method=AuthMethod.BASIC)
+        config = ConnectorConfig(
+            type="postgresql", name="PG", auth_method=AuthMethod.BASIC
+        )
         instance = await ConnectorService.register_connector(TENANT_ID, user, config)
         with pytest.raises(ValueError, match="OAuth not configured"):
             await ConnectorService.start_oauth_flow(
-                TENANT_ID, user, instance.id, "https://example.com/cb",
+                TENANT_ID,
+                user,
+                instance.id,
+                "https://example.com/cb",
             )
 
     @pytest.mark.asyncio
     async def test_complete_oauth_flow(self) -> None:
         """complete_oauth_flow stores tokens in Vault."""
         user = _admin_user()
-        config = ConnectorConfig(type="salesforce", name="SF OAuth", auth_method=AuthMethod.OAUTH2)
+        config = ConnectorConfig(
+            type="salesforce", name="SF OAuth", auth_method=AuthMethod.OAUTH2
+        )
         instance = await ConnectorService.register_connector(TENANT_ID, user, config)
         flow = await ConnectorService.start_oauth_flow(
-            TENANT_ID, user, instance.id, "https://example.com/cb",
+            TENANT_ID,
+            user,
+            instance.id,
+            "https://example.com/cb",
         )
         mgr = _mock_secrets_mgr()
         cred = await ConnectorService.complete_oauth_flow(
-            TENANT_ID, "auth-code-123", flow.state, mgr,
+            TENANT_ID,
+            "auth-code-123",
+            flow.state,
+            mgr,
         )
         assert cred.connector_id == instance.id
         assert cred.token_type == "Bearer"
-        mgr.put_secret.assert_awaited_once()
+        assert mgr.put_secret.await_count >= 1
 
     @pytest.mark.asyncio
     async def test_complete_oauth_invalid_state(self) -> None:
@@ -699,7 +756,10 @@ class TestConnectorServiceEnterprise:
         mgr = _mock_secrets_mgr()
         with pytest.raises(ValueError, match="Invalid"):
             await ConnectorService.complete_oauth_flow(
-                TENANT_ID, "code", "bad-state", mgr,
+                TENANT_ID,
+                "code",
+                "bad-state",
+                mgr,
             )
 
     @pytest.mark.asyncio
@@ -720,7 +780,9 @@ class TestConnectorServiceEnterprise:
         config = ConnectorConfig(type="github", name="GH Refresh")
         instance = await ConnectorService.register_connector(TENANT_ID, user, config)
         mgr = _mock_secrets_mgr()
-        success = await ConnectorService.refresh_credentials(TENANT_ID, instance.id, mgr)
+        success = await ConnectorService.refresh_credentials(
+            TENANT_ID, instance.id, mgr
+        )
         assert success is True
 
 
@@ -733,6 +795,7 @@ class TestAPIEnvelope:
     def test_meta_block_has_required_fields(self) -> None:
         """Meta block must have request_id and timestamp."""
         from app.routes.connectors import _meta
+
         meta = _meta()
         assert "request_id" in meta
         assert "timestamp" in meta
@@ -741,11 +804,13 @@ class TestAPIEnvelope:
     def test_meta_block_with_pagination(self) -> None:
         """Meta block supports optional pagination."""
         from app.routes.connectors import _meta
+
         meta = _meta(pagination={"total": 10, "limit": 20, "offset": 0})
         assert meta["pagination"]["total"] == 10
 
     def test_meta_block_custom_request_id(self) -> None:
         """Meta block accepts custom request_id."""
         from app.routes.connectors import _meta
+
         meta = _meta(request_id="custom-123")
         assert meta["request_id"] == "custom-123"

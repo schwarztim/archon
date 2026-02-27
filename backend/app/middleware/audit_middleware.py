@@ -196,6 +196,79 @@ async def _write_audit_entry(
         logger.debug("audit_middleware: failed to write audit entry", exc_info=True)
 
 
+# ---------------------------------------------------------------------------
+# Aliases for backwards-compatible test imports
+# ---------------------------------------------------------------------------
+
+
+def _extract_resource(path: str) -> tuple[str, UUID | None]:
+    """Return (resource_type, resource_id | None) from the URL path.
+
+    Returns ``("unknown", None)`` for non-matching paths.
+    This is a test-friendly wrapper around :func:`_parse_resource`.
+    """
+    resource, rid_str = _parse_resource(path)
+    if resource is None:
+        return "unknown", None
+    rid: UUID | None = None
+    if rid_str is not None:
+        try:
+            rid = UUID(rid_str)
+        except (ValueError, AttributeError):
+            pass
+    return resource, rid
+
+
+def _derive_action(method: str, resource: str) -> str:
+    """Return a human-readable action string for (method, resource).
+
+    Alias for :func:`_resolve_action` used in tests.
+    """
+    return _resolve_action(method, resource)
+
+
+#: Alias — tests import _SKIP_PATTERNS; production code uses _SKIP_RE.
+_SKIP_PATTERNS = _SKIP_RE
+
+
+async def _record_audit(
+    *,
+    actor_id: Any = None,
+    action: str,
+    resource_type: str | None = None,
+    resource_id: Any = None,
+    details: dict[str, Any] | None = None,
+    tenant_id: str = "default",
+    correlation_id: str | None = None,
+) -> None:
+    """Fire-and-forget audit entry writer (used directly in tests and hooks).
+
+    Creates a new DB session, writes the entry, and swallows all exceptions so
+    that a failing audit write never breaks the calling code path.
+    """
+    try:
+        from app.database import async_session_factory
+        from app.models import AuditLog
+
+        entry = AuditLog(
+            actor_id=actor_id,
+            action=action,
+            resource_type=resource_type,
+            resource_id=str(resource_id) if resource_id is not None else None,
+            details=details,
+            tenant_id=tenant_id,
+            correlation_id=correlation_id or "",
+        )
+        async with async_session_factory() as session:
+            session.add(entry)
+            await session.commit()
+    except Exception:
+        logger.debug("_record_audit: failed to write entry", exc_info=True)
+
+
+# ---------------------------------------------------------------------------
+
+
 class AuditMiddleware(BaseHTTPMiddleware):
     """Intercepts mutating requests and writes tamper-evident AuditLog entries.
 
