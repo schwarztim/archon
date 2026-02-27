@@ -23,7 +23,7 @@ from app.secrets.manager import VaultSecretsManager, get_secrets_manager
 from app.services.agent_version_service import AgentVersionService
 from app.services.versioning_service import VersioningService
 
-router = APIRouter(prefix="/agents", tags=["versioning"])
+router = APIRouter(prefix="/versioning/agents", tags=["versioning"])
 
 
 # ── Request / response schemas ──────────────────────────────────────

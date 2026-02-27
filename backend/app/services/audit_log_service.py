@@ -20,8 +20,36 @@ class AuditLogService:
     """Append-only audit trail read operations.
 
     AuditLog entries are immutable — no update or delete methods are provided.
-    For writing new entries use AuditService.log_action().
+    For writing new entries use AuditService.log_action() or AuditLogService.create().
     """
+
+    @staticmethod
+    async def create(
+        session: AsyncSession,
+        *,
+        actor_id: UUID | None = None,
+        action: str,
+        resource_type: str | None = None,
+        resource_id: UUID | None = None,
+        details: dict[str, Any] | None = None,
+        tenant_id: str = "default",
+    ) -> AuditLog:
+        """Create and persist a new AuditLog entry.
+
+        Adds the entry to the session, commits, and refreshes before returning.
+        """
+        entry = AuditLog(
+            actor_id=actor_id,
+            action=action,
+            resource_type=resource_type,
+            resource_id=str(resource_id) if resource_id is not None else None,
+            details=details,
+            tenant_id=tenant_id,
+        )
+        session.add(entry)
+        await session.commit()
+        await session.refresh(entry)
+        return entry
 
     @staticmethod
     async def list_all(

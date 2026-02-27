@@ -3,9 +3,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 from sqlmodel import select
 
-from backend.app.models.router import ModelRegistryEntry, RoutingRule
-from backend.app.services.router_service import ModelRouterService
-from backend.app.interfaces.models.enterprise import AuthenticatedUser
+from app.models.router import ModelRegistryEntry, RoutingRule
+from app.services.router_service import ModelRouterService
+from app.interfaces.models.enterprise import AuthenticatedUser
 
 # Mock data
 MOCK_TENANT_ID = "default"

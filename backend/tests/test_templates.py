@@ -88,12 +88,11 @@ def _sample_template_data(**overrides: Any) -> dict[str, Any]:
 
 def test_list_templates_envelope(client: TestClient) -> None:
     """GET /api/v1/templates/ returns envelope with data + meta + pagination."""
-    template_resp = _sample_template_response()
-    page = _sample_template_page([template_resp], total=1)
+    template = _sample_template()
     with patch(
-        "app.routes.templates.TemplateService.list_templates",
+        "app.routes.templates.TemplateService.list",
         new_callable=AsyncMock,
-        return_value=page,
+        return_value=([template], 1),
     ):
         resp = client.get("/api/v1/templates/")
     assert resp.status_code == 200
@@ -107,11 +106,10 @@ def test_list_templates_envelope(client: TestClient) -> None:
 
 def test_list_templates_with_category_filter(client: TestClient) -> None:
     """GET /api/v1/templates/?category=... passes filter to service."""
-    page = _sample_template_page([], total=0)
     with patch(
-        "app.routes.templates.TemplateService.list_templates",
+        "app.routes.templates.TemplateService.list",
         new_callable=AsyncMock,
-        return_value=page,
+        return_value=([], 0),
     ) as mock_list:
         resp = client.get("/api/v1/templates/?category=data_analysis")
     assert resp.status_code == 200
@@ -120,11 +118,10 @@ def test_list_templates_with_category_filter(client: TestClient) -> None:
 
 def test_list_templates_with_search(client: TestClient) -> None:
     """GET /api/v1/templates/?search=... passes search to service."""
-    page = _sample_template_page([], total=0)
     with patch(
-        "app.routes.templates.TemplateService.list_templates",
+        "app.routes.templates.TemplateService.list",
         new_callable=AsyncMock,
-        return_value=page,
+        return_value=([], 0),
     ) as mock_list:
         resp = client.get("/api/v1/templates/?search=chatbot")
     assert resp.status_code == 200
@@ -133,11 +130,10 @@ def test_list_templates_with_search(client: TestClient) -> None:
 
 def test_list_templates_with_tag_filter(client: TestClient) -> None:
     """GET /api/v1/templates/?tag=... passes tag to service."""
-    page = _sample_template_page([], total=0)
     with patch(
-        "app.routes.templates.TemplateService.list_templates",
+        "app.routes.templates.TemplateService.list",
         new_callable=AsyncMock,
-        return_value=page,
+        return_value=([], 0),
     ) as mock_list:
         resp = client.get("/api/v1/templates/?tag=support")
     assert resp.status_code == 200
@@ -146,11 +142,10 @@ def test_list_templates_with_tag_filter(client: TestClient) -> None:
 
 def test_list_templates_with_featured_filter(client: TestClient) -> None:
     """GET /api/v1/templates/?is_featured=true passes featured filter."""
-    page = _sample_template_page([], total=0)
     with patch(
-        "app.routes.templates.TemplateService.list_templates",
+        "app.routes.templates.TemplateService.list",
         new_callable=AsyncMock,
-        return_value=page,
+        return_value=([], 0),
     ) as mock_list:
         resp = client.get("/api/v1/templates/?is_featured=true")
     assert resp.status_code == 200
@@ -159,11 +154,10 @@ def test_list_templates_with_featured_filter(client: TestClient) -> None:
 
 def test_list_templates_pagination(client: TestClient) -> None:
     """GET /api/v1/templates/?limit=5&offset=10 passes pagination params."""
-    page = _sample_template_page([], total=0)
     with patch(
-        "app.routes.templates.TemplateService.list_templates",
+        "app.routes.templates.TemplateService.list",
         new_callable=AsyncMock,
-        return_value=page,
+        return_value=([], 0),
     ) as mock_list:
         resp = client.get("/api/v1/templates/?limit=5&offset=10")
     assert resp.status_code == 200
@@ -200,11 +194,11 @@ def test_create_template_missing_required_field(client: TestClient) -> None:
 
 def test_get_template(client: TestClient) -> None:
     """GET /api/v1/templates/{id} returns envelope with template data."""
-    template_resp = _sample_template_response()
+    template = _sample_template()
     with patch(
-        "app.routes.templates.TemplateService.get_template",
+        "app.routes.templates.TemplateService.get",
         new_callable=AsyncMock,
-        return_value=template_resp,
+        return_value=template,
     ):
         resp = client.get(f"/api/v1/templates/{TEMPLATE_ID}")
     assert resp.status_code == 200
@@ -217,7 +211,7 @@ def test_get_template(client: TestClient) -> None:
 def test_get_template_not_found(client: TestClient) -> None:
     """GET /api/v1/templates/{id} returns 404 when template doesn't exist."""
     with patch(
-        "app.routes.templates.TemplateService.get_template",
+        "app.routes.templates.TemplateService.get",
         new_callable=AsyncMock,
         return_value=None,
     ):
@@ -343,11 +337,10 @@ def test_instantiate_template_missing_owner(client: TestClient) -> None:
 
 def test_list_templates_empty(client: TestClient) -> None:
     """GET /api/v1/templates/ returns empty data list when no templates exist."""
-    page = _sample_template_page([], total=0)
     with patch(
-        "app.routes.templates.TemplateService.list_templates",
+        "app.routes.templates.TemplateService.list",
         new_callable=AsyncMock,
-        return_value=page,
+        return_value=([], 0),
     ):
         resp = client.get("/api/v1/templates/")
     assert resp.status_code == 200

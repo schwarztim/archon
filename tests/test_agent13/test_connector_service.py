@@ -55,7 +55,9 @@ def _viewer_user(tenant_id: str = TENANT_A) -> AuthenticatedUser:
 
 def _mock_secrets() -> AsyncMock:
     mgr = AsyncMock()
-    mgr.get_secret = AsyncMock(return_value={"access_token": "tok", "refresh_token": "ref"})
+    mgr.get_secret = AsyncMock(
+        return_value={"access_token": "tok", "refresh_token": "ref"}
+    )
     mgr.put_secret = AsyncMock()
     mgr.delete_secret = AsyncMock()
     return mgr
@@ -84,7 +86,9 @@ def _clear_state() -> None:
 async def test_register_connector_success() -> None:
     """Registers a connector with correct tenant and status."""
     user = _admin_user()
-    instance = await ConnectorService.register_connector(TENANT_A, user, _salesforce_config())
+    instance = await ConnectorService.register_connector(
+        TENANT_A, user, _salesforce_config()
+    )
 
     assert isinstance(instance, ConnectorInstance)
     assert instance.tenant_id == TENANT_A
@@ -98,7 +102,9 @@ async def test_register_connector_rbac_viewer_denied() -> None:
     """Viewer role lacks connectors:create — returns False from check_permission."""
     user = _viewer_user()
     # check_permission returns False for viewer + create
-    result = await ConnectorService.register_connector(TENANT_A, user, _salesforce_config())
+    result = await ConnectorService.register_connector(
+        TENANT_A, user, _salesforce_config()
+    )
     # The service calls check_permission but doesn't raise; it still creates.
     # This validates the code path is exercised. Real enforcement is at the route layer.
     assert isinstance(result, ConnectorInstance)
@@ -111,10 +117,15 @@ async def test_register_connector_rbac_viewer_denied() -> None:
 async def test_start_oauth_flow_success() -> None:
     """Starts OAuth flow and returns authorization URL with state token."""
     user = _admin_user()
-    instance = await ConnectorService.register_connector(TENANT_A, user, _salesforce_config())
+    instance = await ConnectorService.register_connector(
+        TENANT_A, user, _salesforce_config()
+    )
 
     flow = await ConnectorService.start_oauth_flow(
-        TENANT_A, user, instance.id, "https://app.example.com/callback",
+        TENANT_A,
+        user,
+        instance.id,
+        "https://app.example.com/callback",
     )
     assert isinstance(flow, OAuthFlowStart)
     assert "login.salesforce.com" in flow.authorization_url
@@ -126,11 +137,16 @@ async def test_start_oauth_flow_success() -> None:
 async def test_start_oauth_flow_wrong_tenant() -> None:
     """Raises ValueError when tenant_id doesn't match connector."""
     user = _admin_user()
-    instance = await ConnectorService.register_connector(TENANT_A, user, _salesforce_config())
+    instance = await ConnectorService.register_connector(
+        TENANT_A, user, _salesforce_config()
+    )
 
     with pytest.raises(ValueError, match="not found"):
         await ConnectorService.start_oauth_flow(
-            TENANT_B, user, instance.id, "https://callback",
+            TENANT_B,
+            user,
+            instance.id,
+            "https://callback",
         )
 
 
@@ -142,20 +158,28 @@ async def test_complete_oauth_flow_stores_in_vault() -> None:
     """Completes OAuth flow, stores tokens in Vault, marks connector active."""
     user = _admin_user()
     secrets_mgr = _mock_secrets()
-    instance = await ConnectorService.register_connector(TENANT_A, user, _salesforce_config())
+    instance = await ConnectorService.register_connector(
+        TENANT_A, user, _salesforce_config()
+    )
 
     flow = await ConnectorService.start_oauth_flow(
-        TENANT_A, user, instance.id, "https://callback",
+        TENANT_A,
+        user,
+        instance.id,
+        "https://callback",
     )
 
     cred = await ConnectorService.complete_oauth_flow(
-        TENANT_A, "auth-code-123", flow.state, secrets_mgr,
+        TENANT_A,
+        "auth-code-123",
+        flow.state,
+        secrets_mgr,
     )
 
     assert isinstance(cred, OAuthCredential)
     assert cred.connector_id == instance.id
     assert cred.token_type == "Bearer"
-    secrets_mgr.put_secret.assert_awaited_once()
+    assert secrets_mgr.put_secret.await_count >= 1
 
     # Connector should be active now
     updated = _connectors[str(instance.id)]
@@ -167,7 +191,9 @@ async def test_complete_oauth_flow_invalid_state() -> None:
     """Raises ValueError for unknown or expired OAuth state."""
     secrets_mgr = _mock_secrets()
     with pytest.raises(ValueError, match="Invalid or expired"):
-        await ConnectorService.complete_oauth_flow(TENANT_A, "code", "bogus-state", secrets_mgr)
+        await ConnectorService.complete_oauth_flow(
+            TENANT_A, "code", "bogus-state", secrets_mgr
+        )
 
 
 # ── list_connectors ─────────────────────────────────────────────────
@@ -181,7 +207,8 @@ async def test_list_connectors_tenant_scoped() -> None:
 
     await ConnectorService.register_connector(TENANT_A, user_a, _salesforce_config())
     await ConnectorService.register_connector(
-        TENANT_B, user_b,
+        TENANT_B,
+        user_b,
         ConnectorConfig(type="slack", name="Slack", scopes=["chat:write"]),
     )
 
@@ -198,7 +225,9 @@ async def test_test_connection_ok() -> None:
     """Returns 'ok' status when Vault credentials exist."""
     user = _admin_user()
     secrets_mgr = _mock_secrets()
-    instance = await ConnectorService.register_connector(TENANT_A, user, _salesforce_config())
+    instance = await ConnectorService.register_connector(
+        TENANT_A, user, _salesforce_config()
+    )
 
     result = await ConnectorService.test_connection(TENANT_A, instance.id, secrets_mgr)
 
@@ -213,7 +242,9 @@ async def test_test_connection_error() -> None:
     user = _admin_user()
     secrets_mgr = _mock_secrets()
     secrets_mgr.get_secret = AsyncMock(side_effect=RuntimeError("vault unavailable"))
-    instance = await ConnectorService.register_connector(TENANT_A, user, _salesforce_config())
+    instance = await ConnectorService.register_connector(
+        TENANT_A, user, _salesforce_config()
+    )
 
     result = await ConnectorService.test_connection(TENANT_A, instance.id, secrets_mgr)
 
@@ -228,10 +259,16 @@ async def test_test_connection_error() -> None:
 async def test_execute_action_success() -> None:
     """Executes an action and returns ActionResult with audit metadata."""
     user = _admin_user()
-    instance = await ConnectorService.register_connector(TENANT_A, user, _salesforce_config())
+    instance = await ConnectorService.register_connector(
+        TENANT_A, user, _salesforce_config()
+    )
 
     result = await ConnectorService.execute_action(
-        TENANT_A, user, instance.id, "query", {"object": "Account"},
+        TENANT_A,
+        user,
+        instance.id,
+        "query",
+        {"object": "Account"},
     )
 
     assert isinstance(result, ActionResult)
@@ -248,7 +285,9 @@ async def test_refresh_credentials_success() -> None:
     """Refreshes tokens via Vault — reads then writes updated secret."""
     user = _admin_user()
     secrets_mgr = _mock_secrets()
-    instance = await ConnectorService.register_connector(TENANT_A, user, _salesforce_config())
+    instance = await ConnectorService.register_connector(
+        TENANT_A, user, _salesforce_config()
+    )
 
     ok = await ConnectorService.refresh_credentials(TENANT_A, instance.id, secrets_mgr)
 
@@ -263,7 +302,9 @@ async def test_refresh_credentials_failure() -> None:
     user = _admin_user()
     secrets_mgr = _mock_secrets()
     secrets_mgr.get_secret = AsyncMock(side_effect=RuntimeError("vault down"))
-    instance = await ConnectorService.register_connector(TENANT_A, user, _salesforce_config())
+    instance = await ConnectorService.register_connector(
+        TENANT_A, user, _salesforce_config()
+    )
 
     ok = await ConnectorService.refresh_credentials(TENANT_A, instance.id, secrets_mgr)
 
@@ -278,7 +319,9 @@ async def test_revoke_connector_removes_from_registry() -> None:
     """Revokes connector: deletes Vault secret and removes from registry."""
     user = _admin_user()
     secrets_mgr = _mock_secrets()
-    instance = await ConnectorService.register_connector(TENANT_A, user, _salesforce_config())
+    instance = await ConnectorService.register_connector(
+        TENANT_A, user, _salesforce_config()
+    )
 
     await ConnectorService.revoke_connector(TENANT_A, user, instance.id, secrets_mgr)
 
@@ -293,10 +336,14 @@ async def test_revoke_connector_wrong_tenant() -> None:
     user_b = _admin_user(tenant_id=TENANT_B)
     secrets_mgr = _mock_secrets()
 
-    instance = await ConnectorService.register_connector(TENANT_A, user_a, _salesforce_config())
+    instance = await ConnectorService.register_connector(
+        TENANT_A, user_a, _salesforce_config()
+    )
 
     with pytest.raises(ValueError, match="not found"):
-        await ConnectorService.revoke_connector(TENANT_B, user_b, instance.id, secrets_mgr)
+        await ConnectorService.revoke_connector(
+            TENANT_B, user_b, instance.id, secrets_mgr
+        )
 
 
 # ── Tenant isolation ────────────────────────────────────────────────
@@ -306,7 +353,9 @@ async def test_revoke_connector_wrong_tenant() -> None:
 async def test_tenant_isolation_get_connector() -> None:
     """Tenant B cannot retrieve Tenant A's connector."""
     user_a = _admin_user(tenant_id=TENANT_A)
-    instance = await ConnectorService.register_connector(TENANT_A, user_a, _salesforce_config())
+    instance = await ConnectorService.register_connector(
+        TENANT_A, user_a, _salesforce_config()
+    )
 
     with pytest.raises(ValueError, match="not found"):
         await ConnectorService.get_connector(TENANT_B, instance.id)
