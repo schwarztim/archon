@@ -1,10 +1,8 @@
 <div align="center">
 
-# ⬡ Archon
+# Archon
 
-### Enterprise-Grade AI Orchestration Platform
-
-Build, deploy, and govern AI agents at scale — with a visual canvas, intelligent model routing, enterprise security, and 50+ data connectors.
+**Enterprise AI orchestration — visual agent builder, intelligent model routing, and enterprise-grade governance at scale.**
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.12+-3776AB.svg?logo=python&logoColor=white)](https://python.org)
@@ -12,67 +10,65 @@ Build, deploy, and govern AI agents at scale — with a visual canvas, intellige
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7+-3178C6.svg?logo=typescript&logoColor=white)](https://typescriptlang.org)
 
-<br/>
-
-<img src="docs/screenshots/dashboard.png" alt="Archon Dashboard" width="100%" />
-
 </div>
 
 ---
 
 ## Overview
 
-Archon is a self-hosted AI orchestration and governance platform for teams that need full control over their AI infrastructure. It replaces fragmented tooling with a single platform for building agent workflows, managing model providers, enforcing data loss prevention policies, and monitoring costs — all behind your firewall.
+Archon is a self-hosted platform for building, deploying, and governing AI agents in production environments. It provides a visual workflow canvas, a model-agnostic routing layer across six LLM providers, real-time data loss prevention, fine-grained access control, and 50+ data connectors — all deployable behind your firewall.
 
-### Why Archon?
+The platform targets teams that need the capability of managed AI services without the tradeoffs: no data leaving your perimeter, no vendor lock-in, and full audit visibility.
 
-- **No vendor lock-in** — Model-agnostic across OpenAI, Anthropic, Google, Mistral, Cohere, and local models (Ollama, vLLM, LiteLLM)
-- **Visual-first** — Drag-and-drop agent builder with 27+ node types, no code required
-- **Enterprise security** — DLP scanning, guardrails, RBAC/ABAC, SSO, audit logging, multi-tenancy
-- **Self-hosted** — Deploy on-prem, air-gapped, or in your cloud with Kubernetes + Helm + Terraform
-- **Full observability** — Real-time cost tracking, execution monitoring, and model health dashboards
+**Key properties:**
+
+- **Model-agnostic** — Routes across Claude, GPT-4o, Gemini, Llama, Mistral, and Cohere with configurable fallback chains
+- **Visual-first** — Drag-and-drop agent builder with 27+ node types; no code required for most workflows
+- **Enterprise security** — Real-time DLP scanning, RBAC/ABAC, Keycloak SSO, multi-tenancy, and OPA policy enforcement
+- **Self-hosted** — First-class support for on-prem, air-gapped, and private cloud deployments via Kubernetes and Helm
+- **Observable** — OpenTelemetry instrumentation, Prometheus metrics, token-level cost tracking, and Grafana dashboards
 
 ---
 
 ## Features
 
-### 🎨 Visual Agent Builder
+### Visual Agent Builder
 
-Build AI workflows by dragging and connecting nodes on a canvas. Supports LLM calls, tool execution, branching logic, parallel processing, RAG retrieval, DLP scanning, and human-in-the-loop approval gates.
+A canvas-based workflow editor for composing AI agents without writing orchestration code. Nodes cover the full spectrum of production agent needs: LLM inference, tool execution, branching logic, parallel fan-out/fan-in, RAG retrieval, DLP scanning checkpoints, and human-in-the-loop approval gates.
 
-<img src="docs/screenshots/builder.png" alt="Agent Builder — Drag-and-drop canvas with 27+ node types" width="100%" />
+27+ built-in node types. Workflows are serialized as versioned DAGs and executable via REST or event trigger.
 
-<br/>
+### Intelligent Model Router
 
-### 🔌 50+ Data Connectors
+A routing layer that abstracts provider selection from agent logic. Rules can target capability requirements, cost ceilings, latency SLOs, or tenant tier. Automatic fallback chains handle provider outages without surfacing errors to callers. Provider health is tracked in real time with per-model latency and error rate metrics.
 
-Connect to databases (PostgreSQL, MySQL, MongoDB, Snowflake, BigQuery), SaaS platforms (Salesforce, Jira, HubSpot, Zendesk), communication tools (Slack, Teams), cloud storage (S3, Azure Blob), and custom REST/GraphQL APIs.
+Supported providers: OpenAI, Anthropic, Google (Gemini), Mistral, Cohere, Meta (Llama via Ollama/vLLM). LiteLLM proxy integration available for extended provider support.
 
-<img src="docs/screenshots/connectors.png" alt="Connectors — Databases, SaaS, communication, cloud, and custom integrations" width="100%" />
+### Data Loss Prevention
 
-<br/>
+All agent inputs and outputs pass through a configurable DLP engine before leaving the platform boundary. Detectors cover PII categories (names, addresses, SSNs, card numbers), credentials, API keys, and custom regex patterns. Policy actions: redact, mask, block, or alert with full audit trail. Designed for HIPAA, PCI-DSS, and SOC 2 contexts.
 
-### 🧭 Intelligent Model Router
+### Access Control
 
-Register multiple LLM providers, define routing rules based on capability, cost, latency, or tenant tier, and configure automatic fallback chains. Monitor provider health with real-time latency and error tracking.
+Attribute-based and role-based access control enforced at the API layer via OPA. Keycloak provides OIDC/OAuth 2.0 SSO integration with support for existing enterprise identity providers (SAML, LDAP, AD). Tenant isolation enforced at the data layer.
 
-<img src="docs/screenshots/model-router.png" alt="Model Router — Provider management, routing rules, and health monitoring" width="100%" />
+### 50+ Data Connectors
 
-<br/>
+Pre-built connectors for:
 
-### 🛡️ Data Loss Prevention & Security
+- **Databases** — PostgreSQL, MySQL, MongoDB, Snowflake, BigQuery, Redis
+- **SaaS** — Salesforce, Jira, Confluence, HubSpot, Zendesk, ServiceNow
+- **Communication** — Slack, Microsoft Teams
+- **Storage** — Amazon S3, Azure Blob, Google Cloud Storage
+- **Custom** — REST and GraphQL connector SDK for arbitrary integrations
 
-Scan agent inputs and outputs for PII, credentials, and sensitive data in real time. Define policies with configurable actions (redact, mask, block, alert) and sensitivity levels. Full audit trail for compliance.
+### 17 Specialized AI Agents
 
-<img src="docs/screenshots/dlp.png" alt="DLP — Real-time scanning, policy management, and detection metrics" width="100%" />
+Purpose-built agents deployed as LangGraph state machines: code review, document analysis, data pipeline orchestration, incident triage, compliance auditing, and more. Each agent is independently configurable and composable within the visual builder.
 
-<br/>
+### Operations Dashboard
 
-### 📊 Operations Dashboard
-
-Monitor active agents, execution throughput, model usage, and costs from a single pane. System health indicators for API, database, cache, vault, and identity services. Agent leaderboard and activity feed.
-
-<img src="docs/screenshots/dashboard.png" alt="Dashboard — Metrics, health monitoring, cost tracking, and activity feed" width="100%" />
+Unified view of agent execution throughput, model usage by provider, token spend, and system health. Health indicators cover the full dependency stack: API, Postgres, Redis, Vault, and identity services. Agent execution leaderboard and live activity feed.
 
 ---
 
@@ -80,135 +76,134 @@ Monitor active agents, execution throughput, model usage, and costs from a singl
 
 ```
 archon/
-├── frontend/          React 19 · TypeScript · React Flow · shadcn/ui
-├── backend/           FastAPI · Python 3.12 · SQLModel · Alembic
+├── frontend/          React 19 · TypeScript · React Flow · shadcn/ui · Monaco Editor
+├── backend/           FastAPI · SQLModel · Alembic · Celery · Python 3.12
 ├── agents/            LangGraph state machines · 17 specialized agents
-├── security/          Guardrails · DLP engine · Red-teaming
+├── security/          DLP engine · Guardrails AI · NeMo Guardrails · OPA policies
 ├── integrations/      50+ connectors · REST/GraphQL SDK
-├── ops/               Routing engine · Cost tracker · Monitoring
-├── data/              RAG pipeline · LlamaIndex · Unstructured.io
-├── infra/             Terraform · Helm · Kubernetes manifests
-├── mobile/            Flutter SDK · iOS/Android native
-└── tests/             Unit · Integration · E2E test suite
+├── ops/               Model router · Cost tracker · OpenTelemetry instrumentation
+├── data/              RAG pipeline · PGVector · LlamaIndex · Unstructured.io
+├── infra/             Terraform · Helm charts · Kubernetes manifests · Kyverno
+├── mobile/            Flutter SDK · iOS/Android
+└── tests/             Unit · Integration · E2E
 ```
+
+**Request path (agent execution):**
+
+1. Client calls REST API or triggers via event source
+2. Auth middleware validates JWT, enforces RBAC/ABAC via OPA
+3. DLP engine scans input payload against active policies
+4. Model router selects provider based on routing rules and real-time health
+5. LangGraph state machine executes the agent DAG, invoking tools and connectors as needed
+6. DLP engine scans output before returning to caller
+7. OpenTelemetry spans and token usage written to observability pipeline
+
+**Storage:**
+
+- Postgres (primary) + PGVector (embeddings) — agent definitions, executions, audit logs, user data
+- Redis — execution state cache, Celery task queue
+- HashiCorp Vault — provider API keys, connector credentials
+
+---
 
 ## Tech Stack
 
 | Layer | Technology |
 |:------|:-----------|
-| **Frontend** | React 19 · TypeScript · React Flow · shadcn/ui · Tailwind CSS · Monaco Editor |
-| **Backend** | FastAPI · SQLModel · Alembic · Celery · Python 3.12 |
-| **Orchestration** | LangGraph · LangChain · CrewAI patterns |
-| **Vector / RAG** | PGVector · LlamaIndex · Unstructured · Haystack |
-| **Security** | OPA · Guardrails AI · NeMo Guardrails · HashiCorp Vault |
-| **Monitoring** | Prometheus · Grafana · OpenTelemetry · OpenSearch |
-| **Deployment** | Kubernetes · ArgoCD · Helm · Kyverno · Cert-Manager |
-| **Auth** | Keycloak · OAuth 2.0 · OIDC · RBAC / ABAC |
-| **Cost Tracking** | Custom token tracker · OpenLLMetry |
+| Frontend | React 19, TypeScript, React Flow, shadcn/ui, Tailwind CSS, Monaco Editor |
+| Backend | FastAPI, SQLModel, Alembic, Celery, Python 3.12 |
+| Orchestration | LangGraph, LangChain |
+| Vector / RAG | PGVector, LlamaIndex, Unstructured.io |
+| Security | OPA, Guardrails AI, NeMo Guardrails, HashiCorp Vault |
+| Auth | Keycloak, OAuth 2.0, OIDC, RBAC/ABAC |
+| Observability | OpenTelemetry, Prometheus, Grafana, OpenSearch |
+| Deployment | Kubernetes, Helm, ArgoCD, Terraform, Cert-Manager, Kyverno |
+| Cost Tracking | OpenLLMetry, custom token accounting engine |
 
 ---
 
-## Quick Start
+## Getting Started
 
 ### Prerequisites
 
-- Docker & Docker Compose
-- Node.js 20+ and Python 3.12+
-- Git
+- Docker and Docker Compose
+- Node.js 20+, Python 3.12+
 
-### Development Setup
+### Local Development
 
 ```bash
-# Clone the repository
 git clone https://github.com/schwarztim/archon.git
 cd archon
 
 # Copy environment template
 cp env.example .env
 
-# Start infrastructure (Postgres + Redis)
+# Start Postgres and Redis
 make dev
 
-# Install and run the backend
+# Backend
 pip install -r backend/requirements.txt
 cd backend && uvicorn app.main:app --reload --port 8000
 
-# Install and run the frontend (separate terminal)
+# Frontend (separate terminal)
 cd frontend && npm install && npm run dev
 ```
 
-### Full Stack (Docker)
+### Full Stack via Docker
 
 ```bash
-# Start all services
-make up
-
-# Run database migrations
-make migrate
-
-# View logs
-make logs
+make up       # start all services
+make migrate  # run database migrations
+make logs     # tail logs
 ```
 
 ### Enterprise Mode (Vault + Keycloak)
 
 ```bash
-# Start with full enterprise services
-make dev-enterprise
-
-# Initialize secrets
-make secrets-init
+make dev-enterprise   # start with full enterprise services
+make secrets-init     # initialize HashiCorp Vault secrets
 ```
 
 ---
 
 ## Project Structure
 
-| Directory | Description |
-|:----------|:------------|
+| Directory | Purpose |
+|:----------|:--------|
 | `frontend/` | React SPA — agent builder, dashboards, admin UI |
 | `backend/` | FastAPI REST API — agents, models, executions, auth |
 | `agents/` | Agent definitions and LangGraph state machines |
-| `security/` | DLP engine, guardrails, red-team testing |
-| `integrations/` | Data connectors and SDK |
+| `security/` | DLP engine, guardrails, red-team tooling |
+| `integrations/` | Data connectors and connector SDK |
 | `ops/` | Model router, cost engine, monitoring |
 | `data/` | RAG pipeline and document processing |
-| `infra/` | Terraform modules, Helm charts, K8s manifests |
-| `mobile/` | Flutter mobile SDK |
-| `scripts/` | Utility and deployment scripts |
+| `infra/` | Terraform modules, Helm charts, Kubernetes manifests |
 | `docs/` | Architecture docs and API reference |
 
 ---
 
 ## Documentation
 
-| Document | Description |
-|:---------|:------------|
-| [Architecture](docs/ARCHITECTURE.md) | System design, component interactions, data flow |
-| [Instructions](INSTRUCTIONS.md) | Project guidelines and development standards |
-| [Roadmap](ROADMAP.md) | Feature roadmap and release milestones |
-| [Contributing](docs/CONTRIBUTING.md) | How to contribute — issues, PRs, code style |
+- [Architecture](docs/ARCHITECTURE.md) — System design, component interactions, data flow
+- [Roadmap](ROADMAP.md) — Feature roadmap and release milestones
+- [Contributing](docs/CONTRIBUTING.md) — Development setup, code style, PR process
 
 ---
 
 ## Contributing
 
-Contributions are welcome. Please read [CONTRIBUTING.md](docs/CONTRIBUTING.md) before submitting a pull request.
+Contributions are welcome. Read [CONTRIBUTING.md](docs/CONTRIBUTING.md) before submitting a pull request.
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/your-feature`)
-3. Commit your changes (`git commit -m 'feat: add your feature'`)
-4. Push to your branch (`git push origin feature/your-feature`)
-5. Open a Pull Request
+```bash
+git checkout -b feature/your-feature
+# make changes
+git commit -m 'feat: description'
+git push origin feature/your-feature
+# open a pull request
+```
 
 ---
 
 ## License
 
 Licensed under the [Apache License 2.0](LICENSE).
-
----
-
-<div align="center">
-<sub>Built with ⬡ by the Archon team</sub>
-</div>
