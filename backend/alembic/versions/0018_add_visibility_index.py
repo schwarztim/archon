@@ -1,7 +1,7 @@
 """visibility_indexes — denormalised search row per WorkflowRun (W13 / ADR-008 §7)
 
 Revision ID: 0018_add_visibility_index
-Revises: 0015_add_pipeline_correlation
+Revises: 0017_add_run_chain
 Create Date: 2026-04-30
 
 Owned by W13 (Visibility and Search). Creates the ``visibility_indexes``
@@ -18,12 +18,18 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "0018_add_visibility_index"
-down_revision = "0015_add_pipeline_correlation"
+down_revision = "0017_add_run_chain"
 branch_labels = None
 depends_on = None
 
 
+def _table_exists(name: str) -> bool:
+    return name in sa.inspect(op.get_bind()).get_table_names()
+
+
 def upgrade() -> None:
+    if _table_exists("visibility_indexes"):
+        return
     op.create_table(
         "visibility_indexes",
         sa.Column("id", sa.Uuid(), nullable=False),

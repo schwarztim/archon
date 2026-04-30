@@ -22,7 +22,20 @@ branch_labels = None
 depends_on = None
 
 
+def _table_exists(name: str) -> bool:
+    return name in sa.inspect(op.get_bind()).get_table_names()
+
+
+def _index_exists(table: str, name: str) -> bool:
+    insp = sa.inspect(op.get_bind())
+    if table not in insp.get_table_names():
+        return False
+    return any(i["name"] == name for i in insp.get_indexes(table))
+
+
 def upgrade() -> None:
+    if _table_exists("schedules"):
+        return
     op.create_table(
         "schedules",
         sa.Column("id", sa.Uuid(), nullable=False),

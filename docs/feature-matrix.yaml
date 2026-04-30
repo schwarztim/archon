@@ -278,6 +278,38 @@ categories:
       notes: "assert_node_runnable() raises StubBlockError when ARCHON_ENV is durable (production/staging) and the node is classified stub/blocked/designed. Run dispatcher gates the snapshot against this helper before invoking the workflow engine."
       gap: ""
 
+    - id: pipelineStartNode
+      status: beta
+      source_files: ["backend/app/services/node_executors/pipeline_start.py"]
+      test_files: ["backend/tests/test_pipeline_activities.py"]
+      doc_refs: ["docs/adr/orchestration/ADR-008-durable-orchestration-schema.md"]
+      notes: "Start external CI/CD pipeline via provider adapter. Uses ActivityContext. Mocked provider tests only."
+      gap: "No real provider credentials tested."
+
+    - id: pipelineWaitNode
+      status: beta
+      source_files: ["backend/app/services/node_executors/pipeline_wait.py"]
+      test_files: ["backend/tests/test_pipeline_activities.py"]
+      doc_refs: ["docs/adr/orchestration/ADR-008-durable-orchestration-schema.md"]
+      notes: "Poll external pipeline status with heartbeat. Uses ActivityContext."
+      gap: "No real provider credentials tested."
+
+    - id: pipelineCancelNode
+      status: beta
+      source_files: ["backend/app/services/node_executors/pipeline_cancel.py"]
+      test_files: ["backend/tests/test_pipeline_activities.py"]
+      doc_refs: ["docs/adr/orchestration/ADR-008-durable-orchestration-schema.md"]
+      notes: "Cancel external pipeline run via provider adapter. Uses ActivityContext."
+      gap: "No real provider credentials tested."
+
+    - id: pipelineArtifactNode
+      status: beta
+      source_files: ["backend/app/services/node_executors/pipeline_artifact.py"]
+      test_files: ["backend/tests/test_pipeline_activities.py"]
+      doc_refs: ["docs/adr/orchestration/ADR-008-durable-orchestration-schema.md"]
+      notes: "Upload/download artifacts between Archon and external pipelines. Uses ActivityContext."
+      gap: "No real provider credentials tested."
+
   # ──────────────────────────────────────────────────────────────────
   rest_routes:
   # ──────────────────────────────────────────────────────────────────
@@ -2084,9 +2116,9 @@ categories:
 status_summary:
 # ──────────────────────────────────────────────────────────────────
   production: 95
-  beta: 82
+  beta: 86
   stub: 10
   designed: 4
   missing: 15
   blocked: 0
-  total: 206
+  total: 210

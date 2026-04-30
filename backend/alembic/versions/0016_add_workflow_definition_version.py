@@ -22,7 +22,13 @@ branch_labels = None
 depends_on = None
 
 
+def _table_exists(name: str) -> bool:
+    return name in sa.inspect(op.get_bind()).get_table_names()
+
+
 def upgrade() -> None:
+    if _table_exists("workflow_definition_versions"):
+        return
     op.create_table(
         "workflow_definition_versions",
         sa.Column("id", sa.Uuid(), nullable=False),

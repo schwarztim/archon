@@ -23,7 +23,13 @@ branch_labels = None
 depends_on = None
 
 
+def _table_exists(name: str) -> bool:
+    return name in sa.inspect(op.get_bind()).get_table_names()
+
+
 def upgrade() -> None:
+    if _table_exists("pipeline_correlations"):
+        return
     op.create_table(
         "pipeline_correlations",
         sa.Column("id", sa.Uuid(), nullable=False),
