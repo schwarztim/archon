@@ -45,7 +45,7 @@ async def invoke_tool(
 
     # 1. Guardrails (rate limit, input validation, audit log)
     try:
-        guardrails(request, user.oid, tool_id, body)
+        await guardrails(request, user.oid, tool_id, body)
     except HTTPException:
         audit_log_invocation(user.oid, tool_id, body, allowed=False, reason="guardrail_rejected")
         raise

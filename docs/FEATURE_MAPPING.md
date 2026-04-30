@@ -1,83 +1,162 @@
-# Archon - Feature Mapping (Full Competitive Parity + Advantages)
+# Archon — Feature Mapping
 
-> Complete feature coverage matrix ensuring 100% parity with leading commercial AI orchestration platforms, plus 8 features they do not offer.
+**Authority:** [`docs/feature-matrix.yaml`](feature-matrix.yaml) is the canonical source. This document is a navigation aid that links every feature to its code, tests, and governing docs.
+**Validator:** `python3 scripts/check-feature-matrix.py` enforces source-file existence and registration coverage.
+**Status legend:** ✅ `production` · ⚠️ `beta` · 🚫 `stub` (blocked in prod) · 📐 `designed` · ❌ `missing`.
 
----
+> The previous version of this document was a marketing-parity matrix promising 50+ connectors and 200+ nodes, none of which existed. It has been replaced by an evidence-backed feature → code → tests → docs map. For competitive parity discussion (what Archon does and does not aim to match), see [`docs/GAP_ANALYSIS.md`](GAP_ANALYSIS.md).
 
-## Core Feature Parity Matrix
+## 1. Node executors (28 registered)
 
-| # | Commercial Feature | Archon Equivalent | Agent | Status |
-|---|-------------------|-------------------|-------|--------|
-| 1 | No-Code Drag-and-Drop Builder | React Flow canvas + 200+ node palette | Agent-02 | Planned |
-| 2 | Natural Language to Agent | LLM planner + LangGraph codegen | Agent-03 | Planned |
-| 3 | Pre-built Templates (100s) | GitHub-synced template repo (50+) | Agent-04 | Planned |
-| 4 | Secure Sandbox Testing | Isolated Docker/K8s namespaces | Agent-05 | Planned |
-| 5 | Arena Mode (Comparative Testing) | Parallel execution + metrics dashboard | Agent-05 | Planned |
-| 6 | Model-Agnostic Routing | Dynamic router (cost/latency/sensitivity) | Agent-07 | Planned |
-| 7 | Intelligent Operations | Real-time routing + lifecycle manager | Agent-08 | Planned |
-| 8 | Cost Optimization & Chargeback | Universal token ledger + dept budgets | Agent-09 | Planned |
-| 9 | Security Posture + Red-Teaming | Automated adversarial testing suite | Agent-10 | Planned |
-| 10 | DLP + Guardrails | Multi-layer (regex + LLM + semantic) | Agent-11 | Planned |
-| 11 | Governance Dashboard + Registry | Neo4j graph + React dashboard | Agent-12 | Planned |
-| 12 | Data Connectors (M365, SF, etc.) | 50+ official + custom SDK | Agent-13 | Planned |
-| 13 | DocForge Processing | Unstructured + parallel processing | Agent-14 | Planned |
-| 14 | Live Components (interactive UIs) | WebSocket + React components in responses | Agent-15 | Planned |
-| 15 | Mobile SDK + Chat App | Flutter + embedded agents | Agent-16 | Planned |
-| 16 | On-Prem / Air-Gapped Deploy | Helm charts + offline model support | Agent-17 | Planned |
-| 17 | Version Control for Agents | Git-like versioning with rollback | Agent-06 | Planned |
+All 28 are registered via `@register("nodeType")` in [`backend/app/services/node_executors/`](../backend/app/services/node_executors/). The `feature-matrix.yaml` records each one's status; the dispatcher gates `stub` executors in production / staging via [`_stub_block.py`](../backend/app/services/node_executors/_stub_block.py).
 
-## Gap-Closing Features (From Research)
+| Status | Node type | Source | Tests | ADR / Doc |
+|:---:|---|---|---|---|
+| ✅ | `llmNode` | [`llm.py`](../backend/app/services/node_executors/llm.py) | [`test_all_executors.py`](../backend/tests/test_node_executors/test_all_executors.py) | [ADR-001](adr/orchestration/ADR-001-agent-vs-workflow-execution.md) |
+| ✅ | `inputNode` | [`input_node.py`](../backend/app/services/node_executors/input_node.py) | yes | — |
+| ✅ | `outputNode` | [`output_node.py`](../backend/app/services/node_executors/output_node.py) | yes | — |
+| ⚠️ | `conditionNode` | [`condition.py`](../backend/app/services/node_executors/condition.py) | yes | [ADR-003](adr/orchestration/ADR-003-branch-fanin-semantics.md) |
+| ⚠️ | `switchNode` | [`switch.py`](../backend/app/services/node_executors/switch.py) | yes | [ADR-003](adr/orchestration/ADR-003-branch-fanin-semantics.md) |
+| ⚠️ | `parallelNode` | [`parallel.py`](../backend/app/services/node_executors/parallel.py) | yes | [ADR-003](adr/orchestration/ADR-003-branch-fanin-semantics.md) |
+| ⚠️ | `mergeNode` | [`merge.py`](../backend/app/services/node_executors/merge.py) | yes | [ADR-003](adr/orchestration/ADR-003-branch-fanin-semantics.md) |
+| ⚠️ | `delayNode` | [`delay.py`](../backend/app/services/node_executors/delay.py) | yes | [ADR-005](adr/orchestration/ADR-005-production-durability-policy.md) |
+| ⚠️ | `humanApprovalNode` | [`human_approval.py`](../backend/app/services/node_executors/human_approval.py) | yes | [STATE_MACHINE](STATE_MACHINE.md) |
+| ⚠️ | `dlpScanNode` | [`dlp_scan.py`](../backend/app/services/node_executors/dlp_scan.py) | yes | [ADR-013](adr/013-audit-trail.md) |
+| ⚠️ | `costGateNode` | [`cost_gate.py`](../backend/app/services/node_executors/cost_gate.py) | yes | [GAP_ANALYSIS](GAP_ANALYSIS.md) |
+| ⚠️ | `httpRequestNode` | [`http_request.py`](../backend/app/services/node_executors/http_request.py) | yes | — |
+| ⚠️ | `subAgentNode` | [`sub_agent.py`](../backend/app/services/node_executors/sub_agent.py) | — | — |
+| ⚠️ | `subWorkflowNode` | [`sub_workflow.py`](../backend/app/services/node_executors/sub_workflow.py) | — | — |
+| ⚠️ | `webhookTriggerNode` | [`webhook_trigger.py`](../backend/app/services/node_executors/webhook_trigger.py) | yes | — |
+| ⚠️ | `scheduleTriggerNode` | [`schedule_trigger.py`](../backend/app/services/node_executors/schedule_trigger.py) | yes | — |
+| 🚫 | `loopNode` | [`loop.py`](../backend/app/services/node_executors/loop.py) | registry-only | [ADR-003](adr/orchestration/ADR-003-branch-fanin-semantics.md) |
+| 🚫 | `humanInputNode` | [`human_input.py`](../backend/app/services/node_executors/human_input.py) | — | [STATE_MACHINE](STATE_MACHINE.md) |
+| 🚫 | `mcpToolNode` | [`mcp_tool.py`](../backend/app/services/node_executors/mcp_tool.py) | — | — |
+| 🚫 | `toolNode` | [`tool.py`](../backend/app/services/node_executors/tool.py) | — | — |
+| 🚫 | `databaseQueryNode` | [`database_query.py`](../backend/app/services/node_executors/database_query.py) | — | — |
+| 🚫 | `functionCallNode` | [`function_call.py`](../backend/app/services/node_executors/function_call.py) | — | — |
+| 🚫 | `embeddingNode` | [`embedding.py`](../backend/app/services/node_executors/embedding.py) | — | — |
+| 🚫 | `vectorSearchNode` | [`vector_search.py`](../backend/app/services/node_executors/vector_search.py) | — | — |
+| 🚫 | `documentLoaderNode` | [`document_loader.py`](../backend/app/services/node_executors/document_loader.py) | — | — |
+| 🚫 | `visionNode` | [`vision.py`](../backend/app/services/node_executors/vision.py) | — | — |
+| 🚫 | `structuredOutputNode` | [`structured_output.py`](../backend/app/services/node_executors/structured_output.py) | — | — |
+| 🚫 | `streamOutputNode` | [`stream_output.py`](../backend/app/services/node_executors/stream_output.py) | — | — |
 
-| # | Feature | Archon Implementation | Agent | Status |
-|---|---------|----------------------|-------|--------|
-| 18 | Shadow AI Discovery (SentinelScan) | Open-source scanner with pluggable discovery modules | Agent-18 | Planned |
-| 19 | A2A Protocol Support | Consume AND publish A2A agents (bi-directional) | Agent-19 | Planned |
-| 20 | MCP Security Governance | Ephemeral sandboxes + tool auth + vulnerability DB | Agent-20 | Planned |
-| 21 | Cross-Platform Security Proxy | Standalone proxy for ANY AI endpoint | Agent-21 | Planned |
-| 22 | AI Inventory + Risk Classification | Cross-platform inventory with dynamic risk scoring | Agent-12 | Planned |
-| 23 | Compliance Report Generator | EU AI Act, NIST AI RMF, ISO 42001 + pluggable templates | Agent-12 | Planned |
-| 24 | Permissions-Aware Data Access | Inherit source app permissions + audit every check | Agent-13 | Planned |
-| 25 | Data Retention Policies | Configurable lifecycle + data lineage before deletion | Agent-01 | Planned |
-| 26 | Governance Committees | Human-in-the-loop approvals with auto-escalation | Agent-12 | Planned |
-| 27 | Three-Tier + Event Source Integrations | Data Sources / MCP Servers / Tools / Event Sources | Agent-13 | Planned |
-| 28 | Multi-Tenant + Billing | Self-service tiers + Stripe + internal chargeback | Agent-23 | Planned |
+**Stub-block infrastructure:**
 
-## Features That Exceed Commercial Platforms
+| Status | Component | Source | Tests |
+|:---:|---|---|---|
+| ✅ | `nodeStatusRegistry` | [`status_registry.py`](../backend/app/services/node_executors/status_registry.py) | [`test_node_contract_matrix.py`](../backend/tests/test_node_executors/test_node_contract_matrix.py) |
+| ✅ | `nodeStubBlock` | [`_stub_block.py`](../backend/app/services/node_executors/_stub_block.py) | yes |
 
-| # | Feature | Why Competitors Lack This | Agent | Status |
-|---|---------|--------------------------|-------|--------|
-| 29 | Explainable Routing (XAI) | Competitors route but do not expose "why" | Agent-07 | Planned |
-| 30 | Visual Agent Debugger | Competitors have prototyping studios, not true debuggers | Agent-02 | Planned |
-| 31 | Natural Language Policy Engine | Competitors use UI forms, not NL policy definition | Agent-11 | Planned |
-| 32 | Predictive Observability | Competitors detect issues, not predict them | Agent-08 | Planned |
-| 33 | Agent Dependency Blast Radius | Competitors have inventory, not impact simulation | Agent-12 | Planned |
-| 34 | Agent Benchmarking Suite | Competitors have internal A/B, not standardized benchmarks | Agent-05 | Planned |
-| 35 | Open Marketplace (Self-Hostable) | Competitor marketplaces are closed ecosystems | Agent-22 | Planned |
-| 36 | Federated Agent Mesh | No competitor supports cross-org agent collaboration | Agent-24 | Planned |
-| 37 | Edge/Offline Runtime with Sync | No competitor supports true edge-first with sync | Agent-25 | Planned |
+## 2. Execution lifecycle endpoints
 
----
+All execution endpoints route through `ExecutionFacade` ([ADR-001](adr/orchestration/ADR-001-agent-vs-workflow-execution.md)). The dispatcher is the only writer of `WorkflowRun.status`.
 
-## Archon Advantages Summary
+| Status | Method + path | Handler | Source | Tests |
+|:---:|---|---|---|---|
+| ⚠️ | `POST /api/v1/executions` | `create_and_run_execution` | [`routes/executions.py`](../backend/app/routes/executions.py) | [`test_executions_real.py`](../backend/tests/test_executions_real.py), [`test_vertical_slice.py`](../tests/integration/test_vertical_slice.py) |
+| ⚠️ | `POST /api/v1/execute` | `create_execution` | [`routes/executions.py`](../backend/app/routes/executions.py) | yes |
+| ⚠️ | `POST /api/v1/agents/{agent_id}/execute` | `execute_agent` | [`routes/agents.py`](../backend/app/routes/agents.py) | yes |
+| ✅ | `GET /api/v1/executions` | `list_executions` | [`routes/executions.py`](../backend/app/routes/executions.py) | yes |
+| ✅ | `GET /api/v1/executions/{execution_id}` | `get_execution` | [`routes/executions.py`](../backend/app/routes/executions.py) | yes |
+| ⚠️ | `POST /api/v1/executions/{execution_id}/replay` | `replay_execution` | [`routes/executions.py`](../backend/app/routes/executions.py) | yes |
+| ⚠️ | `POST /api/v1/executions/{execution_id}/cancel` | `cancel_execution` | [`routes/executions.py`](../backend/app/routes/executions.py) | [`test_cancellation.py`](../backend/tests/test_cancellation.py) |
+| ✅ | `DELETE /api/v1/executions/{execution_id}` | `delete_execution` | [`routes/executions.py`](../backend/app/routes/executions.py) | yes |
+| ✅ | `GET /api/v1/runs/{run_id}/events` | `list_events` | [`routes/events.py`](../backend/app/routes/events.py) | [`test_events_api.py`](../backend/tests/test_events_api.py) |
+| ✅ | `GET /api/v1/runs/{run_id}/events/verify` | `verify_chain` | [`routes/events.py`](../backend/app/routes/events.py) | yes |
+| ✅ | WS `/ws/runs/{run_id}` | `events_websocket` | [`websocket/events_manager.py`](../backend/app/websocket/events_manager.py) | [`test_events_websocket.py`](../backend/tests/test_events_websocket.py) |
+| ✅ | `POST /api/v1/approvals/{approval_id}/grant` | `grant_approval` | [`routes/approvals.py`](../backend/app/routes/approvals.py) | [`test_approvals.py`](../backend/tests/test_approvals.py) |
+| ✅ | `POST /api/v1/approvals/{approval_id}/deny` | `deny_approval` | [`routes/approvals.py`](../backend/app/routes/approvals.py) | yes |
 
-| Advantage | Description |
-|-----------|-------------|
-| **Open Source** | Full source code, Apache 2.0, no vendor lock-in |
-| **Transparent Routing** | See exactly why each model was chosen (explainable ops) |
-| **Self-Hosted** | Complete air-gapped deployment, data never leaves your infra |
-| **Extensible** | Plugin architecture for connectors, guardrails, routing, discovery |
-| **Cost Transparency** | Every token tracked and attributed, no hidden costs |
-| **Community Ecosystem** | Open marketplace, community templates, creator program |
-| **Multi-Framework** | LangGraph + LangChain + CrewAI patterns supported |
-| **Red-Team Built-In** | Adversarial testing included, not an add-on |
-| **Visual Debugging** | Step-through agent execution with time-travel |
-| **NL Policy Engine** | Define governance in plain English, not Rego code |
-| **Edge-First** | Run on edge devices with offline inference and sync |
-| **Cross-Org Mesh** | Federated agent collaboration across organizations |
-| **Predictive Ops** | Forecast budget exhaustion and error trends before they hit |
-| **Standalone Security** | Security proxy works with or without the full platform |
-| **Open Billing** | Usage metering engine usable for SaaS or internal chargeback |
+## 3. Agents & workflows
 
----
+| Status | Method + path | Handler | Source |
+|:---:|---|---|---|
+| ✅ | `GET /api/v1/agents` | `list_agents` | [`routes/agents.py`](../backend/app/routes/agents.py) |
+| ✅ | `POST /api/v1/agents` | `create_agent` | [`routes/agents.py`](../backend/app/routes/agents.py) |
+| ✅ | `GET /api/v1/agents/{agent_id}` | `get_agent` | [`routes/agents.py`](../backend/app/routes/agents.py) |
+| ✅ | `PUT /api/v1/agents/{agent_id}` | `update_agent` | [`routes/agents.py`](../backend/app/routes/agents.py) |
+| ✅ | `DELETE /api/v1/agents/{agent_id}` | `delete_agent` | [`routes/agents.py`](../backend/app/routes/agents.py) |
+| ✅ | `GET /api/v1/workflows` | `list_workflows` | [`routes/workflows.py`](../backend/app/routes/workflows.py) |
+| ✅ | `POST /api/v1/workflows` | `create_workflow` | [`routes/workflows.py`](../backend/app/routes/workflows.py) |
 
-*Status Legend: Planned | In Progress | Complete | Blocked*
+## 4. Health & operations
+
+| Status | Endpoint | Source |
+|:---:|---|---|
+| ✅ | `GET /health` | [`backend/app/health.py`](../backend/app/health.py) |
+| ✅ | `GET /api/v1/health` | same |
+| ✅ | `GET /ready` | same |
+| ✅ | `GET /metrics` | [`middleware/metrics_middleware.py`](../backend/app/middleware/metrics_middleware.py) |
+
+## 5. Cross-cutting subsystems
+
+| Status | Subsystem | Source | ADR / Doc |
+|:---:|---|---|---|
+| ✅ | LangGraph Postgres checkpointer (fail-closed in production) | [`langgraph/checkpointer.py`](../backend/app/langgraph/checkpointer.py) | [ADR-005](adr/orchestration/ADR-005-production-durability-policy.md) |
+| ✅ | Run dispatcher (claim → persist → emit → terminal) | [`services/run_dispatcher.py`](../backend/app/services/run_dispatcher.py) | [ADR-001](adr/orchestration/ADR-001-agent-vs-workflow-execution.md) |
+| ✅ | Event service (sha256 hash chain) | [`services/event_service.py`](../backend/app/services/event_service.py) | [ADR-002](adr/orchestration/ADR-002-event-ownership.md) |
+| ✅ | Idempotency service (200/201/409) | [`services/idempotency_service.py`](../backend/app/services/idempotency_service.py) | [ADR-004](adr/orchestration/ADR-004-idempotency-contract.md) |
+| ✅ | Worker leases + reclaim | [`services/run_lifecycle.py`](../backend/app/services/run_lifecycle.py), [`services/worker_registry.py`](../backend/app/services/worker_registry.py) | [STATE_MACHINE §4](STATE_MACHINE.md) |
+| ✅ | Durable timers | [`services/timer_service.py`](../backend/app/services/timer_service.py) | [ADR-005](adr/orchestration/ADR-005-production-durability-policy.md) |
+| ✅ | Retry policy | [`services/retry_policy.py`](../backend/app/services/retry_policy.py) | [STATE_MACHINE §6](STATE_MACHINE.md) |
+| ✅ | Approval & signal substrate | [`services/approval_service.py`](../backend/app/services/approval_service.py), [`services/signal_service.py`](../backend/app/services/signal_service.py) | [STATE_MACHINE §3](STATE_MACHINE.md) |
+| ✅ | Startup checks (production gates) | [`startup_checks.py`](../backend/app/startup_checks.py) | [ADR-005](adr/orchestration/ADR-005-production-durability-policy.md), [PRODUCTION_CONFIG §3](PRODUCTION_CONFIG.md) |
+| ✅ | Vault secrets manager | [`secrets/manager.py`](../backend/app/secrets/manager.py) | [ADR-010](adr/010-secrets-management.md) |
+| ✅ | 3-tier JWT auth (HS256 / Keycloak / Entra) | [`middleware/auth.py`](../backend/app/middleware/auth.py) | [ADR-011](adr/011-auth-flows.md) |
+| ✅ | RBAC (4 built-in roles + custom) | [`middleware/rbac.py`](../backend/app/middleware/rbac.py) | — |
+| ✅ | Tenant context (strict in production) | [`middleware/tenant.py`](../backend/app/middleware/tenant.py) | [ADR-012](adr/012-tenant-isolation.md) |
+| ✅ | DLP (Presidio + regex fallback) | [`services/dlp_service.py`](../backend/app/services/dlp_service.py) | — |
+| ✅ | Audit hash chain | [`services/audit_chain.py`](../backend/app/services/audit_chain.py) | [ADR-013](adr/013-audit-trail.md) |
+| ✅ | Cost service (real LiteLLM token + rate card) | [`services/cost_service.py`](../backend/app/services/cost_service.py) | — |
+| ✅ | Router scoring engine (DB-backed model registry) | [`services/router_service.py`](../backend/app/services/router_service.py) | — |
+| ✅ | Metrics middleware (canonical metric set) | [`middleware/metrics_middleware.py`](../backend/app/middleware/metrics_middleware.py) | [`metrics-catalog.md`](metrics-catalog.md) |
+| ✅ | WebSocket execution stream + replay | [`websocket/events_manager.py`](../backend/app/websocket/events_manager.py), [`websocket/manager.py`](../backend/app/websocket/manager.py) | — |
+
+## 6. Frontend
+
+| Status | Surface | Source | Tests |
+|:---:|---|---|---|
+| ✅ | Visual builder canvas (28 node types) | [`frontend/src/components/builder/`](../frontend/src/components/builder/) | yes |
+| ✅ | Test Run live stream | [`TestRunPanel.tsx`](../frontend/src/components/builder/TestRunPanel.tsx) | [`TestRunPanel.test.tsx`](../frontend/src/tests/TestRunPanel.test.tsx) |
+| ✅ | Executions detail (event replay) | [`ExecutionDetailPage.tsx`](../frontend/src/pages/ExecutionDetailPage.tsx), [`ExecutionsPage.tsx`](../frontend/src/pages/ExecutionsPage.tsx), [`RunHistoryPage.tsx`](../frontend/src/pages/RunHistoryPage.tsx) | yes |
+| ✅ | DLP UI (Dashboard, Policies, Test, Detections) | [`DLPPage.tsx`](../frontend/src/pages/DLPPage.tsx) | yes |
+| ✅ | Operations dashboard | [`DashboardPage.tsx`](../frontend/src/pages/DashboardPage.tsx) | yes |
+| ✅ | API clients (`runs`, `events`) | [`frontend/src/api/`](../frontend/src/api/) | yes |
+| ✅ | Backend type parity check | [`scripts/check-frontend-backend-parity.py`](../scripts/check-frontend-backend-parity.py) | CI gate `verify-contracts` |
+
+## 7. Connectors (5 reference)
+
+| Status | Connector | Source |
+|:---:|---|---|
+| ✅ | Postgres | [`integrations/connectors/postgres/`](../integrations/connectors) |
+| ✅ | S3 | [`integrations/connectors/s3/`](../integrations/connectors) |
+| ✅ | Slack | [`integrations/connectors/slack/`](../integrations/connectors) |
+| ✅ | REST | [`integrations/connectors/rest/`](../integrations/connectors) |
+| ✅ | Google Drive | [`integrations/connectors/google_drive/`](../integrations/connectors) |
+
+Five connectors is the deliberate 1.0 surface. Additional connectors are deferred to Phase I — see [`docs/GAP_ANALYSIS.md`](GAP_ANALYSIS.md).
+
+## 8. Verification gates
+
+| Status | Gate | Script | CI job |
+|:---:|---|---|---|
+| ✅ | Unit (backend + gateway) | [`scripts/verify-unit.sh`](../scripts/verify-unit.sh) | `verify-unit` |
+| ✅ | Integration | [`scripts/verify-integration.sh`](../scripts/verify-integration.sh) | `verify-integration` |
+| ✅ | Frontend (typecheck + Vitest) | [`scripts/verify-frontend.sh`](../scripts/verify-frontend.sh) | `verify-frontend` |
+| ✅ | Contracts (feature matrix + OpenAPI + parity) | [`scripts/verify-contracts.sh`](../scripts/verify-contracts.sh) | `verify-contracts` |
+| ✅ | Vertical-slice REST canary | [`scripts/verify-slice.sh`](../scripts/verify-slice.sh), [`scripts/test-slice.sh`](../scripts/test-slice.sh) | `verify-slice` |
+| ✅ | Feature-matrix validator | [`scripts/check-feature-matrix.py`](../scripts/check-feature-matrix.py) | `feature-matrix-validate` |
+| ✅ | Grafana ↔ metrics parity | [`scripts/check-grafana-metric-parity.py`](../scripts/check-grafana-metric-parity.py) | called by `verify-contracts` |
+| ✅ | Frontend ↔ backend type parity | [`scripts/check-frontend-backend-parity.py`](../scripts/check-frontend-backend-parity.py) | called by `verify-contracts` |
+| ✅ | Load-test profiles | [`scripts/run-load-tests.sh`](../scripts/run-load-tests.sh) | nightly |
+| ✅ | Chaos-test scenarios | [`scripts/run-chaos-tests.sh`](../scripts/run-chaos-tests.sh) | weekly |
+
+## 9. Cross-references
+
+- [`docs/feature-matrix.yaml`](feature-matrix.yaml) — canonical 206-entry inventory.
+- [`docs/FEATURE_MATRIX.md`](FEATURE_MATRIX.md) — human-readable rendering, full list with caveats.
+- [`docs/ARCHITECTURE.md`](ARCHITECTURE.md) — bounded contexts.
+- [`docs/STATE_MACHINE.md`](STATE_MACHINE.md) — `WorkflowRun` lifecycle.
+- [`docs/GAP_ANALYSIS.md`](GAP_ANALYSIS.md) — what's still missing and what's deferred.
+- [`docs/PRODUCTION_CONFIG.md`](PRODUCTION_CONFIG.md) — env vars + startup gates.

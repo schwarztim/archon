@@ -1,0 +1,182 @@
+{{- if .Values.networkPolicies.enabled -}}
+# ──────────────────────────────────────────────────────────────────────
+# Default-deny — denies all ingress and egress in the release namespace
+# unless allowed by a more specific policy below.
+# ──────────────────────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "archon.fullname" . }}-default-deny
+  labels:
+    {{- include "archon.labels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+# ──────────────────────────────────────────────────────────────────────
+# Allow DNS egress for every pod in the namespace.
+# ──────────────────────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "archon.fullname" . }}-allow-dns
+  labels:
+    {{- include "archon.labels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+# ──────────────────────────────────────────────────────────────────────
+# Backend — accept HTTP from ingress controllers and from the frontend.
+# ──────────────────────────────────────────────────────────────────────
+{{- if .Values.backend.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "archon.fullname" . }}-backend
+  labels:
+    {{- include "archon.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "archon.backend.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        {{- range .Values.networkPolicies.ingressNamespaceSelectors }}
+        - namespaceSelector:
+            {{- toYaml . | nindent 12 }}
+        {{- end }}
+        - podSelector:
+            matchLabels:
+              {{- include "archon.frontend.selectorLabels" . | nindent 14 }}
+        - podSelector:
+            matchLabels:
+              {{- include "archon.gateway.selectorLabels" . | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: 8000
+  egress:
+    # Allow backend → postgres / redis / vault / gateway / external IDP.
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "archon.gateway.selectorLabels" . | nindent 14 }}
+    - {}
+{{- end }}
+---
+# ──────────────────────────────────────────────────────────────────────
+# Worker — egress only (consumes from queues + writes to DB).
+# ──────────────────────────────────────────────────────────────────────
+{{- if .Values.worker.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "archon.fullname" . }}-worker
+  labels:
+    {{- include "archon.labels" . | nindent 4 }}
+    app.kubernetes.io/component: worker
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "archon.worker.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress: []
+  egress:
+    - {}
+{{- end }}
+---
+# ──────────────────────────────────────────────────────────────────────
+# Frontend — accept HTTP from ingress controllers; egress to backend.
+# ──────────────────────────────────────────────────────────────────────
+{{- if .Values.frontend.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "archon.fullname" . }}-frontend
+  labels:
+    {{- include "archon.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frontend
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "archon.frontend.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        {{- range .Values.networkPolicies.ingressNamespaceSelectors }}
+        - namespaceSelector:
+            {{- toYaml . | nindent 12 }}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.frontend.service.targetPort | default 3000 }}
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "archon.backend.selectorLabels" . | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: 8000
+{{- end }}
+---
+# ──────────────────────────────────────────────────────────────────────
+# Gateway — accept from backend; egress to external LLM CIDRs + backend.
+# ──────────────────────────────────────────────────────────────────────
+{{- if .Values.gateway.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "archon.fullname" . }}-gateway
+  labels:
+    {{- include "archon.labels" . | nindent 4 }}
+    app.kubernetes.io/component: gateway
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "archon.gateway.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "archon.backend.selectorLabels" . | nindent 14 }}
+        {{- range .Values.networkPolicies.ingressNamespaceSelectors }}
+        - namespaceSelector:
+            {{- toYaml . | nindent 12 }}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: 8080
+  egress:
+    {{- range .Values.networkPolicies.gatewayEgressCIDRs }}
+    - to:
+        - ipBlock:
+            cidr: {{ . }}
+    {{- end }}
+{{- end }}
+{{- end }}

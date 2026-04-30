@@ -1701,10 +1701,246 @@ async def register_azure_openai_models(
     return created
 
 
+# ── Phase 4 / WS10 — Model Routing Squad ─────────────────────────────
+#
+# The dataclass + ``route_request`` API below is the fork-free decision
+# surface used by ``call_llm_routed`` (in app.langgraph.llm).  It does not
+# go through the RBAC / audit trail of ``ModelRouterService.route`` because
+# it is invoked from the synchronous LLM call path on every step, not from
+# the user-facing routing API.  The reason is recorded structurally in the
+# step output (see ``llm.LLMNodeExecutor``) rather than in audit_log.
+#
+# Schema fields are deliberately a superset of what the SQLModel
+# ``RoutingDecision`` (in app.models.router) exposes — Phase 4 specifies
+# ``reason``, ``estimated_cost_usd``, and ``estimated_latency_ms`` on the
+# in-process decision object.
+
+from dataclasses import dataclass as _dataclass
+
+
+@_dataclass
+class Phase4RoutingDecision:
+    """Routing decision returned by ``route_request``.
+
+    Distinct from the persisted ``RoutingDecision`` SQLModel (which has
+    different fields and is the response type for the visual routing API).
+    The per-call decision flowing through ``call_llm_routed`` is in-memory
+    only and emitted in the step output for replayability.
+    """
+
+    model: str                      # final model id (provider-specific, e.g. "gpt-4o")
+    provider: str                   # final provider key (e.g. "openai")
+    reason: str                     # tenant_policy | primary | fallback_after_<p>_failed | ...
+    fallback_chain: list[str]       # candidate model ids considered
+    estimated_cost_usd: float | None
+    estimated_latency_ms: float | None
+    decision_at: datetime
+
+
+async def route_request(
+    session: AsyncSession,
+    *,
+    tenant_id: UUID,
+    requested_model: str | None = None,
+    capability_required: list[str] | None = None,
+    estimated_input_tokens: int = 0,
+    estimated_output_tokens: int = 0,
+) -> Phase4RoutingDecision:
+    """Decide which model + provider to use for a single LLM call.
+
+    Decision tree:
+      1. Tenant policy override: a routing rule with ``strategy="tenant_policy"``
+         pinned to this tenant overrides every other consideration.
+      2. Capability filter: drop candidates that cannot satisfy
+         ``capability_required``.
+      3. Health gate: drop candidates whose provider has an open circuit.
+      4. Score remaining candidates by cost + latency + health.
+      5. Pick the top scorer; build a fallback chain from the runners-up.
+
+    The function does NOT persist a row to the audit log — the caller is
+    expected to fold the decision into the step output (see
+    ``llm.LLMNodeExecutor``).
+
+    Args:
+      session:              AsyncSession for tenant model lookups.
+      tenant_id:            Tenant scope.
+      requested_model:      Caller's preferred model id; honored if eligible.
+      capability_required:  e.g. ``["vision", "function_calling"]``.
+      estimated_input_tokens / estimated_output_tokens: used to derive
+        ``estimated_cost_usd``.
+
+    Returns:
+      ``Phase4RoutingDecision`` — never raises for an empty candidate set
+      (returns reason="no_candidates" with empty chain).
+    """
+    from app.services import provider_health  # local import: avoid cycles
+
+    capability_required = list(capability_required or [])
+    tenant_id_str = str(tenant_id)
+    decision_at = datetime.now(timezone.utc)
+
+    candidates = await _fetch_tenant_models(session, tenant_id_str)
+
+    if capability_required:
+        required = set(capability_required)
+        candidates = [
+            m for m in candidates if required.issubset(set(m.capabilities or []))
+        ]
+
+    # ── 1. Tenant policy override ──────────────────────────────────
+    tenant_pin = await _load_tenant_policy_pin(session, tenant_id_str)
+    if tenant_pin is not None:
+        pinned = next(
+            (m for m in candidates if m.model_id == tenant_pin or m.name == tenant_pin),
+            None,
+        )
+        if pinned is not None and not await provider_health.is_circuit_open(
+            session, pinned.provider
+        ):
+            chain = [pinned.model_id] + [
+                m.model_id for m in candidates if m.model_id != pinned.model_id
+            ][:3]
+            return Phase4RoutingDecision(
+                model=pinned.model_id,
+                provider=pinned.provider,
+                reason="tenant_policy",
+                fallback_chain=chain,
+                estimated_cost_usd=_estimate_cost(
+                    pinned, estimated_input_tokens, estimated_output_tokens
+                ),
+                estimated_latency_ms=pinned.avg_latency_ms,
+                decision_at=decision_at,
+            )
+
+    # ── 2. Health gate ─────────────────────────────────────────────
+    healthy_candidates: list[ModelRegistryEntry] = []
+    skipped_for_circuit: list[ModelRegistryEntry] = []
+    for m in candidates:
+        if await provider_health.is_circuit_open(session, m.provider):
+            skipped_for_circuit.append(m)
+        else:
+            healthy_candidates.append(m)
+
+    # ── 3. Honor requested_model if eligible ───────────────────────
+    primary: ModelRegistryEntry | None = None
+    reason: str
+    if requested_model:
+        primary = next(
+            (m for m in healthy_candidates if m.model_id == requested_model),
+            None,
+        )
+        if primary is not None:
+            reason = "primary"
+        else:
+            # Was it skipped for circuit?
+            if any(m.model_id == requested_model for m in skipped_for_circuit):
+                reason = f"circuit_open_{requested_model}"
+            else:
+                reason = "primary"  # fall through to scoring below
+    else:
+        reason = "primary"
+
+    # ── 4. Score remaining if no primary picked yet ────────────────
+    if primary is None:
+        if not healthy_candidates:
+            return Phase4RoutingDecision(
+                model="",
+                provider="",
+                reason=reason if reason != "primary" else "no_candidates",
+                fallback_chain=[],
+                estimated_cost_usd=None,
+                estimated_latency_ms=None,
+                decision_at=decision_at,
+            )
+        ranked = sorted(
+            healthy_candidates,
+            key=lambda m: _composite_score(m),
+            reverse=True,
+        )
+        primary = ranked[0]
+
+    # ── 5. Build fallback chain ────────────────────────────────────
+    chain = [primary.model_id]
+    extras = sorted(
+        (m for m in healthy_candidates if m.model_id != primary.model_id),
+        key=lambda m: _composite_score(m),
+        reverse=True,
+    )
+    chain.extend(m.model_id for m in extras[:3])
+
+    return Phase4RoutingDecision(
+        model=primary.model_id,
+        provider=primary.provider,
+        reason=reason,
+        fallback_chain=chain,
+        estimated_cost_usd=_estimate_cost(
+            primary, estimated_input_tokens, estimated_output_tokens
+        ),
+        estimated_latency_ms=primary.avg_latency_ms,
+        decision_at=decision_at,
+    )
+
+
+async def _load_tenant_policy_pin(
+    session: AsyncSession,
+    tenant_id: str,
+) -> str | None:
+    """Return the tenant's pinned model id (or None if no pin is set).
+
+    Encoded as a RoutingRule with ``strategy="tenant_policy"`` whose
+    ``conditions`` dict carries ``tenant_id`` and ``pinned_model``.
+    """
+    stmt = (
+        select(RoutingRule)
+        .where(RoutingRule.strategy == "tenant_policy")
+        .where(RoutingRule.is_active == True)  # noqa: E712
+    )
+    try:
+        result = await session.exec(stmt)
+        rules = list(result.all())
+    except Exception:  # noqa: BLE001
+        return None
+    for rule in rules:
+        cond = rule.conditions or {}
+        if cond.get("tenant_id") == tenant_id and cond.get("pinned_model"):
+            return str(cond["pinned_model"])
+    return None
+
+
+def _composite_score(model: ModelRegistryEntry) -> float:
+    """Cheap composite score: cheap + low-latency + healthy wins.
+
+    Used by ``route_request`` only.  ``ModelRouterService.route`` retains
+    its policy-weighted scorer.
+    """
+    cost = model.cost_per_input_token + model.cost_per_output_token
+    cost_score = max(0.0, 1.0 - cost / 100.0)
+    latency_score = max(0.0, 1.0 - (model.avg_latency_ms / 5000.0))
+    health_score = 1.0 if model.health_status == "healthy" else 0.5
+    return round((cost_score + latency_score + health_score) / 3.0, 4)
+
+
+def _estimate_cost(
+    model: ModelRegistryEntry,
+    in_tokens: int,
+    out_tokens: int,
+) -> float | None:
+    """Return USD cost estimate from registered per-token pricing."""
+    if not (model.cost_per_input_token or model.cost_per_output_token):
+        return None
+    return round(
+        (model.cost_per_input_token * in_tokens / 1_000_000.0)
+        + (model.cost_per_output_token * out_tokens / 1_000_000.0),
+        6,
+    )
+
+
 __all__ = [
     "ModelRouterService",
+    "Phase4RoutingDecision",
     "RedisCircuitBreaker",
     "get_circuit_breaker",
     "register_azure_openai_models",
     "call_azure_openai_with_retry",
+    "route_request",
 ]

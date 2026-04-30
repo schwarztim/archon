@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -139,7 +139,7 @@ class EdgeService:
         except Exception:
             enc_key = secrets.token_hex(32)
 
-        expires_at = _utcnow() + timedelta(days=config.ttl_days)
+        expires_at = datetime.now(timezone.utc) + timedelta(days=config.ttl_days)
         token_payload = {
             "sub": str(device_id),
             "tenant_id": tenant_id,

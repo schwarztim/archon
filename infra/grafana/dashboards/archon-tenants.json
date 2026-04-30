@@ -1,0 +1,179 @@
+{
+  "annotations": { "list": [] },
+  "description": "Per-tenant orchestration health: run volume, failure rate, cost, missing tenant context.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [
+    {
+      "title": "Archon Orchestration",
+      "type": "dashboards",
+      "tags": ["archon", "orchestration"]
+    },
+    {
+      "title": "Archon Cost",
+      "type": "dashboards",
+      "tags": ["archon", "cost"]
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "tenant",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "query": "label_values(archon_workflow_runs_total, tenant_id)",
+        "refresh": 2,
+        "includeAll": true,
+        "multi": true,
+        "current": { "selected": true, "text": "All", "value": "$__all" },
+        "label": "Tenant",
+        "sort": 1
+      }
+    ]
+  },
+  "panels": [
+    {
+      "title": "Per-Tenant Run Volume (req/s)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (tenant_id) (rate(archon_workflow_runs_total{tenant_id=~\"$tenant\"}[5m]))",
+          "legendFormat": "{{tenant_id}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops" } }
+    },
+    {
+      "title": "Per-Tenant Failure Rate (%)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (tenant_id) (rate(archon_workflow_runs_total{status=\"failed\",tenant_id=~\"$tenant\"}[5m])) / clamp_min(sum by (tenant_id) (rate(archon_workflow_runs_total{tenant_id=~\"$tenant\"}[5m])), 1e-9)",
+          "legendFormat": "{{tenant_id}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.05 },
+              { "color": "red", "value": 0.1 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Per-Tenant Cost ($/h)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (tenant_id) (rate(archon_cost_total{tenant_id=~\"$tenant\"}[1h])) * 3600",
+          "legendFormat": "{{tenant_id}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "currencyUSD", "decimals": 4 } }
+    },
+    {
+      "title": "Tenant Context Missing (req/s)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (path) (rate(archon_tenant_context_missing_total[5m]))",
+          "legendFormat": "{{path}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 0.001 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Per-Tenant Run Status (24h)",
+      "type": "table",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (tenant_id, status) (increase(archon_workflow_runs_total{tenant_id=~\"$tenant\"}[24h]))",
+          "legendFormat": "{{tenant_id}} {{status}}",
+          "refId": "A",
+          "format": "table",
+          "instant": true
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time": true },
+            "indexByName": {},
+            "renameByName": { "Value": "runs (24h)" }
+          }
+        }
+      ]
+    },
+    {
+      "title": "Per-Tenant Token Usage (tok/s, prompt + completion)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 26 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (tenant_id) (rate(archon_token_usage_total{tenant_id=~\"$tenant\"}[5m]))",
+          "legendFormat": "{{tenant_id}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops" } }
+    },
+    {
+      "title": "Per-Tenant DLP Findings (req/s)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 26 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (tenant_id, severity) (rate(archon_dlp_findings_total{tenant_id=~\"$tenant\"}[5m]))",
+          "legendFormat": "{{tenant_id}} / {{severity}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops" } }
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["archon", "tenants"],
+  "time": { "from": "now-24h", "to": "now" },
+  "timezone": "browser",
+  "title": "Archon Tenants",
+  "uid": "archon-tenants",
+  "version": 1,
+  "weekStart": ""
+}

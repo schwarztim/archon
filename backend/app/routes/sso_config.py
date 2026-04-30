@@ -11,10 +11,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field as PField
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from sqlalchemy import select
+
 from app.database import get_session
 from app.interfaces.models.enterprise import AuthenticatedUser
 from app.middleware.auth import get_current_user
 from app.middleware.rbac import check_permission
+from app.models.sso_config import SSOConfig
 from app.secrets.manager import get_secrets_manager
 from app.services.audit_log_service import AuditLogService
 from starlette.responses import Response
@@ -152,8 +155,7 @@ _BUILTIN_ROLES: dict[str, dict[str, list[str]]] = {
     "viewer": {r: ["read"] for r in _RESOURCES},
 }
 
-# In-memory stores (production would use DB tables)
-_sso_configs: dict[str, dict[str, Any]] = {}
+# Custom roles and tenant members remain in-memory (separate A11 scope)
 _custom_roles: dict[str, dict[str, Any]] = {}
 _tenant_members: dict[str, list[dict[str, Any]]] = {}
 
@@ -180,6 +182,38 @@ def _tenant_key(tenant_id: str, sso_id: str) -> str:
     return f"{tenant_id}:{sso_id}"
 
 
+def _row_to_dict(row: Any) -> dict[str, Any]:
+    """Convert an SSOConfig ORM row to a plain dict matching the old shape."""
+    return {
+        "id": row.sso_id,
+        "tenant_id": row.tenant_id,
+        "name": row.name,
+        "protocol": row.protocol,
+        "is_default": row.is_default,
+        "enabled": row.enabled,
+        "discovery_url": row.discovery_url,
+        "client_id": row.client_id,
+        "scopes": row.scopes,
+        "metadata_url": row.metadata_url,
+        "metadata_xml": row.metadata_xml,
+        "entity_id": row.entity_id,
+        "acs_url": row.acs_url,
+        "host": row.host,
+        "port": row.port,
+        "use_tls": row.use_tls,
+        "base_dn": row.base_dn,
+        "bind_dn": row.bind_dn,
+        "user_filter": row.user_filter,
+        "group_filter": row.group_filter,
+        "client_secret_set": row.client_secret_set,
+        "certificate_set": row.certificate_set,
+        "bind_secret_set": row.bind_secret_set,
+        "claim_mappings": row.claim_mappings or [],
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+        "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+    }
+
+
 # ── SSO Config CRUD ─────────────────────────────────────────────────
 
 
@@ -193,6 +227,7 @@ async def create_sso_config(
     """Create an SSO/IdP configuration for a tenant.
 
     Stores secrets (client_secret, bind_password) in Vault via SecretsManager.
+    Config metadata is persisted to the sso_configs DB table.
     """
     check_permission(user, "settings", "create")
 
@@ -202,50 +237,38 @@ async def create_sso_config(
         )
 
     sso_id = str(uuid4())
-    now = datetime.now(tz=timezone.utc).isoformat()
+    now = datetime.now(tz=timezone.utc)
 
-    config_data: dict[str, Any] = {
-        "id": sso_id,
-        "tenant_id": tenant_id,
-        "name": body.name,
-        "protocol": body.protocol,
-        "is_default": body.is_default,
-        "enabled": body.enabled,
-        "claim_mappings": [m.model_dump() for m in body.claim_mappings],
-        "created_at": now,
-        "updated_at": now,
-    }
+    row = SSOConfig(
+        tenant_id=tenant_id,
+        sso_id=sso_id,
+        name=body.name,
+        protocol=body.protocol,
+        is_default=body.is_default,
+        enabled=body.enabled,
+        claim_mappings=[m.model_dump() for m in body.claim_mappings],
+        created_at=now,
+        updated_at=now,
+    )
 
     # Protocol-specific fields
     if body.protocol == "oidc":
-        config_data.update(
-            {
-                "discovery_url": body.discovery_url,
-                "client_id": body.client_id,
-                "scopes": body.scopes,
-            }
-        )
+        row.discovery_url = body.discovery_url
+        row.client_id = body.client_id
+        row.scopes = body.scopes
     elif body.protocol == "saml":
-        config_data.update(
-            {
-                "metadata_url": body.metadata_url,
-                "metadata_xml": body.metadata_xml,
-                "entity_id": body.entity_id,
-                "acs_url": body.acs_url or "/api/v1/auth/saml/acs",
-            }
-        )
+        row.metadata_url = body.metadata_url
+        row.metadata_xml = body.metadata_xml
+        row.entity_id = body.entity_id
+        row.acs_url = body.acs_url or "/api/v1/auth/saml/acs"
     elif body.protocol == "ldap":
-        config_data.update(
-            {
-                "host": body.host,
-                "port": body.port,
-                "use_tls": body.use_tls,
-                "base_dn": body.base_dn,
-                "bind_dn": body.bind_dn,
-                "user_filter": body.user_filter,
-                "group_filter": body.group_filter,
-            }
-        )
+        row.host = body.host
+        row.port = body.port
+        row.use_tls = body.use_tls
+        row.base_dn = body.base_dn
+        row.bind_dn = body.bind_dn
+        row.user_filter = body.user_filter
+        row.group_filter = body.group_filter
 
     # Store secrets in Vault
     secrets_mgr = await get_secrets_manager()
@@ -254,48 +277,49 @@ async def create_sso_config(
         await secrets_mgr.put_secret(
             secret_path, {"value": body.client_secret}, tenant_id
         )
-        config_data["client_secret_set"] = True
+        row.client_secret_set = True
     elif body.protocol == "saml" and body.certificate:
         secret_path = f"archon/tenants/{tenant_id}/sso/saml/certificate"
         await secrets_mgr.put_secret(
             secret_path, {"value": body.certificate}, tenant_id
         )
-        config_data["certificate_set"] = True
+        row.certificate_set = True
     elif body.protocol == "ldap" and body.bind_secret:
         secret_path = f"archon/tenants/{tenant_id}/sso/ldap/bind_password"
         await secrets_mgr.put_secret(
             secret_path, {"value": body.bind_secret}, tenant_id
         )
-        config_data["bind_secret_set"] = True
+        row.bind_secret_set = True
 
-    key = _tenant_key(tenant_id, sso_id)
-    _sso_configs[key] = config_data
+    session.add(row)
+    await session.commit()
+    await session.refresh(row)
 
     await AuditLogService.create(
         session,
         actor_id=UUID(user.id),
         action="sso.config_created",
         resource_type="sso_config",
-        resource_id=UUID(sso_id),
+        resource_id=row.id,
         details={"protocol": body.protocol, "name": body.name},
     )
 
-    return {"data": _mask_config(config_data), "meta": _meta()}
+    return {"data": _mask_config(_row_to_dict(row)), "meta": _meta()}
 
 
 @router.get("/tenants/{tenant_id}/sso")
 async def list_sso_configs(
     tenant_id: str,
     user: AuthenticatedUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     """List all SSO configurations for a tenant."""
     check_permission(user, "settings", "read")
 
-    configs = [
-        _mask_config(v)
-        for k, v in _sso_configs.items()
-        if k.startswith(f"{tenant_id}:")
-    ]
+    stmt = select(SSOConfig).where(SSOConfig.tenant_id == tenant_id)
+    result = await session.exec(stmt)
+    rows = result.all()
+    configs = [_mask_config(_row_to_dict(r)) for r in rows]
     return {"data": configs, "meta": _meta()}
 
 
@@ -304,15 +328,21 @@ async def get_sso_config(
     tenant_id: str,
     sso_id: str,
     user: AuthenticatedUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     """Get SSO configuration detail (secrets masked)."""
     check_permission(user, "settings", "read")
 
-    key = _tenant_key(tenant_id, sso_id)
-    config = _sso_configs.get(key)
-    if config is None:
+    stmt = (
+        select(SSOConfig)
+        .where(SSOConfig.tenant_id == tenant_id)
+        .where(SSOConfig.sso_id == sso_id)
+    )
+    result = await session.exec(stmt)
+    row = result.first()
+    if row is None:
         raise HTTPException(status_code=404, detail="SSO configuration not found")
-    return {"data": _mask_config(config), "meta": _meta()}
+    return {"data": _mask_config(_row_to_dict(row)), "meta": _meta()}
 
 
 @router.put("/tenants/{tenant_id}/sso/{sso_id}")
@@ -326,9 +356,14 @@ async def update_sso_config(
     """Update an SSO configuration. Secrets are re-stored in Vault if provided."""
     check_permission(user, "settings", "update")
 
-    key = _tenant_key(tenant_id, sso_id)
-    config = _sso_configs.get(key)
-    if config is None:
+    stmt = (
+        select(SSOConfig)
+        .where(SSOConfig.tenant_id == tenant_id)
+        .where(SSOConfig.sso_id == sso_id)
+    )
+    result = await session.exec(stmt)
+    row = result.first()
+    if row is None:
         raise HTTPException(status_code=404, detail="SSO configuration not found")
 
     updates = body.model_dump(exclude_unset=True)
@@ -340,27 +375,27 @@ async def update_sso_config(
         await secrets_mgr.put_secret(
             path, {"value": updates.pop("client_secret")}, tenant_id
         )
-        config["client_secret_set"] = True
-    elif "client_secret" in updates:
-        updates.pop("client_secret")
+        row.client_secret_set = True
+    else:
+        updates.pop("client_secret", None)
 
     if "bind_secret" in updates and updates["bind_secret"]:
         path = f"archon/tenants/{tenant_id}/sso/ldap/bind_password"
         await secrets_mgr.put_secret(
             path, {"value": updates.pop("bind_secret")}, tenant_id
         )
-        config["bind_secret_set"] = True
-    elif "bind_secret" in updates:
-        updates.pop("bind_secret")
+        row.bind_secret_set = True
+    else:
+        updates.pop("bind_secret", None)
 
     if "certificate" in updates and updates["certificate"]:
         path = f"archon/tenants/{tenant_id}/sso/saml/certificate"
         await secrets_mgr.put_secret(
             path, {"value": updates.pop("certificate")}, tenant_id
         )
-        config["certificate_set"] = True
-    elif "certificate" in updates:
-        updates.pop("certificate")
+        row.certificate_set = True
+    else:
+        updates.pop("certificate", None)
 
     if "claim_mappings" in updates and updates["claim_mappings"] is not None:
         updates["claim_mappings"] = [
@@ -368,20 +403,32 @@ async def update_sso_config(
             for m in updates["claim_mappings"]
         ]
 
-    config.update(updates)
-    config["updated_at"] = datetime.now(tz=timezone.utc).isoformat()
-    _sso_configs[key] = config
+    # Apply remaining scalar updates directly to ORM row
+    _SCALAR_FIELDS = {
+        "name", "is_default", "enabled", "discovery_url", "client_id", "scopes",
+        "metadata_url", "metadata_xml", "entity_id", "acs_url",
+        "host", "port", "use_tls", "base_dn", "bind_dn", "user_filter",
+        "group_filter", "claim_mappings",
+    }
+    for field, value in updates.items():
+        if field in _SCALAR_FIELDS:
+            setattr(row, field, value)
+
+    row.updated_at = datetime.now(tz=timezone.utc)
+    session.add(row)
+    await session.commit()
+    await session.refresh(row)
 
     await AuditLogService.create(
         session,
         actor_id=UUID(user.id),
         action="sso.config_updated",
         resource_type="sso_config",
-        resource_id=UUID(sso_id),
+        resource_id=row.id,
         details={"updated_fields": list(updates.keys())},
     )
 
-    return {"data": _mask_config(config), "meta": _meta()}
+    return {"data": _mask_config(_row_to_dict(row)), "meta": _meta()}
 
 
 @router.delete(
@@ -396,14 +443,21 @@ async def delete_sso_config(
     """Delete an SSO configuration and its Vault secrets."""
     check_permission(user, "settings", "delete")
 
-    key = _tenant_key(tenant_id, sso_id)
-    config = _sso_configs.pop(key, None)
-    if config is None:
+    stmt = (
+        select(SSOConfig)
+        .where(SSOConfig.tenant_id == tenant_id)
+        .where(SSOConfig.sso_id == sso_id)
+    )
+    result = await session.exec(stmt)
+    row = result.first()
+    if row is None:
         raise HTTPException(status_code=404, detail="SSO configuration not found")
+
+    protocol = row.protocol
+    row_id = row.id
 
     # Clean up Vault secrets
     secrets_mgr = await get_secrets_manager()
-    protocol = config.get("protocol", "")
     try:
         if protocol == "oidc":
             await secrets_mgr.delete_secret(
@@ -423,12 +477,15 @@ async def delete_sso_config(
     except Exception:
         logger.warning("Failed to delete Vault secret for SSO config %s", sso_id)
 
+    await session.delete(row)
+    await session.commit()
+
     await AuditLogService.create(
         session,
         actor_id=UUID(user.id),
         action="sso.config_deleted",
         resource_type="sso_config",
-        resource_id=UUID(sso_id),
+        resource_id=row_id,
         details={"protocol": protocol},
     )
     return Response(status_code=204)
@@ -439,6 +496,7 @@ async def test_sso_connection(
     tenant_id: str,
     sso_id: str,
     user: AuthenticatedUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     """Test an SSO connection.
 
@@ -448,10 +506,16 @@ async def test_sso_connection(
     """
     check_permission(user, "settings", "read")
 
-    key = _tenant_key(tenant_id, sso_id)
-    config = _sso_configs.get(key)
-    if config is None:
+    stmt = (
+        select(SSOConfig)
+        .where(SSOConfig.tenant_id == tenant_id)
+        .where(SSOConfig.sso_id == sso_id)
+    )
+    result = await session.exec(stmt)
+    row = result.first()
+    if row is None:
         raise HTTPException(status_code=404, detail="SSO configuration not found")
+    config = _row_to_dict(row)
 
     protocol = config.get("protocol", "")
     result: dict[str, Any] = {"protocol": protocol, "status": "success", "message": ""}

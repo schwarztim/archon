@@ -182,6 +182,12 @@ grafana:
 
 # ──────────────────────────────────────────────
 # Archon-specific PrometheusRules (alerts)
+#
+# `archon-alerts`: HTTP/infra-level rules (already in prod).
+# `archon-orchestration`: orchestration/cost/provider rules — kept in sync with
+# infra/monitoring/alerts/archon-orchestration.yaml. The standalone YAML is the
+# source of truth used by scripts/check-grafana-metric-parity.py; this map is
+# rendered into PrometheusRule CRDs by kube-prometheus-stack.
 # ──────────────────────────────────────────────
 additionalPrometheusRulesMap:
   archon-alerts:
@@ -199,9 +205,9 @@ additionalPrometheusRulesMap:
 
           - alert: ArchonHighErrorRate
             expr: |
-              sum(rate(http_requests_total{job="archon-backend", status=~"5.."}[5m]))
+              sum(rate(archon_requests_total{job="archon-backend", status=~"5.."}[5m]))
               /
-              sum(rate(http_requests_total{job="archon-backend"}[5m]))
+              sum(rate(archon_requests_total{job="archon-backend"}[5m]))
               > 0.05
             for: 5m
             labels:
@@ -212,7 +218,7 @@ additionalPrometheusRulesMap:
 
           - alert: ArchonHighLatency
             expr: |
-              histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job="archon-backend"}[5m])) by (le))
+              histogram_quantile(0.95, sum(rate(archon_request_duration_seconds_bucket{job="archon-backend"}[5m])) by (le))
               > 0.2
             for: 5m
             labels:
@@ -270,6 +276,141 @@ additionalPrometheusRulesMap:
             annotations:
               summary: "Archon PVC usage > 85%"
               description: "PVC {{ $labels.persistentvolumeclaim }} is {{ $value | humanizePercentage }} full."
+
+  # ────────────────────────────────────────────
+  # Orchestration / cost / provider rules.
+  # Mirror of infra/monitoring/alerts/archon-orchestration.yaml — when you
+  # change one file, change the other. scripts/check-grafana-metric-parity.py
+  # parses the standalone YAML; this map is what kube-prometheus-stack renders.
+  # ────────────────────────────────────────────
+  archon-orchestration:
+    groups:
+      - name: archon.orchestration
+        rules:
+          - alert: ArchonHighRunFailureRate
+            expr: |
+              (
+                sum by (tenant_id) (rate(archon_workflow_runs_total{status="failed"}[5m]))
+                /
+                clamp_min(sum by (tenant_id) (rate(archon_workflow_runs_total[5m])), 1e-9)
+              ) > 0.1
+            for: 10m
+            labels:
+              severity: warning
+              component: orchestration
+            annotations:
+              summary: "Tenant {{ $labels.tenant_id }} run failure rate > 10%"
+              description: "Workflow run failure rate for tenant {{ $labels.tenant_id }} has exceeded 10% for 10m."
+              runbook_url: "https://archon.example.com/docs/runbooks/observability.md#archonhighrunfailurerate"
+
+          - alert: ArchonCheckpointFailures
+            expr: rate(archon_checkpoint_failures_total[5m]) > 0
+            for: 1m
+            labels:
+              severity: critical
+              component: durability
+            annotations:
+              summary: "Postgres checkpointer failed — durability at risk"
+              description: "archon_checkpoint_failures_total has been incrementing for >1m. Workflow state may not be persisted."
+              runbook_url: "https://archon.example.com/docs/runbooks/observability.md#archoncheckpointfailures"
+
+          - alert: ArchonProviderUnhealthy
+            expr: |
+              (
+                sum by (provider) (rate(archon_provider_latency_seconds_count{status="error"}[5m]))
+                /
+                clamp_min(sum by (provider) (rate(archon_provider_latency_seconds_count[5m])), 1e-9)
+              ) > 0.5
+            for: 5m
+            labels:
+              severity: warning
+              component: providers
+            annotations:
+              summary: "Provider {{ $labels.provider }} error rate > 50%"
+              description: "More than half of calls to provider {{ $labels.provider }} are failing."
+              runbook_url: "https://archon.example.com/docs/runbooks/observability.md#archonproviderunhealthy"
+
+          - alert: ArchonHighFallbackRate
+            expr: sum(rate(archon_provider_fallback_total[5m])) > 1
+            for: 10m
+            labels:
+              severity: warning
+              component: providers
+            annotations:
+              summary: "Provider fallbacks > 1/s for 10m"
+              description: "Sustained provider fallback activity — primary provider may be degraded."
+              runbook_url: "https://archon.example.com/docs/runbooks/observability.md#archonhighfallbackrate"
+
+          - alert: ArchonRunCancellationsSpike
+            expr: sum by (reason) (rate(archon_run_cancellations_total[5m])) > 0.1
+            for: 5m
+            labels:
+              severity: warning
+              component: orchestration
+            annotations:
+              summary: "Run cancellations spiking ({{ $labels.reason }})"
+              description: "Cancellation rate for reason={{ $labels.reason }} > 0.1/s for 5m."
+              runbook_url: "https://archon.example.com/docs/runbooks/observability.md#archonruncancellationsspike"
+
+          - alert: ArchonCostBudgetExceeded
+            expr: rate(archon_cost_gate_blocks_total{reason="budget_exceeded"}[5m]) > 0
+            for: 5m
+            labels:
+              severity: warning
+              component: cost
+            annotations:
+              summary: "Tenant {{ $labels.tenant_id }} hit cost-gate budget"
+              description: "Cost-gate is blocking new runs for tenant {{ $labels.tenant_id }} (budget_exceeded)."
+              runbook_url: "https://archon.example.com/docs/runbooks/observability.md#archoncostbudgetexceeded"
+
+          - alert: ArchonStuckRunningRuns
+            expr: |
+              (
+                avg_over_time(archon_workflow_runs_in_progress[1h])
+                and
+                delta(archon_workflow_runs_total[1h]) == 0
+              ) > 0
+            for: 1h
+            labels:
+              severity: warning
+              component: orchestration
+            annotations:
+              summary: "Workflow runs stuck in running for >1h with no progress"
+              description: "Non-zero in-progress runs but no terminal transitions in the last hour."
+              runbook_url: "https://archon.example.com/docs/runbooks/observability.md#archonstuckrunningruns"
+
+          - alert: ArchonTenantContextMissing
+            expr: rate(archon_tenant_context_missing_total[5m]) > 0
+            for: 5m
+            labels:
+              severity: critical
+              component: security
+            annotations:
+              summary: "Tenant context missing on protected handlers"
+              description: "Requests reaching protected handlers without tenant context — multi-tenancy isolation risk."
+              runbook_url: "https://archon.example.com/docs/runbooks/observability.md#archontenantcontextmissing"
+
+          - alert: ArchonStepRetryStorm
+            expr: sum by (node_type) (rate(archon_step_retries_total[5m])) > 1
+            for: 10m
+            labels:
+              severity: warning
+              component: orchestration
+            annotations:
+              summary: "Step retry storm on node_type={{ $labels.node_type }}"
+              description: "Sustained step retries on node_type {{ $labels.node_type }}."
+              runbook_url: "https://archon.example.com/docs/runbooks/observability.md#archonstepretrystorm"
+
+          - alert: ArchonNoActiveWorkers
+            expr: count(time() - archon_worker_heartbeat_seconds < 60) == 0
+            for: 2m
+            labels:
+              severity: critical
+              component: orchestration
+            annotations:
+              summary: "No worker heartbeats in last 60s"
+              description: "Zero workers have heartbeated in the last minute — runs cannot progress."
+              runbook_url: "https://archon.example.com/docs/runbooks/observability.md#archonnoactiveworkers"
 
 # ──────────────────────────────────────────────
 # kube-state-metrics and node-exporter (defaults)

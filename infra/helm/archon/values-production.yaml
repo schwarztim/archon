@@ -1,0 +1,162 @@
+# ──────────────────────────────────────────────────────────────────────────
+# Archon Helm Chart — Production Overrides
+#
+# Apply with: helm upgrade --install archon ./infra/helm/archon \
+#               -n archon-production --create-namespace \
+#               -f infra/helm/archon/values-production.yaml
+#
+# Hardening:
+#   - LLM stub mode disabled (real model traffic).
+#   - Replica counts: backend=3, worker=5, frontend=2, gateway=2.
+#   - HPA enabled (CPU + memory).
+#   - PodDisruptionBudgets enabled (minAvailable=1).
+#   - NetworkPolicies enabled (default-deny + explicit allow).
+#   - Ingress enabled with TLS.
+#   - Strict tenant enforcement on (ARCHON_ENTERPRISE_STRICT_TENANT=true).
+#   - Postgres LangGraph checkpointing (no in-memory checkpointer).
+#   - Resource limits ~2x dev defaults.
+# ──────────────────────────────────────────────────────────────────────────
+
+global:
+  archonEnv: "production"
+
+# Real LLM traffic in production.
+stubMode: false
+
+backend:
+  replicaCount: 3
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 1000
+    capabilities:
+      drop:
+        - ALL
+
+worker:
+  replicaCount: 5
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 5
+    maxReplicas: 30
+    targetCPUUtilizationPercentage: 70
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 2
+  concurrency: 8
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 1000
+    capabilities:
+      drop:
+        - ALL
+
+frontend:
+  replicaCount: 2
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 8
+    targetCPUUtilizationPercentage: 80
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+
+gateway:
+  replicaCount: 2
+  resources:
+    requests:
+      cpu: 400m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 1Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 12
+    targetCPUUtilizationPercentage: 70
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 1000
+    capabilities:
+      drop:
+        - ALL
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+  hosts:
+    - host: archon.example.com
+      paths:
+        - path: /api
+          pathType: Prefix
+          service: backend
+        - path: /gateway
+          pathType: Prefix
+          service: gateway
+        - path: /
+          pathType: Prefix
+          service: frontend
+  tls:
+    - secretName: archon-tls
+      hosts:
+        - archon.example.com
+
+config:
+  logLevel: INFO
+  debug: "false"
+  corsOrigins: "https://archon.example.com"
+  langgraphCheckpointing: "postgres"
+  enterpriseStrictTenant: "true"
+
+networkPolicies:
+  enabled: true
+  ingressNamespaceSelectors:
+    - matchLabels:
+        kubernetes.io/metadata.name: ingress-nginx
+  gatewayEgressCIDRs:
+    - 0.0.0.0/0

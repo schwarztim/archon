@@ -1,0 +1,69 @@
+name: Helm Smoke
+
+# Proves the Archon Helm chart lints, renders, and produces valid Kubernetes
+# manifests. Triggered on chart changes (push or PR), on workflow self-edit,
+# and nightly to catch upstream Kubernetes API drift.
+#
+# See docs/runbooks/ci-gates.md for what this gate proves and how to remediate
+# failures.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'infra/helm/**'
+      - 'scripts/helm-smoke.sh'
+      - '.github/workflows/helm-smoke.yml'
+  pull_request:
+    paths:
+      - 'infra/helm/**'
+      - 'scripts/helm-smoke.sh'
+      - '.github/workflows/helm-smoke.yml'
+  schedule:
+    # Nightly at 03:00 UTC to detect drift in upstream Helm/k8s tooling.
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: helm-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  helm-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: 'v3.14.0'
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Install kind
+        uses: helm/kind-action@v1
+        with:
+          install_only: true
+
+      - name: Install PyYAML for render validation
+        run: pip install pyyaml
+
+      - name: Run helm smoke (lint + template + parse + dry-run apply)
+        run: bash scripts/helm-smoke.sh
+
+      - name: Upload rendered manifests
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: helm-rendered-manifests
+          path: |
+            /tmp/archon-dev-render.yaml
+            /tmp/archon-prod-render.yaml
+          if-no-files-found: warn
+          retention-days: 14

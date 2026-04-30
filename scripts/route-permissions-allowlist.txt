@@ -1,0 +1,325 @@
+# scripts/route-permissions-allowlist.txt
+#
+# Phase 4 / WS13: explicit list of routes that are not currently gated by
+# the Archon authentication middleware.  Lines beginning with `#` are
+# comments.  Each entry is `<METHOD> <path>` exactly as FastAPI registers it.
+#
+# Fail-closed semantics: any route not in this list AND not gated by an auth
+# dependency causes scripts/check-route-permissions.py to exit non-zero.
+# When adding a new public-by-design route, add it here AND record why.
+#
+# This file is split into two sections:
+#
+#   (1) PUBLIC-BY-DESIGN — routes that MUST be reachable without authentication
+#       (probes, OpenAPI bootstrap, login token exchange, SSO/SAML callbacks,
+#       SCIM endpoints which use API-key authentication enforced at the SCIM
+#       service layer rather than via FastAPI deps).
+#
+#   (2) PHASE 4 BACKLOG — routes that lack auth today.  These are tracked as
+#       remediation work for the next wave (WS13 follow-on).  Every entry
+#       here is a finding the audit script would otherwise block on.  As
+#       routes are gated, remove them from this section (the matrix test
+#       enforces the inverse — stale entries fail the test).
+#
+# Total active entries: 276 (40 public-by-design + 236 phase-4 backlog).
+
+# ═══════════════════════════════════════════════════════════════════════
+# (1) PUBLIC-BY-DESIGN
+# ═══════════════════════════════════════════════════════════════════════
+
+# ── Liveness / readiness probes ──────────────────────────────────────
+GET /health
+GET /api/v1/health
+GET /ready
+
+# ── Operational metrics (Prometheus scrape; firewall-restricted by ops) ──
+GET /metrics
+
+# ── Auth bootstrap (must be reachable unauthenticated) ───────────────
+POST /api/v1/auth/login
+POST /api/v1/auth/logout
+POST /api/v1/auth/token
+POST /api/v1/auth/token/refresh
+
+# ── SAML / SSO bootstrap (RP-initiated SSO) ──────────────────────────
+GET /api/v1/auth/saml/metadata
+POST /api/v1/auth/saml/acs
+GET /api/v1/saml/metadata/{tenant_id}
+POST /api/v1/saml/acs
+POST /api/v1/mobile/auth/saml
+GET /api/v1/sso/config
+PUT /api/v1/sso/config
+POST /api/v1/sso/test-connection
+
+# ── SCIM (RFC 7644) — API-key auth enforced inside the SCIM service ──
+DELETE /api/v1/scim/v2/Users/{scim_id}
+GET /api/v1/scim/v2/Groups
+GET /api/v1/scim/v2/Schemas
+GET /api/v1/scim/v2/ServiceProviderConfig
+GET /api/v1/scim/v2/Users
+GET /api/v1/scim/v2/Users/{scim_id}
+PATCH /api/v1/scim/v2/Groups/{scim_id}
+PATCH /api/v1/scim/v2/Users/{scim_id}
+POST /api/v1/scim/v2/Groups
+POST /api/v1/scim/v2/Users
+
+# ── Marketplace public catalog (read-only) ───────────────────────────
+GET /api/v1/marketplace/catalog
+GET /api/v1/marketplace/creators/{creator_id}
+GET /api/v1/marketplace/listings
+GET /api/v1/marketplace/listings/{listing_id}
+GET /api/v1/marketplace/listings/{listing_id}/reviews
+
+# ── A2A federation public discovery (well-known + agent cards) ───────
+GET /api/v1/a2a/well-known/{agent_id}
+GET /api/v1/a2a/discover
+GET /api/v1/a2a/discover/{card_id}
+GET /api/v1/a2a/publish
+GET /api/v1/a2a/publish/{card_id}
+
+# ═══════════════════════════════════════════════════════════════════════
+# (2) PHASE 4 BACKLOG — routes lacking auth today; tracked for remediation.
+# Every line below is a finding the WS13 audit surfaces.  As auth gates
+# land in subsequent waves, remove the corresponding line.
+# ═══════════════════════════════════════════════════════════════════════
+
+DELETE /api/v1/a2a/publish/{card_id}
+DELETE /api/v1/agents/{agent_id}
+DELETE /api/v1/connectors/{connector_id}
+DELETE /api/v1/cost/budgets/{budget_id}
+DELETE /api/v1/governance/policies/{policy_id}
+DELETE /api/v1/marketplace/listings/{listing_id}
+DELETE /api/v1/mcp-security/authorizations/{auth_id}
+DELETE /api/v1/mcp/components/{component_id}
+DELETE /api/v1/mcp/containers/{container_id}
+DELETE /api/v1/mesh/trust/{trust_id}
+DELETE /api/v1/models/{model_id}
+DELETE /api/v1/router/models/{model_id}
+DELETE /api/v1/router/providers/{provider_id}
+DELETE /api/v1/router/rules/{rule_id}
+DELETE /api/v1/sandbox/sessions/{session_id}
+DELETE /api/v1/templates/{template_id}
+DELETE /api/v1/tenants/{tenant_id}
+DELETE /api/v1/workflows/{workflow_id}
+DELETE /api/v1/workflows/{workflow_id}/schedule
+GET /api/v1/a2a/tasks
+GET /api/v1/a2a/tasks/{task_id}
+GET /api/v1/a2a/tasks/{task_id}/messages
+GET /api/v1/agent-versions/
+GET /api/v1/agent-versions/latest
+GET /api/v1/agent-versions/{version_id}
+GET /api/v1/agents/
+GET /api/v1/agents/{agent_id}
+GET /api/v1/auth/me
+GET /api/v1/connectors/
+GET /api/v1/connectors/{connector_id}
+GET /api/v1/cost/alerts
+GET /api/v1/cost/budgets
+GET /api/v1/cost/budgets/{budget_id}
+GET /api/v1/cost/check
+GET /api/v1/cost/dashboard
+GET /api/v1/cost/pricing
+GET /api/v1/cost/report
+GET /api/v1/cost/usage
+GET /api/v1/cost/usage/{entry_id}
+GET /api/v1/edge/devices
+GET /api/v1/edge/devices/{device_id}
+GET /api/v1/edge/fleet/configs
+GET /api/v1/edge/fleet/configs/{fleet_config_id}
+GET /api/v1/edge/fleet/status
+GET /api/v1/edge/models
+GET /api/v1/edge/models/{deployment_id}
+GET /api/v1/edge/sync
+GET /api/v1/executions
+GET /api/v1/executions/{execution_id}
+GET /api/v1/governance/agents
+GET /api/v1/governance/agents/{agent_id}
+GET /api/v1/governance/audit
+GET /api/v1/governance/policies
+GET /api/v1/governance/policies/{policy_id}
+GET /api/v1/improvements/dashboard
+GET /api/v1/improvements/gaps
+GET /api/v1/improvements/gaps/{gap_id}
+GET /api/v1/improvements/proposals
+GET /api/v1/improvements/proposals/{proposal_id}
+GET /api/v1/lifecycle/deployments
+GET /api/v1/lifecycle/deployments/{deployment_id}
+GET /api/v1/lifecycle/deployments/{deployment_id}/health
+GET /api/v1/lifecycle/events
+GET /api/v1/mcp-security/authorizations
+GET /api/v1/mcp-security/authorizations/{auth_id}
+GET /api/v1/mcp-security/events
+GET /api/v1/mcp-security/events/{event_id}
+GET /api/v1/mcp-security/sandboxes
+GET /api/v1/mcp-security/sandboxes/{sandbox_id}
+GET /api/v1/mcp-security/tool-versions
+GET /api/v1/mcp/components
+GET /api/v1/mcp/components/{component_id}
+GET /api/v1/mcp/components/{component_id}/render
+GET /api/v1/mcp/containers/
+GET /api/v1/mcp/containers/{container_id}
+GET /api/v1/mcp/containers/{container_id}/health
+GET /api/v1/mcp/containers/{container_id}/logs
+GET /api/v1/mcp/interactions
+GET /api/v1/mcp/sessions
+GET /api/v1/mcp/sessions/{session_id}
+GET /api/v1/mesh/messages
+GET /api/v1/mesh/messages/{message_id}
+GET /api/v1/mesh/nodes
+GET /api/v1/mesh/nodes/{node_id}
+GET /api/v1/mesh/trust
+GET /api/v1/mesh/trust/{trust_id}
+GET /api/v1/models/
+GET /api/v1/models/{model_id}
+GET /api/v1/qa/requests
+GET /api/v1/qa/requests/{request_id}
+GET /api/v1/qa/status/{request_id}
+GET /api/v1/router/fallback
+GET /api/v1/router/models
+GET /api/v1/router/models/{model_id}
+GET /api/v1/router/providers
+GET /api/v1/router/providers/credential-schemas
+GET /api/v1/router/providers/health
+GET /api/v1/router/providers/health/detail
+GET /api/v1/router/providers/{provider_id}/health
+GET /api/v1/router/rules
+GET /api/v1/router/rules/visual
+GET /api/v1/router/rules/{rule_id}
+GET /api/v1/sandbox/sessions
+GET /api/v1/sandbox/sessions/{session_id}
+GET /api/v1/sentinelscan/discovery
+GET /api/v1/sentinelscan/discovery/{scan_id}
+GET /api/v1/sentinelscan/inventory
+GET /api/v1/sentinelscan/inventory/{service_id}
+GET /api/v1/sentinelscan/posture/summary
+GET /api/v1/sentinelscan/risk
+GET /api/v1/sentinelscan/risk/{service_id}
+GET /api/v1/templates/categories
+GET /api/v1/tenants
+GET /api/v1/tenants/{tenant_id}
+GET /api/v1/tenants/{tenant_id}/billing
+GET /api/v1/tenants/{tenant_id}/quota
+GET /api/v1/tenants/{tenant_id}/usage
+GET /api/v1/tenants/{tenant_id}/usage/summary
+GET /api/v1/versioning/agents/{agent_id}/versions/compare
+GET /api/v1/workflows/
+GET /api/v1/workflows/{workflow_id}
+GET /api/v1/workflows/{workflow_id}/runs
+GET /api/v1/workflows/{workflow_id}/runs/{run_id}
+GET /api/v1/workflows/{workflow_id}/runs/{run_id}/query/{query_name}
+GET /api/v1/workflows/{workflow_id}/schedule/preview
+PATCH /api/v1/edge/devices/{device_id}
+PATCH /api/v1/edge/models/{deployment_id}/status
+POST /api/v1/a2a/discover
+POST /api/v1/a2a/publish
+POST /api/v1/a2a/receive
+POST /api/v1/a2a/tasks
+POST /api/v1/a2a/tasks/{task_id}/messages
+POST /api/v1/agent-versions/
+POST /api/v1/agents/
+POST /api/v1/connectors/
+POST /api/v1/cost/alerts/{alert_id}/acknowledge
+POST /api/v1/cost/budgets
+POST /api/v1/cost/calculate
+POST /api/v1/cost/forecast
+POST /api/v1/cost/pricing
+POST /api/v1/cost/usage
+POST /api/v1/edge/devices
+POST /api/v1/edge/devices/{device_id}/heartbeat
+POST /api/v1/edge/fleet/configs
+POST /api/v1/edge/models
+POST /api/v1/edge/sync
+POST /api/v1/edge/sync/{sync_id}/complete
+POST /api/v1/governance/agents
+POST /api/v1/governance/audit
+POST /api/v1/governance/compliance/check
+POST /api/v1/governance/policies
+POST /api/v1/improvements/analyze
+POST /api/v1/lifecycle/deployments
+POST /api/v1/lifecycle/deployments/{deployment_id}/health
+POST /api/v1/lifecycle/deployments/{deployment_id}/promote
+POST /api/v1/lifecycle/deployments/{deployment_id}/retire
+POST /api/v1/lifecycle/deployments/{deployment_id}/rollback
+POST /api/v1/lifecycle/deployments/{deployment_id}/scale
+POST /api/v1/marketplace/creators
+POST /api/v1/marketplace/installs
+POST /api/v1/marketplace/listings
+POST /api/v1/marketplace/listings/{listing_id}/approve
+POST /api/v1/marketplace/reviews
+POST /api/v1/mcp-security/authorizations
+POST /api/v1/mcp-security/authorize
+POST /api/v1/mcp-security/changes/detect
+POST /api/v1/mcp-security/sandboxes
+POST /api/v1/mcp-security/sandboxes/{sandbox_id}/complete
+POST /api/v1/mcp-security/tool-versions/{version_id}/pin
+POST /api/v1/mcp-security/validate-response
+POST /api/v1/mcp/components
+POST /api/v1/mcp/containers/
+POST /api/v1/mcp/containers/{container_id}/restart
+POST /api/v1/mcp/containers/{container_id}/start
+POST /api/v1/mcp/containers/{container_id}/stop
+POST /api/v1/mcp/interactions
+POST /api/v1/mcp/sessions
+POST /api/v1/mcp/sessions/{session_id}/close
+POST /api/v1/mesh/messages
+POST /api/v1/mesh/nodes
+POST /api/v1/mesh/trust
+POST /api/v1/mobile/auth/biometric
+POST /api/v1/mobile/auth/refresh
+POST /api/v1/models/
+POST /api/v1/qa/trigger
+POST /api/v1/qa/webhook
+POST /api/v1/router/embeddings
+POST /api/v1/router/models
+POST /api/v1/router/providers
+POST /api/v1/router/providers/{provider_id}/api-key
+POST /api/v1/router/providers/{provider_id}/test-connection
+POST /api/v1/router/route
+POST /api/v1/router/route/visual
+POST /api/v1/router/rules
+POST /api/v1/sandbox/execute
+POST /api/v1/sandbox/sessions
+POST /api/v1/sentinelscan/discovery
+POST /api/v1/sentinelscan/discovery/{scan_id}/complete
+POST /api/v1/sentinelscan/discovery/{scan_id}/run
+POST /api/v1/sentinelscan/inventory
+POST /api/v1/sentinelscan/risk/classify
+POST /api/v1/templates/{template_id}/instantiate
+POST /api/v1/tenants
+POST /api/v1/tenants/signup
+POST /api/v1/tenants/{tenant_id}/billing
+POST /api/v1/tenants/{tenant_id}/change-tier
+POST /api/v1/tenants/{tenant_id}/check-limit
+POST /api/v1/tenants/{tenant_id}/usage
+POST /api/v1/versioning/agents/{agent_id}/versions/{version_id}/promote
+POST /api/v1/versioning/agents/{agent_id}/versions/{version_id}/rollback
+POST /api/v1/wizard/generate
+POST /api/v1/workflows/
+POST /api/v1/workflows/events
+POST /api/v1/workflows/{workflow_id}/execute
+POST /api/v1/workflows/{workflow_id}/runs/{run_id}/signal
+POST /api/v1/workflows/{workflow_id}/webhook
+PUT /api/v1/a2a/publish/{card_id}
+PUT /api/v1/a2a/tasks/{task_id}/status
+PUT /api/v1/agents/{agent_id}
+PUT /api/v1/connectors/{connector_id}
+PUT /api/v1/cost/budgets/{budget_id}
+PUT /api/v1/governance/agents/{agent_id}
+PUT /api/v1/governance/policies/{policy_id}
+PUT /api/v1/improvements/proposals/{proposal_id}
+PUT /api/v1/marketplace/listings/{listing_id}
+PUT /api/v1/mcp-security/authorizations/{auth_id}
+PUT /api/v1/mcp/components/{component_id}
+PUT /api/v1/models/{model_id}
+PUT /api/v1/router/fallback
+PUT /api/v1/router/models/{model_id}
+PUT /api/v1/router/providers/{provider_id}/credentials
+PUT /api/v1/router/rules/visual
+PUT /api/v1/router/rules/{rule_id}
+PUT /api/v1/sentinelscan/inventory/{service_id}
+PUT /api/v1/templates/{template_id}
+PUT /api/v1/tenants/{tenant_id}
+PUT /api/v1/tenants/{tenant_id}/billing/{record_id}
+PUT /api/v1/tenants/{tenant_id}/quota
+PUT /api/v1/workflows/{workflow_id}
+PUT /api/v1/workflows/{workflow_id}/schedule

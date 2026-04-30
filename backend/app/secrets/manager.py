@@ -312,7 +312,7 @@ class VaultSecretsManager:
     async def health(self) -> dict:
         """Return Vault cluster health status."""
         try:
-            status = await asyncio.to_thread(self._client.sys.read_seal_status)
+            status = await asyncio.to_thread(self._client.sys.read_health_status)
             return {
                 "status": "healthy",
                 "initialized": status.get("initialized", False),

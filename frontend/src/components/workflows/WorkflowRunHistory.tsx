@@ -1,269 +1,243 @@
-import { useState } from "react";
+/**
+ * WorkflowRunHistory
+ *
+ * Card-style alternate of the table view in ``RunHistoryPage`` — surfaces
+ * ``paused`` and ``failed`` runs prominently and can be embedded inside
+ * the workflow detail drawer.
+ *
+ * Backward-compatible signature: the ``runs`` prop accepts either the
+ * canonical ``WorkflowRunSummary`` shape (Phase 7 / new types) OR the
+ * legacy ``WorkflowRun`` shape from ``api/workflows.ts`` so existing
+ * call-sites (e.g. ``WorkflowsPage``) continue to compile without changes.
+ */
+import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
-  Clock, Play, CheckCircle2, XCircle, Loader2,
-  ChevronRight, Filter, Calendar, ArrowUpDown,
+  AlertCircle,
+  CheckCircle2,
+  Clock,
+  Filter,
+  Loader2,
+  Pause,
+  Play,
+  XCircle,
 } from "lucide-react";
-import type { WorkflowRun, WorkflowRunStep } from "@/api/workflows";
 
-// ─── Helpers ─────────────────────────────────────────────────────────
+import type {
+  WorkflowRunSummary,
+  RunStatus,
+} from "@/types/workflow_run";
 
-function runStatusBadge(status: string) {
-  const styles: Record<string, string> = {
-    pending: "bg-yellow-500/20 text-yellow-400",
-    running: "bg-blue-500/20 text-blue-400",
-    completed: "bg-green-500/20 text-green-400",
-    failed: "bg-red-500/20 text-red-400",
-  };
-  const icons: Record<string, React.ReactNode> = {
-    pending: <Clock size={10} />,
-    running: <Loader2 size={10} className="animate-spin" />,
-    completed: <CheckCircle2 size={10} />,
-    failed: <XCircle size={10} />,
-  };
+/**
+ * Minimal subset both shapes satisfy. Anything heavier (e.g. step
+ * inspection) lives on the dedicated ExecutionDetailPage.
+ */
+interface RunCardShape {
+  id: string;
+  status: string;
+  trigger_type?: string | null;
+  duration_ms: number | null;
+  started_at: string | null;
+  completed_at?: string | null;
+  triggered_by?: string;
+  workflow_id?: string | null;
+  error_code?: string | null;
+}
+
+interface WorkflowRunHistoryProps {
+  /**
+   * Accepts either the new ``WorkflowRunSummary`` or the legacy
+   * ``api/workflows.WorkflowRun``. Anything providing ``RunCardShape``
+   * will render — additional fields are ignored.
+   */
+  runs: ReadonlyArray<RunCardShape | WorkflowRunSummary>;
+  isLoading?: boolean;
+  /** When supplied, the card click bubbles up before navigation. */
+  onRunClick?: (run: RunCardShape) => void;
+  /**
+   * When ``true`` clicking a card navigates to ``/executions/{id}``.
+   * Default: ``true``.
+   */
+  navigateOnClick?: boolean;
+}
+
+const STATUS_BADGE: Record<string, { label: string; cls: string; Icon: typeof CheckCircle2 }> = {
+  pending: { label: "Pending", cls: "bg-gray-500/20 text-gray-300", Icon: Clock },
+  queued: { label: "Queued", cls: "bg-yellow-500/20 text-yellow-300", Icon: Clock },
+  running: { label: "Running", cls: "bg-blue-500/20 text-blue-300", Icon: Loader2 },
+  completed: { label: "Completed", cls: "bg-green-500/20 text-green-300", Icon: CheckCircle2 },
+  failed: { label: "Failed", cls: "bg-red-500/20 text-red-300", Icon: XCircle },
+  cancelled: { label: "Cancelled", cls: "bg-orange-500/20 text-orange-300", Icon: AlertCircle },
+  paused: { label: "Paused", cls: "bg-purple-500/20 text-purple-300", Icon: Pause },
+};
+
+function StatusBadge({ status }: { status: string }) {
+  const conf = STATUS_BADGE[status] ?? STATUS_BADGE.pending;
+  if (!conf) return null;
+  const { label, cls, Icon } = conf;
   return (
-    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${styles[status] ?? styles.pending}`}>
-      {icons[status] ?? icons.pending}
-      {status.charAt(0).toUpperCase() + status.slice(1)}
+    <span
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${cls}`}
+    >
+      <Icon size={11} className={status === "running" ? "animate-spin" : ""} />
+      {label}
     </span>
   );
 }
 
-function formatDuration(ms: number | null): string {
-  if (ms === null || ms === undefined) return "—";
+function fmtDuration(ms: number | null): string {
+  if (ms == null) return "—";
   if (ms < 1000) return `${ms}ms`;
-  if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
-  return `${Math.floor(ms / 60000)}m ${Math.round((ms % 60000) / 1000)}s`;
+  if (ms < 60_000) return `${(ms / 1_000).toFixed(1)}s`;
+  return `${Math.floor(ms / 60_000)}m ${Math.round((ms % 60_000) / 1_000)}s`;
 }
 
-function formatDate(dateStr: string | null): string {
-  if (!dateStr) return "—";
-  const d = new Date(dateStr);
-  return d.toLocaleDateString("en-US", {
-    month: "short", day: "numeric", year: "numeric",
-    hour: "numeric", minute: "2-digit",
-  });
+function fmtDate(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString();
 }
 
-// ─── Step Timeline ───────────────────────────────────────────────────
+const STATUSES: ReadonlyArray<{ key: "all" | RunStatus; label: string }> = [
+  { key: "all", label: "All" },
+  { key: "running", label: "Running" },
+  { key: "paused", label: "Paused" },
+  { key: "failed", label: "Failed" },
+  { key: "completed", label: "Completed" },
+  { key: "cancelled", label: "Cancelled" },
+];
 
-function StepTimeline({ steps }: { steps: WorkflowRunStep[] }) {
-  if (!steps || steps.length === 0) {
-    return <p className="text-xs text-gray-500 py-2">No step data available</p>;
+export function WorkflowRunHistory({
+  runs,
+  isLoading,
+  onRunClick,
+  navigateOnClick = true,
+}: WorkflowRunHistoryProps) {
+  const navigate = useNavigate();
+  const [statusFilter, setStatusFilter] = useState<"all" | RunStatus>("all");
+
+  const counts = useMemo(() => {
+    const c = { paused: 0, failed: 0, running: 0 };
+    for (const r of runs) {
+      if (r.status === "paused") c.paused += 1;
+      else if (r.status === "failed") c.failed += 1;
+      else if (r.status === "running") c.running += 1;
+    }
+    return c;
+  }, [runs]);
+
+  const filtered = useMemo(() => {
+    if (statusFilter === "all") return runs;
+    return runs.filter((r) => r.status === statusFilter);
+  }, [runs, statusFilter]);
+
+  function handleClick(run: RunCardShape) {
+    onRunClick?.(run);
+    if (navigateOnClick) {
+      navigate(`/executions/${run.id}`);
+    }
   }
 
   return (
-    <div className="space-y-1 py-2">
-      {steps.map((step, i) => (
-        <div
-          key={step.id}
-          className="flex items-center gap-3 rounded-lg border border-surface-border bg-surface-overlay px-3 py-2"
-        >
-          <div className="flex items-center gap-1.5 min-w-[24px]">
-            <span className="text-[10px] text-gray-600">{i + 1}</span>
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-white truncate">{step.name}</span>
-              {runStatusBadge(step.status)}
+    <div className="space-y-3" data-testid="workflow-run-history">
+      {/* Top banner — paused / errors prominence */}
+      {(counts.paused > 0 || counts.failed > 0) && (
+        <div className="flex flex-wrap gap-2">
+          {counts.paused > 0 && (
+            <div
+              data-testid="paused-banner"
+              className="inline-flex items-center gap-2 rounded-md border border-purple-500/30 bg-purple-500/10 px-3 py-1.5 text-xs text-purple-200"
+            >
+              <Pause size={12} /> {counts.paused} paused — awaiting input
             </div>
-            <div className="mt-0.5 flex items-center gap-3 text-[10px] text-gray-500">
-              <span>Duration: {formatDuration(step.duration_ms)}</span>
-              {step.agent_execution_id && (
-                <span>Exec: {step.agent_execution_id.slice(0, 8)}…</span>
-              )}
+          )}
+          {counts.failed > 0 && (
+            <div
+              data-testid="errors-banner"
+              className="inline-flex items-center gap-2 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs text-red-200"
+            >
+              <AlertCircle size={12} /> {counts.failed} failed
             </div>
-          </div>
-          {/* Expandable I/O */}
-          <StepIO step={step} />
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function StepIO({ step }: { step: WorkflowRunStep }) {
-  const [expanded, setExpanded] = useState(false);
-
-  return (
-    <div>
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="text-gray-500 hover:text-white"
-      >
-        <ChevronRight size={12} className={`transform transition-transform ${expanded ? "rotate-90" : ""}`} />
-      </button>
-      {expanded && (
-        <div className="absolute right-4 mt-1 z-10 w-80 rounded-lg border border-surface-border bg-surface-raised p-3 shadow-xl">
-          <div className="mb-2">
-            <p className="text-[10px] font-medium text-gray-400 mb-0.5">Input</p>
-            <pre className="text-[9px] text-gray-500 bg-surface-overlay rounded p-1.5 max-h-24 overflow-auto">
-              {JSON.stringify(step.input_data, null, 2)}
-            </pre>
-          </div>
-          <div>
-            <p className="text-[10px] font-medium text-gray-400 mb-0.5">Output</p>
-            <pre className="text-[9px] text-gray-500 bg-surface-overlay rounded p-1.5 max-h-24 overflow-auto">
-              {JSON.stringify(step.output_data, null, 2)}
-            </pre>
-          </div>
+          )}
+          {counts.running > 0 && (
+            <div className="inline-flex items-center gap-2 rounded-md border border-blue-500/30 bg-blue-500/10 px-3 py-1.5 text-xs text-blue-200">
+              <Loader2 size={12} className="animate-spin" /> {counts.running}{" "}
+              running
+            </div>
+          )}
         </div>
       )}
-    </div>
-  );
-}
 
-// ─── Component ───────────────────────────────────────────────────────
-
-interface WorkflowRunHistoryProps {
-  runs: WorkflowRun[];
-  isLoading?: boolean;
-  onRunClick?: (run: WorkflowRun) => void;
-}
-
-export function WorkflowRunHistory({ runs, isLoading, onRunClick }: WorkflowRunHistoryProps) {
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [triggerFilter, setTriggerFilter] = useState<string>("all");
-  const [expandedRunId, setExpandedRunId] = useState<string | null>(null);
-  const [sortField, setSortField] = useState<"started_at" | "duration_ms">("started_at");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
-
-  // Filter
-  let filtered = [...runs];
-  if (statusFilter !== "all") {
-    filtered = filtered.filter((r) => r.status === statusFilter);
-  }
-  if (triggerFilter !== "all") {
-    filtered = filtered.filter((r) => r.trigger_type === triggerFilter);
-  }
-
-  // Sort
-  filtered.sort((a, b) => {
-    let cmp = 0;
-    if (sortField === "started_at") {
-      cmp = new Date(a.started_at).getTime() - new Date(b.started_at).getTime();
-    } else {
-      cmp = (a.duration_ms ?? 0) - (b.duration_ms ?? 0);
-    }
-    return sortDir === "asc" ? cmp : -cmp;
-  });
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-8">
-        <Loader2 size={20} className="animate-spin text-gray-500" />
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      {/* Filters */}
-      <div className="mb-3 flex items-center gap-3">
-        <div className="flex items-center gap-1.5">
-          <Filter size={12} className="text-gray-500" />
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="rounded border border-surface-border bg-surface-raised px-2 py-1 text-xs text-white focus:border-purple-500 focus:outline-none"
+      {/* Filter chips */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Filter size={12} className="text-gray-500" />
+        {STATUSES.map((s) => (
+          <button
+            key={s.key}
+            type="button"
+            onClick={() => setStatusFilter(s.key)}
+            className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-colors ${
+              statusFilter === s.key
+                ? "bg-purple-500/30 text-purple-100"
+                : "bg-surface-base text-gray-400 hover:text-white"
+            }`}
           >
-            <option value="all">All Statuses</option>
-            <option value="pending">Pending</option>
-            <option value="running">Running</option>
-            <option value="completed">Completed</option>
-            <option value="failed">Failed</option>
-          </select>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <Play size={12} className="text-gray-500" />
-          <select
-            value={triggerFilter}
-            onChange={(e) => setTriggerFilter(e.target.value)}
-            className="rounded border border-surface-border bg-surface-raised px-2 py-1 text-xs text-white focus:border-purple-500 focus:outline-none"
-          >
-            <option value="all">All Triggers</option>
-            <option value="manual">Manual</option>
-            <option value="schedule">Schedule</option>
-            <option value="webhook">Webhook</option>
-          </select>
-        </div>
-        <button
-          onClick={() => {
-            if (sortField === "started_at") {
-              setSortDir(sortDir === "asc" ? "desc" : "asc");
-            } else {
-              setSortField("started_at");
-              setSortDir("desc");
-            }
-          }}
-          className="flex items-center gap-1 text-[10px] text-gray-500 hover:text-white"
-        >
-          <ArrowUpDown size={10} />
-          {sortField === "started_at" ? "Time" : "Duration"} {sortDir === "asc" ? "↑" : "↓"}
-        </button>
+            {s.label}
+          </button>
+        ))}
       </div>
 
-      {/* Table */}
-      {filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-8 rounded-lg border border-surface-border bg-surface-raised">
-          <Calendar size={24} className="mb-2 text-gray-600" />
-          <p className="text-xs text-gray-500">No runs found</p>
+      {/* Cards */}
+      {isLoading ? (
+        <div className="flex items-center justify-center py-8">
+          <Loader2 size={20} className="animate-spin text-gray-500" />
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-surface-border p-6 text-center text-xs text-gray-500">
+          No runs match the current filter.
         </div>
       ) : (
-        <div className="rounded-lg border border-surface-border bg-surface-raised">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-surface-border text-left text-xs text-gray-500">
-                <th className="px-3 py-2 font-medium">Run ID</th>
-                <th className="px-3 py-2 font-medium">Status</th>
-                <th className="px-3 py-2 font-medium">Trigger</th>
-                <th className="px-3 py-2 font-medium">Duration</th>
-                <th className="px-3 py-2 font-medium">Started At</th>
-                <th className="px-3 py-2 font-medium w-8" />
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((run) => (
-                <>
-                  <tr
-                    key={run.id}
-                    className="border-b border-surface-border hover:bg-white/5 cursor-pointer"
-                    onClick={() => {
-                      setExpandedRunId(expandedRunId === run.id ? null : run.id);
-                      onRunClick?.(run);
-                    }}
-                  >
-                    <td className="px-3 py-2 font-mono text-xs text-gray-400">
-                      {run.id.slice(0, 8)}…
-                    </td>
-                    <td className="px-3 py-2">{runStatusBadge(run.status)}</td>
-                    <td className="px-3 py-2 text-xs text-gray-400 capitalize">
-                      {run.trigger_type ?? "manual"}
-                    </td>
-                    <td className="px-3 py-2 text-xs text-gray-400">
-                      {formatDuration(run.duration_ms)}
-                    </td>
-                    <td className="px-3 py-2 text-xs text-gray-400">
-                      {formatDate(run.started_at)}
-                    </td>
-                    <td className="px-3 py-2">
-                      <ChevronRight
-                        size={12}
-                        className={`text-gray-500 transform transition-transform ${expandedRunId === run.id ? "rotate-90" : ""}`}
-                      />
-                    </td>
-                  </tr>
-                  {expandedRunId === run.id && run.steps && (
-                    <tr key={`${run.id}-steps`}>
-                      <td colSpan={6} className="px-4 bg-surface-overlay">
-                        <StepTimeline steps={run.steps} />
-                      </td>
-                    </tr>
-                  )}
-                </>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <ul className="grid grid-cols-1 gap-2 md:grid-cols-2">
+          {filtered.map((r) => (
+            <li
+              key={r.id}
+              onClick={() => handleClick(r)}
+              className="cursor-pointer rounded-lg border border-surface-border bg-surface-raised p-3 transition-colors hover:border-purple-500/40 hover:bg-white/5"
+              data-testid="run-card"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="truncate font-mono text-[11px] text-gray-300">
+                  {r.id}
+                </span>
+                <StatusBadge status={r.status} />
+              </div>
+              <div className="mt-2 grid grid-cols-2 gap-2 text-[10px] text-gray-400">
+                <div>
+                  <div className="text-gray-500">Started</div>
+                  <div>{fmtDate(r.started_at)}</div>
+                </div>
+                <div>
+                  <div className="text-gray-500">Duration</div>
+                  <div>{fmtDuration(r.duration_ms)}</div>
+                </div>
+                <div>
+                  <div className="text-gray-500">Trigger</div>
+                  <div className="capitalize flex items-center gap-1">
+                    <Play size={10} /> {r.trigger_type ?? "manual"}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-gray-500">Triggered by</div>
+                  <div className="truncate">{r.triggered_by ?? "—"}</div>
+                </div>
+              </div>
+              {r.error_code && (
+                <div className="mt-2 truncate text-[10px] text-red-300">
+                  error_code={r.error_code}
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );

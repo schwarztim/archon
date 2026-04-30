@@ -5,12 +5,27 @@ metadata:
   labels:
     {{- include "archon.labels" . | nindent 4 }}
 data:
+  ARCHON_ENV: {{ .Values.global.archonEnv | quote }}
   ARCHON_LOG_LEVEL: {{ .Values.config.logLevel | quote }}
   ARCHON_DEBUG: {{ .Values.config.debug | quote }}
   ARCHON_CORS_ORIGINS: {{ .Values.config.corsOrigins | quote }}
+  ARCHON_FEATURE_DLP_ENABLED: {{ .Values.config.featureDlpEnabled | quote }}
+  ARCHON_FEATURE_COST_TRACKING: {{ .Values.config.featureCostTracking | quote }}
+  ARCHON_FEATURE_MCP_SECURITY: {{ .Values.config.featureMcpSecurity | quote }}
+  ARCHON_FEATURE_A2A_ENABLED: {{ .Values.config.featureA2aEnabled | quote }}
+  ARCHON_ENTERPRISE_STRICT_TENANT: {{ .Values.config.enterpriseStrictTenant | quote }}
+  LANGGRAPH_CHECKPOINTING: {{ .Values.config.langgraphCheckpointing | quote }}
+  LLM_STUB_MODE: {{ .Values.stubMode | quote }}
+  ARCHON_WORKER_CONCURRENCY: {{ .Values.worker.concurrency | quote }}
+  ARCHON_WORKER_SCAN_INTERVAL: {{ .Values.worker.scanInterval | quote }}
   {{- if .Values.postgresql.host }}
   ARCHON_DATABASE_URL: {{ include "archon.databaseUrl" . | quote }}
   {{- end }}
   {{- if .Values.redis.host }}
   ARCHON_REDIS_URL: {{ include "archon.redisUrl" . | quote }}
+  {{- end }}
+  {{- if and .Values.vault.enabled .Values.vault.addr }}
+  ARCHON_VAULT_ADDR: {{ .Values.vault.addr | quote }}
+  ARCHON_VAULT_NAMESPACE: {{ .Values.vault.namespace | quote }}
+  ARCHON_VAULT_MOUNT_POINT: {{ .Values.vault.mountPoint | quote }}
   {{- end }}

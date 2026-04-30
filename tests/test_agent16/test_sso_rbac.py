@@ -21,9 +21,13 @@ from app.routes.sso_config import (
     _RESOURCES,
     _custom_roles,
     _mask_config,
-    _sso_configs,
     _tenant_key,
 )
+
+# A11 migrated _sso_configs from an in-memory dict to a DB table.
+# This local dict replaces the removed module-level export so that the
+# SSO config store tests remain runnable without a live DB connection.
+_sso_configs: dict[str, dict] = {}
 
 
 # ── Fixtures ────────────────────────────────────────────────────────

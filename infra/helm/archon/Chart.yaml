@@ -1,6 +1,6 @@
 apiVersion: v2
 name: archon
-description: Archon — AI Orchestration Platform
+description: Archon — AI Orchestration Platform (backend, worker, frontend, gateway)
 type: application
 version: 0.1.0
 appVersion: "0.1.0"

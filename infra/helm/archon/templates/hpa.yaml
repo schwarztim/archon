@@ -1,0 +1,39 @@
+{{/*
+HorizontalPodAutoscaler — emitted per component when autoscaling.enabled is true.
+*/}}
+{{- range $name, $cfg := dict "backend" .Values.backend "worker" .Values.worker "frontend" .Values.frontend "gateway" .Values.gateway }}
+{{- if and $cfg.enabled $cfg.autoscaling.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "archon.fullname" $ }}-{{ $name }}
+  labels:
+    {{- include "archon.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $name }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "archon.fullname" $ }}-{{ $name }}
+  minReplicas: {{ $cfg.autoscaling.minReplicas }}
+  maxReplicas: {{ $cfg.autoscaling.maxReplicas }}
+  metrics:
+    {{- if $cfg.autoscaling.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ $cfg.autoscaling.targetCPUUtilizationPercentage }}
+    {{- end }}
+    {{- if $cfg.autoscaling.targetMemoryUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ $cfg.autoscaling.targetMemoryUtilizationPercentage }}
+    {{- end }}
+{{- end }}
+{{- end }}

@@ -60,6 +60,10 @@ class TenantQuota(SQLModel, table=True):
     max_storage_mb: int = Field(default=100)
     max_api_calls_per_month: int = Field(default=1000)
 
+    # Concurrency limits (Phase 6 — per-tenant + per-workflow caps)
+    max_concurrent_runs: int = Field(default=10)
+    max_concurrent_per_workflow: int = Field(default=5)
+
     # Current usage counters (reset monthly)
     used_executions: int = Field(default=0)
     used_storage_mb: int = Field(default=0)

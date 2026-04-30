@@ -41,23 +41,25 @@ def test_valid_input_passes() -> None:
     validate_tool_input("get_revenue", {"period": "2025-Q1"})
 
 
-def test_rate_limiter_allows_within_limit() -> None:
+@pytest.mark.asyncio
+async def test_rate_limiter_allows_within_limit() -> None:
     from app.guardrails.middleware import _RateLimiter
 
     limiter = _RateLimiter()
     for _ in range(5):
-        limiter.check("user-oid", 10)  # 5 requests, limit 10 — should pass
+        await limiter.check("user-oid", 10)  # 5 requests, limit 10 — should pass
 
 
-def test_rate_limiter_blocks_over_limit() -> None:
+@pytest.mark.asyncio
+async def test_rate_limiter_blocks_over_limit() -> None:
     from app.guardrails.middleware import _RateLimiter
 
     limiter = _RateLimiter()
     for _ in range(3):
-        limiter.check("user-oid-ratelimited", 3)
+        await limiter.check("user-oid-ratelimited", 3)
 
     with pytest.raises(HTTPException) as exc:
-        limiter.check("user-oid-ratelimited", 3)
+        await limiter.check("user-oid-ratelimited", 3)
     assert exc.value.status_code == 429
 
 

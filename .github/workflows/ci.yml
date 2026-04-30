@@ -5,6 +5,17 @@ on:
   pull_request:
     branches: [main]
 
+# Limit concurrency to one in-flight run per branch — newer pushes cancel
+# in-flight runs. Combined with the 5-job verify fan-out this stays under
+# the 4-parallel cap on a single PR push.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: '3.12'
+  NODE_VERSION: '20'
+
 jobs:
   lint:
     runs-on: ubuntu-latest
@@ -12,7 +23,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
       - name: Install ruff
         run: pip install ruff
       - name: Lint backend
@@ -20,55 +32,171 @@ jobs:
       - name: Lint gateway
         run: ruff check gateway/
 
-  test:
+  feature-matrix-validate:
     runs-on: ubuntu-latest
     needs: lint
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
-      - name: Install dependencies
-        run: pip install -r backend/requirements.txt
-      - name: Run tests
-        run: cd $GITHUB_WORKSPACE && PYTHONPATH=backend python3 -m pytest tests/ --no-header -q
-
-  test-gateway:
-    runs-on: ubuntu-latest
-    needs: lint
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - name: Install gateway dependencies
-        run: pip install -r gateway/requirements.txt
-      - name: Run gateway tests
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      - name: Run feature-matrix validator
         run: |
-          if [ -d "tests/gateway" ]; then
-            PYTHONPATH=gateway python3 -m pytest tests/gateway/ --no-header -q
+          if [ -f scripts/check-feature-matrix.py ]; then
+            python3 scripts/check-feature-matrix.py
           else
-            echo "No gateway tests found — skipping"
+            echo "::warning::scripts/check-feature-matrix.py not yet present (owned by feature-matrix agent in current wave)"
           fi
 
-  gateway-tests:
+  verify-unit:
     runs-on: ubuntu-latest
     needs: lint
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      - name: Install backend dependencies
+        run: pip install -r backend/requirements.txt
       - name: Install gateway dependencies
         run: pip install -r gateway/requirements.txt
-      - name: Run gateway pytest
-        run: cd gateway && python -m pytest tests/ -v
-      - name: Lint gateway
-        run: ruff check gateway/
+      - name: Run verify-unit
+        run: bash scripts/verify-unit.sh
+
+  verify-integration:
+    runs-on: ubuntu-latest
+    needs: lint
+    # Postgres is mandatory here — RLS tests in
+    # backend/tests/test_multi_tenant/test_tenant_isolation.py skip without
+    # ARCHON_TEST_POSTGRES_URL. Setting it (and DATABASE_URL/ARCHON_DATABASE_URL)
+    # forces RLS tests to RUN, not skip.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: archon
+          POSTGRES_PASSWORD: archon
+          POSTGRES_DB: archon
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U archon"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql+asyncpg://archon:archon@localhost:5432/archon
+      ARCHON_DATABASE_URL: postgresql+asyncpg://archon:archon@localhost:5432/archon
+      ARCHON_TEST_POSTGRES_URL: postgresql+asyncpg://archon:archon@localhost:5432/archon
+      ARCHON_REDIS_URL: redis://localhost:6379/0
+      REDIS_URL: redis://localhost:6379/0
+      LLM_STUB_MODE: 'true'
+      PYTHONPATH: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      - name: Install backend dependencies
+        run: pip install -r backend/requirements.txt
+      - name: Run verify-integration (with Postgres + RLS coverage)
+        run: bash scripts/verify-integration.sh
+
+  verify-frontend:
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      - name: Run verify-frontend
+        env:
+          ARCHON_CI: '1'
+        run: bash scripts/verify-frontend.sh
+
+  verify-contracts:
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      - name: Install backend dependencies
+        run: pip install -r backend/requirements.txt
+      - name: Run verify-contracts
+        run: bash scripts/verify-contracts.sh
+
+  verify-slice:
+    runs-on: ubuntu-latest
+    needs: lint
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: archon
+          POSTGRES_PASSWORD: archon
+          POSTGRES_DB: archon
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U archon"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql+asyncpg://archon:archon@localhost:5432/archon
+      REDIS_URL: redis://localhost:6379/0
+      # Inline dispatch keeps the slice REST canary awaitable end-to-end:
+      # the route awaits dispatch_run via schedule_dispatch instead of
+      # firing a background task that the test cannot observe.
+      ARCHON_DISPATCH_INLINE: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      - name: Install backend dependencies
+        run: pip install -r backend/requirements.txt
+      - name: Run verify-slice
+        run: bash scripts/verify-slice.sh
 
   build:
     runs-on: ubuntu-latest
-    needs: [test, test-gateway, gateway-tests]
+    needs:
+      - verify-unit
+      - verify-integration
+      - verify-frontend
+      - verify-contracts
+      - verify-slice
+      - feature-matrix-validate
+      - security-scan
     steps:
       - uses: actions/checkout@v4
       - name: Set up Docker Buildx
@@ -81,16 +209,25 @@ jobs:
         run: docker build -t archon-gateway:ci ./gateway
 
   security-scan:
+    # Hardened: replaced `safety check ... || true` with severity-threshold
+    # gating via scripts/security-scan.sh. Findings at/above `high` block CI;
+    # exceptions live in .github/security-allowlist.json with rationale +
+    # 90-day re-review. See docs/runbooks/ci-gates.md.
     runs-on: ubuntu-latest
     needs: lint
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
       - name: Install safety
         run: pip install safety
-      - name: Scan backend dependencies
-        run: safety check -r backend/requirements.txt --output text || true
-      - name: Scan gateway dependencies
-        run: safety check -r gateway/requirements.txt --output text || true
+      - name: Run security scan with severity threshold (backend)
+        env:
+          SCAN_REQUIREMENTS: backend/requirements.txt
+        run: bash scripts/security-scan.sh --threshold high
+      - name: Run security scan with severity threshold (gateway)
+        env:
+          SCAN_REQUIREMENTS: gateway/requirements.txt
+        run: bash scripts/security-scan.sh --threshold high

@@ -5,6 +5,7 @@ import type {
   CostReport,
   CostForecast,
 } from "@/types/models";
+import type { CostSummary, RunCost } from "@/types/artifacts";
 import { apiGet, apiPost, apiPut, apiDelete, type PaginationParams } from "./client";
 
 /** Record token usage */
@@ -100,13 +101,89 @@ export async function recordUsageV1(payload: {
   return apiPost<unknown>("/cost/record", payload);
 }
 
-/** Get cost summary (v1) */
+/** Get cost summary (v1) — typed against the backend ``CostSummary`` model.
+ *
+ * Backend route: ``GET /api/v1/cost/summary``. Returns the standard envelope
+ * with the summary in ``data``. ``getCostSummary`` returns the unwrapped
+ * summary for ergonomics; ``getCostSummaryEnvelope`` is preserved for
+ * legacy callers that want the full envelope with meta.
+ */
 export async function getCostSummary(params: {
+  tenant_id?: string;
+  period?: string;
   since?: string;
   until?: string;
   group_by?: string;
-} = {}): Promise<ApiResponse<unknown>> {
-  return apiGet<unknown>("/cost/summary", params);
+} = {}): Promise<CostSummary> {
+  // ``period`` and ``tenant_id`` are accepted by the WS14c contract but the
+  // backend's /cost/summary route only honours ``since``/``until``/``group_by``.
+  // We map ``period`` (e.g. "2025-04") to a calendar-month window so callers
+  // don't have to reach into date math themselves.
+  const qp: Record<string, string | undefined> = {};
+  if (params.since) qp.since = params.since;
+  if (params.until) qp.until = params.until;
+  if (params.group_by) qp.group_by = params.group_by;
+  if (params.period && !params.since && !params.until) {
+    const m = params.period.match(/^(\d{4})-(\d{2})$/);
+    if (m && m[1] && m[2]) {
+      const year = Number(m[1]);
+      const monthIdx = Number(m[2]) - 1;
+      const start = new Date(Date.UTC(year, monthIdx, 1));
+      const end = new Date(Date.UTC(year, monthIdx + 1, 1));
+      qp.since = start.toISOString();
+      qp.until = end.toISOString();
+    }
+  }
+  const res = (await apiGet<CostSummary>(
+    "/cost/summary",
+    qp,
+  )) as ApiResponse<CostSummary>;
+  return res.data;
+}
+
+/** Per-run cost rollup. Aggregates ``/cost/usage?execution_id=...`` ledger
+ * entries into a ``RunCost`` shape. The backend has no single ``/cost/runs/{id}``
+ * route, so we synthesise the rollup client-side from the ledger surface that
+ * already exists. */
+export async function getRunCost(run_id: string): Promise<RunCost> {
+  const res = (await apiGet<unknown>("/cost/usage", {
+    execution_id: run_id,
+    limit: 100,
+  })) as ApiResponse<Array<Record<string, unknown>>>;
+  const entries = Array.isArray(res.data) ? res.data : [];
+
+  let total_cost = 0;
+  let total_input_tokens = 0;
+  let total_output_tokens = 0;
+  const by_provider: Record<string, number> = {};
+  const by_model: Record<string, number> = {};
+
+  for (const e of entries) {
+    const cost = Number(e.total_cost ?? e.cost_usd ?? 0);
+    const inTok = Number(e.input_tokens ?? 0);
+    const outTok = Number(e.output_tokens ?? 0);
+    const provider = String(e.provider ?? "");
+    const model = String(e.model_id ?? e.model ?? "");
+    total_cost += cost;
+    total_input_tokens += inTok;
+    total_output_tokens += outTok;
+    if (provider) {
+      by_provider[provider] = (by_provider[provider] ?? 0) + cost;
+    }
+    if (model) {
+      by_model[model] = (by_model[model] ?? 0) + cost;
+    }
+  }
+
+  return {
+    run_id,
+    total_cost: Math.round(total_cost * 1e6) / 1e6,
+    total_input_tokens,
+    total_output_tokens,
+    call_count: entries.length,
+    by_provider,
+    by_model,
+  };
 }
 
 /** Get cost breakdown by group (v1) */

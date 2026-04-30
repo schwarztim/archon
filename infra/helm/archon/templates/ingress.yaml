@@ -37,6 +37,10 @@ spec:
                 name: {{ include "archon.fullname" $ }}-backend
                 port:
                   number: {{ $.Values.backend.service.port }}
+                {{- else if eq .service "gateway" }}
+                name: {{ include "archon.fullname" $ }}-gateway
+                port:
+                  number: {{ $.Values.gateway.service.port }}
                 {{- else }}
                 name: {{ include "archon.fullname" $ }}-frontend
                 port:

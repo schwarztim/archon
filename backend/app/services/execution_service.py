@@ -2,12 +2,18 @@
 
 Provides tenant isolation, RBAC, audit logging, secrets-based credential
 injection, cost tracking, and execution lifecycle management.
+
+ADR-006 deprecation note: write paths through this module are routed via
+``ExecutionFacade`` so a durable ``WorkflowRun`` row is created. The
+returned object is a legacy ``Execution`` projection so existing callers
+continue to work; new callers should depend on ``ExecutionFacade.create_run``
+directly.
 """
 
 from __future__ import annotations
 
 import logging
-import random
+import os
 from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
@@ -20,6 +26,18 @@ from app.models import AuditLog, Execution, User, Agent
 from app.interfaces.models.enterprise import AuthenticatedUser
 
 logger = logging.getLogger(__name__)
+
+
+def _legacy_writes_enabled() -> bool:
+    """Allow direct writes to the legacy ``executions`` table.
+
+    Default: disabled per ADR-006 §Decision (write path is closed against
+    legacy table). Set ``ARCHON_ENABLE_LEGACY_EXECUTION=true`` to re-open
+    the legacy write path during the deprecation window.
+    """
+    return os.environ.get(
+        "ARCHON_ENABLE_LEGACY_EXECUTION", ""
+    ).lower() == "true"
 
 
 def _utcnow() -> datetime:
@@ -55,53 +73,7 @@ def _tenant_execution_query(tenant_id: UUID) -> Any:
     )
 
 
-# ── Step generation for mock execution ──────────────────────────────
-
-_STEP_TYPES = ["llm_call", "tool_call", "condition", "transform", "retrieval"]
-
-
-def _generate_mock_steps() -> list[dict[str, Any]]:
-    """Generate realistic per-step trace data for a mock execution."""
-    steps: list[dict[str, Any]] = []
-    step_defs = [
-        ("parse_input", "transform"),
-        ("retrieve_context", "retrieval"),
-        ("llm_reasoning", "llm_call"),
-        ("tool_execution", "tool_call"),
-        ("condition_check", "condition"),
-        ("generate_response", "llm_call"),
-        ("format_output", "transform"),
-    ]
-    for name, step_type in step_defs:
-        duration = random.randint(50, 800)
-        tokens = random.randint(20, 500) if step_type == "llm_call" else 0
-        cost = round(tokens * 0.00003, 6) if tokens else 0.0
-        steps.append(
-            {
-                "step_name": name,
-                "step_type": step_type,
-                "status": "completed",
-                "duration_ms": duration,
-                "token_usage": tokens,
-                "cost": cost,
-                "input": {"data": f"input for {name}"},
-                "output": {"result": f"output from {name}"},
-                "error": None,
-            }
-        )
-    return steps
-
-
-def _generate_failed_steps() -> list[dict[str, Any]]:
-    """Generate steps where the last step fails."""
-    steps = _generate_mock_steps()
-    # Mark last 2 steps as failed/skipped
-    steps[-1]["status"] = "skipped"
-    steps[-1]["output"] = None
-    steps[-2]["status"] = "failed"
-    steps[-2]["error"] = "Simulated failure: LLM rate limit exceeded"
-    steps[-2]["output"] = None
-    return steps
+# ── (mock step generation removed — real cost data comes from LLM node executor) ──
 
 
 class ExecutionService:
@@ -183,15 +155,20 @@ class ExecutionService:
         config_overrides: dict[str, Any] | None = None,
         ws_callback: Any | None = None,
     ) -> Execution:
-        """Create and run an execution, recording per-step trace data.
+        """Create an agent run via the canonical ExecutionFacade (ADR-006).
 
-        This is the main entry point for creating executions.  It validates
-        the agent, creates the execution record, simulates step execution
-        with realistic mock data, and records overall metrics.
+        Delegates to ``ExecutionFacade.create_run(kind='agent')`` and
+        returns a legacy-shaped ``Execution`` projection so existing
+        callers continue to receive the model surface they expect.
+
+        New callers SHOULD depend on ``ExecutionFacade.create_run``
+        directly. This wrapper exists to preserve the legacy public API
+        during the ADR-006 deprecation window.
         """
         check_permission(user, "executions", "execute")
 
-        # Verify the agent belongs to this tenant
+        # Verify the agent belongs to this tenant — explicit check so the
+        # error message is the same as the legacy implementation.
         agent_stmt = (
             select(Agent)
             .join(User, Agent.owner_id == User.id)
@@ -202,180 +179,59 @@ class ExecutionService:
         if agent is None:
             raise ValueError(f"Agent {agent_id} not found in tenant scope")
 
-        # Inject credentials
-        from app.secrets.manager import get_secrets_manager
+        # Lazy import to avoid module-cycle: execution_facade imports
+        # from app.models which transitively imports execution_service.
+        from app.services.execution_facade import ExecutionFacade
 
-        secrets_mgr = await get_secrets_manager()
-        try:
-            cred_data = await secrets_mgr.get_secret(
-                f"agents/{agent_id}/credentials",
-                tenant_id=str(tenant_id),
-            )
-        except Exception:
-            cred_data = {}
-
-        now = _utcnow()
-        execution = Execution(
-            id=uuid4(),
+        run, _is_new = await ExecutionFacade.create_run(
+            session,
+            kind="agent",
             agent_id=agent_id,
-            status="pending",
-            input_data=input_data,
-            created_at=now,
-            updated_at=now,
+            tenant_id=tenant_id,
+            input_data=input_data or {},
+            triggered_by=user.email or "",
+            trigger_type="manual",
         )
-        session.add(execution)
+
         await _audit(
             session,
             user,
             "execution.created",
-            execution.id,
-            {"agent_id": str(agent_id), "has_credentials": bool(cred_data)},
+            run.id,
+            {"agent_id": str(agent_id), "via_facade": True},
         )
         await session.commit()
-        await session.refresh(execution)
 
-        # Transition to running
-        execution.status = "running"
-        execution.started_at = _utcnow()
-        execution.updated_at = _utcnow()
-        session.add(execution)
-        await session.commit()
-
-        # Send WS event if callback provided
+        # Optional WS callback — preserved for legacy callers.
         if ws_callback:
             await ws_callback(
                 "execution.started",
                 {
-                    "execution_id": str(execution.id),
+                    "execution_id": str(run.id),
                     "agent_id": str(agent_id),
-                    "status": "running",
+                    "status": run.status,
                 },
             )
 
-        # Simulate step execution
-        simulate_failure = random.random() < 0.1  # 10% chance of failure
-        steps = _generate_failed_steps() if simulate_failure else _generate_mock_steps()
-
-        recorded_steps: list[dict[str, Any]] = []
-        for step in steps:
-            if ws_callback:
-                await ws_callback(
-                    "step.started",
-                    {
-                        "execution_id": str(execution.id),
-                        "step_name": step["step_name"],
-                        "step_type": step["step_type"],
-                    },
-                )
-
-            recorded_steps.append(step)
-
-            if step["status"] == "failed":
-                if ws_callback:
-                    await ws_callback(
-                        "step.failed",
-                        {
-                            "execution_id": str(execution.id),
-                            "step_name": step["step_name"],
-                            "error": step["error"],
-                        },
-                    )
-                break
-
-            if step["step_type"] == "tool_call" and ws_callback:
-                await ws_callback(
-                    "tool.called",
-                    {
-                        "execution_id": str(execution.id),
-                        "step_name": step["step_name"],
-                        "tool_output": step["output"],
-                    },
-                )
-
-            if step["step_type"] == "llm_call" and ws_callback:
-                await ws_callback(
-                    "llm.response",
-                    {
-                        "execution_id": str(execution.id),
-                        "step_name": step["step_name"],
-                        "tokens": step["token_usage"],
-                    },
-                )
-
-            if ws_callback:
-                await ws_callback(
-                    "step.completed",
-                    {
-                        "execution_id": str(execution.id),
-                        "step_name": step["step_name"],
-                        "duration_ms": step["duration_ms"],
-                        "tokens": step["token_usage"],
-                        "cost": step["cost"],
-                    },
-                )
-
-        # Calculate overall metrics
-        total_duration = sum(
-            s["duration_ms"] for s in recorded_steps if s.get("duration_ms")
+        # Return a legacy-shaped Execution-like object reading from the
+        # WorkflowRun row. Construct an Execution instance for typing
+        # parity with the historical surface — this object is detached
+        # from the session and only used as a return value.
+        legacy = Execution(
+            id=run.id,
+            agent_id=agent_id,
+            status=run.status,
+            input_data=run.input_data or {},
+            output_data=run.output_data,
+            error=run.error,
+            steps=[],
+            metrics=run.metrics or {},
+            started_at=run.started_at,
+            completed_at=run.completed_at,
+            created_at=run.created_at,
+            updated_at=run.created_at,
         )
-        total_tokens = sum(
-            s["token_usage"] for s in recorded_steps if s.get("token_usage")
-        )
-        total_cost = round(sum(s["cost"] for s in recorded_steps if s.get("cost")), 6)
-
-        # Set final status
-        has_failure = any(s["status"] == "failed" for s in recorded_steps)
-        if has_failure:
-            execution.status = "failed"
-            execution.error = next(
-                (s["error"] for s in recorded_steps if s["status"] == "failed"),
-                "Unknown error",
-            )
-        else:
-            execution.status = "completed"
-            execution.output_data = {
-                "response": "Agent execution completed successfully",
-                "summary": f"Processed {len(recorded_steps)} steps",
-            }
-
-        execution.steps = recorded_steps
-        execution.metrics = {
-            "total_duration_ms": total_duration,
-            "total_tokens": total_tokens,
-            "total_cost": total_cost,
-        }
-        execution.completed_at = _utcnow()
-        execution.updated_at = _utcnow()
-        session.add(execution)
-
-        final_event = "execution.completed" if not has_failure else "execution.failed"
-        await _audit(
-            session,
-            user,
-            final_event,
-            execution.id,
-            {
-                "agent_id": str(agent_id),
-                "status": execution.status,
-                "total_duration_ms": total_duration,
-                "total_tokens": total_tokens,
-                "total_cost": total_cost,
-            },
-        )
-        await session.commit()
-        await session.refresh(execution)
-
-        if ws_callback:
-            await ws_callback(
-                final_event,
-                {
-                    "execution_id": str(execution.id),
-                    "status": execution.status,
-                    "metrics": execution.metrics,
-                },
-            )
-
-        return execution
+        return legacy
 
     # ── Get ───────────────────────────────────────────────────────────
 

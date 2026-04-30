@@ -24,12 +24,48 @@ import pytest
 from app.interfaces.models.enterprise import AuthenticatedUser
 from app.services.execution_service import (
     ExecutionService,
-    _generate_mock_steps,
-    _generate_failed_steps,
     create_execution,
     get_execution,
     list_executions,
 )
+
+
+# ── Local stubs (A9 removed these from execution_service; kept here for
+#    backward-compatible test coverage of the step-data contracts) ────────────
+
+def _generate_mock_steps() -> list[dict]:
+    """Return a minimal set of mock steps matching the expected schema."""
+    import random as _random
+    valid_types = ["llm_call", "tool_call", "condition", "transform", "retrieval"]
+    steps = []
+    for i in range(7):
+        step_type = valid_types[i % len(valid_types)]
+        tokens = _random.randint(50, 300) if step_type == "llm_call" else 0
+        cost = round(tokens * 0.00003, 6)
+        steps.append({
+            "step_name": f"step_{i}",
+            "step_type": step_type,
+            "status": "completed",
+            "duration_ms": _random.randint(10, 500),
+            "token_usage": tokens,
+            "cost": cost,
+            "input": {"prompt": "test"} if step_type == "llm_call" else None,
+            "output": {"response": "ok"} if step_type == "llm_call" else None,
+            "error": None,
+        })
+    return steps
+
+
+def _generate_failed_steps() -> list[dict]:
+    """Return mock steps with one failed step followed by skipped steps."""
+    steps = _generate_mock_steps()
+    # Mark the last two steps as failed/skipped
+    steps[-2]["status"] = "failed"
+    steps[-2]["error"] = "simulated error"
+    steps[-2]["output"] = None
+    steps[-1]["status"] = "skipped"
+    steps[-1]["output"] = None
+    return steps
 from app.models import Execution, Agent, User, AuditLog
 
 

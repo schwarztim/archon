@@ -2,6 +2,15 @@
 
 Enterprise-hardened application factory with request ID middleware,
 structured logging, health probes, and structured error responses.
+
+Router registration history:
+- 2026-04-28: Registered lifecycle.enterprise_router, lifecycle.rollback_router,
+              lifecycle.schedules_router, and mcp_security.v1_router
+              (previously defined in route files but never include_router'd — silent 404s)
+
+Orphan policy: Every APIRouter defined in app/routes/ MUST appear in create_app().
+If a router exists but its backing service is incomplete, register it anyway;
+the router can return 503 when called. 503 is honest; 404 is misleading.
 """
 
 from __future__ import annotations
@@ -21,8 +30,11 @@ from app.logging_config import get_logger, request_id_ctx, setup_logging
 from app.routes.agents import router as agents_router
 from app.routes.agent_versions import router as agent_versions_router
 from app.routes.audit_logs import router as audit_logs_router
+from app.routes.audit_verify import router as audit_verify_router
 from app.routes.connectors import router as connectors_router
 from app.routes.connectors import enterprise as connectors_enterprise
+from app.routes.events import router as events_router
+from app.routes.approvals import router as approvals_router
 from app.routes.executions import router as executions_router
 from app.routes.models import router as models_router
 from app.routes.models import router_api as router_api_router
@@ -31,11 +43,15 @@ from app.routes.templates import router as templates_router
 from app.routes.versioning import router as versioning_router
 from app.routes.wizard import router as wizard_router
 from app.websocket.routes import router as ws_router
+from app.websocket.events_manager import router as ws_events_router
 
 # Phase 2 routers
 from app.routes.router import router as router_router
 from app.routes.lifecycle import router as lifecycle_router
 from app.routes.lifecycle import lifecycle_v1_router
+from app.routes.lifecycle import enterprise_router as lifecycle_enterprise_router
+from app.routes.lifecycle import rollback_router as lifecycle_rollback_router
+from app.routes.lifecycle import schedules_router as lifecycle_schedules_router
 from app.routes.cost import router as cost_router
 from app.routes.tenancy import router as tenancy_router
 
@@ -48,6 +64,7 @@ from app.routes.sentinelscan import (
     enterprise_router as sentinelscan_enterprise_router,
 )
 from app.routes.mcp_security import router as mcp_security_router
+from app.routes.mcp_security import v1_router as mcp_security_v1_router
 
 # Workflow routers
 from app.routes.workflows import router as workflows_router
@@ -97,6 +114,9 @@ from app.metrics import router as metrics_router
 
 # MCP Container management (ToolHive pattern)
 from app.routes.mcp_containers import router as mcp_containers_router
+
+# Phase 5 — Observability/Artifacts (large step output persistence)
+from app.routes.artifacts import router as artifacts_router
 
 logger = get_logger(__name__)
 
@@ -170,6 +190,15 @@ def create_app() -> FastAPI:
 
     application.add_middleware(RateLimitMiddleware)
 
+    # -- Tracing middleware (OUTERMOST so spans cover every other layer) -----
+    # FastAPI applies middleware in LIFO order: last registered = outermost.
+    # Owned by W5.2 (Observability Squad) — see app.services.tracing.
+    from app.middleware.tracing_middleware import TracingMiddleware
+    from app.services.tracing import configure_tracing
+
+    configure_tracing()
+    application.add_middleware(TracingMiddleware)
+
     # -- Health probes (unauthenticated) ------------------------------
     application.include_router(health_router)
 
@@ -177,8 +206,12 @@ def create_app() -> FastAPI:
     application.include_router(agents_router, prefix=settings.API_PREFIX)
     application.include_router(agent_versions_router, prefix=settings.API_PREFIX)
     application.include_router(audit_logs_router, prefix=settings.API_PREFIX)
+    # Phase 4 / WS13 — tamper-evident audit chain verify endpoint
+    application.include_router(audit_verify_router, prefix=settings.API_PREFIX)
     application.include_router(connectors_router, prefix=settings.API_PREFIX)
     application.include_router(connectors_enterprise, prefix=settings.API_PREFIX)
+    application.include_router(events_router, prefix=settings.API_PREFIX)
+    application.include_router(approvals_router, prefix=settings.API_PREFIX)
     application.include_router(executions_router, prefix=settings.API_PREFIX)
     application.include_router(models_router, prefix=settings.API_PREFIX)
     application.include_router(router_api_router, prefix=settings.API_PREFIX)
@@ -187,11 +220,17 @@ def create_app() -> FastAPI:
     application.include_router(versioning_router, prefix=settings.API_PREFIX)
     application.include_router(wizard_router, prefix=settings.API_PREFIX)
     application.include_router(ws_router)
+    application.include_router(ws_events_router)
 
     # -- Phase 2 routers ----------------------------------------------
     application.include_router(router_router, prefix=settings.API_PREFIX)
     application.include_router(lifecycle_router, prefix=settings.API_PREFIX)
     application.include_router(lifecycle_v1_router, prefix=settings.API_PREFIX)
+    # Orphan registrations (2026-04-28): enterprise/rollback/schedules sub-routers
+    # were defined in lifecycle.py but never registered — resulted in silent 404s.
+    application.include_router(lifecycle_enterprise_router, prefix=settings.API_PREFIX)
+    application.include_router(lifecycle_rollback_router, prefix=settings.API_PREFIX)
+    application.include_router(lifecycle_schedules_router, prefix=settings.API_PREFIX)
     application.include_router(cost_router, prefix=settings.API_PREFIX)
     application.include_router(tenancy_router, prefix=settings.API_PREFIX)
 
@@ -204,6 +243,9 @@ def create_app() -> FastAPI:
         sentinelscan_enterprise_router, prefix=settings.API_PREFIX
     )
     application.include_router(mcp_security_router, prefix=settings.API_PREFIX)
+    # Orphan registration (2026-04-28): mcp_security v1_router was defined but never
+    # registered — resulted in silent 404s on /api/v1/mcp/* MCP security endpoints.
+    application.include_router(mcp_security_v1_router, prefix=settings.API_PREFIX)
 
     # -- Workflow routers ---------------------------------------------
     application.include_router(workflows_router, prefix=settings.API_PREFIX)
@@ -263,16 +305,42 @@ def create_app() -> FastAPI:
     # -- MCP Container management (ToolHive pattern) -----------------
     application.include_router(mcp_containers_router, prefix=settings.API_PREFIX)
 
+    # -- Phase 5 — Artifacts (large step output persistence) ---------
+    application.include_router(artifacts_router, prefix=settings.API_PREFIX)
+
     # -- Metrics (Prometheus-compatible) ------------------------------
     application.include_router(metrics_router)
 
     # -- Startup event ------------------------------------------------
     @application.on_event("startup")
     async def on_startup() -> None:
-        """Create database tables on startup and seed default user."""
-        from app.database import create_db_and_tables, async_session_factory
+        """Initialize database on startup and seed default user.
 
-        await create_db_and_tables()
+        init_db() is safe to call on every restart — it NEVER drops tables.
+        Use `make migrate-up` (alembic upgrade head) for schema changes.
+
+        ADR-005: production startup assertions run BEFORE any DB init or
+        traffic-serving work. A failure aborts the process with a non-zero
+        exit code via SystemExit(1) so misconfigured deployments fail fast
+        instead of running with degraded durability.
+        """
+        from app.startup_checks import StartupCheckFailed, run_startup_checks
+
+        try:
+            await run_startup_checks()
+        except StartupCheckFailed as exc:
+            # Already logged at CRITICAL by run_startup_checks. Convert to
+            # a process-level abort so the listener never binds.
+            logger.error(
+                "startup_aborted",
+                error=str(exc),
+                error_type=type(exc).__name__,
+            )
+            raise SystemExit(1) from exc
+
+        from app.database import init_db, async_session_factory
+
+        await init_db()
         async with async_session_factory() as session:
             from app.models import User
             from sqlmodel import select

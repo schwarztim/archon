@@ -7,12 +7,22 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 from uuid import uuid4
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field as PField
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.database import get_session
+from app.models.sso_config import SSOConfig
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/sso", tags=["SSO"])
+
+# Sentinel tenant_id used for the single-tenant global SSO config stored here.
+# The full per-tenant CRUD lives in routes/sso_config.py (POST /api/v1/tenants/{id}/sso).
+_GLOBAL_TENANT_ID = "__global__"
+_GLOBAL_SSO_ID = "global"
 
 
 # ── Request / response schemas ──────────────────────────────────────
@@ -74,12 +84,6 @@ class SSOConfigUpdate(BaseModel):
     client_secret: Optional[str] = None
 
 
-# ── In-memory store (production: database / Vault) ──────────────────
-
-_sso_config = SSOConfigData()
-_client_secret: str = ""
-
-
 # ── Helpers ─────────────────────────────────────────────────────────
 
 
@@ -92,21 +96,78 @@ def _meta(*, request_id: str | None = None, **extra: Any) -> dict[str, Any]:
     }
 
 
+async def _get_or_create_row(session: AsyncSession) -> SSOConfig:
+    """Fetch the single global SSO config row, creating it if absent."""
+    stmt = (
+        select(SSOConfig)
+        .where(SSOConfig.tenant_id == _GLOBAL_TENANT_ID)
+        .where(SSOConfig.sso_id == _GLOBAL_SSO_ID)
+    )
+    result = await session.exec(stmt)
+    row = result.first()
+    if row is None:
+        now = datetime.now(tz=timezone.utc)
+        row = SSOConfig(
+            tenant_id=_GLOBAL_TENANT_ID,
+            sso_id=_GLOBAL_SSO_ID,
+            name="global",
+            protocol="",
+            created_at=now,
+            updated_at=now,
+        )
+        session.add(row)
+        await session.commit()
+        await session.refresh(row)
+    return row
+
+
+def _row_to_config_data(row: SSOConfig) -> dict[str, Any]:
+    """Convert DB row back to the SSOConfigData-shaped dict."""
+    return {
+        "protocol": row.protocol or None,
+        "oidc": {
+            "discovery_url": row.discovery_url,
+            "client_id": row.client_id,
+            "client_secret_set": row.client_secret_set,
+            "scopes": row.scopes or ["openid", "profile", "email"],
+            "redirect_uri": "",
+            "claim_mapping": {
+                "email_claim": "email",
+                "name_claim": "name",
+                "role_claim": "roles",
+                "tenant_claim": "tenant_id",
+            },
+        },
+        "saml": {
+            "metadata_url": row.metadata_url,
+            "entity_id": row.entity_id,
+            "acs_url": row.acs_url,
+            "certificate": "",
+            "attribute_mapping": {
+                "email_attr": "email",
+                "name_attr": "name",
+                "role_attr": "roles",
+                "tenant_attr": "tenant_id",
+            },
+        },
+    }
+
+
 # ── Routes ──────────────────────────────────────────────────────────
 
 
 @router.get("/config")
-async def get_sso_config() -> dict[str, Any]:
-    """Get current SSO configuration.
+async def get_sso_config(
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Get current SSO configuration (DB-backed).
 
     Client secrets are never returned; only a boolean indicating
     whether one has been set.
     """
     request_id = str(uuid4())
-
-    data = _sso_config.model_dump()
-    data["oidc"]["client_secret_set"] = bool(_client_secret)
-
+    row = await _get_or_create_row(session)
+    data = _row_to_config_data(row)
     return {
         "data": data,
         "meta": _meta(request_id=request_id),
@@ -114,31 +175,44 @@ async def get_sso_config() -> dict[str, Any]:
 
 
 @router.put("/config")
-async def update_sso_config(body: SSOConfigUpdate) -> dict[str, Any]:
-    """Update SSO configuration.
+async def update_sso_config(
+    body: SSOConfigUpdate,
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Update SSO configuration (DB-backed).
 
     Client secrets are stored separately and never echoed back.
     """
-    global _sso_config, _client_secret
     request_id = str(uuid4())
+    row = await _get_or_create_row(session)
 
     if body.protocol is not None:
-        _sso_config.protocol = body.protocol
+        row.protocol = body.protocol
     if body.oidc is not None:
-        _sso_config.oidc = body.oidc
+        row.discovery_url = body.oidc.discovery_url
+        row.client_id = body.oidc.client_id
+        row.scopes = body.oidc.scopes
     if body.saml is not None:
-        _sso_config.saml = body.saml
+        row.metadata_url = body.saml.metadata_url
+        row.entity_id = body.saml.entity_id
+        row.acs_url = body.saml.acs_url
+        if body.saml.certificate:
+            row.certificate_set = True
     if body.client_secret is not None:
-        _client_secret = body.client_secret
+        # In production this would go to Vault; here we mark it as set
+        row.client_secret_set = bool(body.client_secret)
+
+    row.updated_at = datetime.now(tz=timezone.utc)
+    session.add(row)
+    await session.commit()
+    await session.refresh(row)
 
     logger.info(
         "SSO config updated",
-        extra={"request_id": request_id, "protocol": _sso_config.protocol},
+        extra={"request_id": request_id, "protocol": row.protocol},
     )
 
-    data = _sso_config.model_dump()
-    data["oidc"]["client_secret_set"] = bool(_client_secret)
-
+    data = _row_to_config_data(row)
     return {
         "data": data,
         "meta": _meta(request_id=request_id),
@@ -146,17 +220,20 @@ async def update_sso_config(body: SSOConfigUpdate) -> dict[str, Any]:
 
 
 @router.post("/test-connection")
-async def test_sso_connection() -> dict[str, Any]:
+async def test_sso_connection(
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
     """Test SSO IdP connectivity.
 
     Validates that the configured IdP is reachable and responds
     correctly by fetching the OIDC discovery document or SAML metadata.
     """
     request_id = str(uuid4())
-
     logger.info("SSO connection test requested", extra={"request_id": request_id})
 
-    protocol = _sso_config.protocol
+    row = await _get_or_create_row(session)
+    protocol = row.protocol or ""
+
     if not protocol:
         return {
             "data": {
@@ -170,20 +247,19 @@ async def test_sso_connection() -> dict[str, Any]:
 
     target_url: str = ""
     if protocol == "oidc":
-        discovery_url = _sso_config.oidc.discovery_url
+        discovery_url = row.discovery_url
         if not discovery_url:
             return {
                 "data": {"status": "error", "message": "OIDC discovery URL is not configured."},
                 "meta": _meta(request_id=request_id),
             }
-        # Append well-known path if not already present
         target_url = (
             discovery_url
             if "/.well-known/" in discovery_url
             else discovery_url.rstrip("/") + "/.well-known/openid-configuration"
         )
     elif protocol == "saml":
-        target_url = _sso_config.saml.metadata_url
+        target_url = row.metadata_url
         if not target_url:
             return {
                 "data": {"status": "error", "message": "SAML metadata URL is not configured."},

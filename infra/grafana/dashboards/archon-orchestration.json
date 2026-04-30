@@ -1,0 +1,232 @@
+{
+  "annotations": { "list": [] },
+  "description": "Archon orchestration health: workflow runs, step latency/failures, retries, cancellations, checkpointer durability, worker fleet.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [
+    {
+      "title": "Archon Cost Dashboard",
+      "type": "dashboards",
+      "tags": ["archon", "cost"]
+    },
+    {
+      "title": "Archon Providers Dashboard",
+      "type": "dashboards",
+      "tags": ["archon", "providers"]
+    },
+    {
+      "title": "Archon Tenants Dashboard",
+      "type": "dashboards",
+      "tags": ["archon", "tenants"]
+    },
+    {
+      "title": "Observability runbook",
+      "type": "link",
+      "url": "/docs/runbooks/observability.md",
+      "targetBlank": true
+    }
+  ],
+  "panels": [
+    {
+      "title": "Workflow Runs by Status (req/s)",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (status) (rate(archon_workflow_runs_total[5m]))",
+          "legendFormat": "{{status}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "decimals": 3,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 0.1 }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "area",
+        "colorMode": "value",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "horizontal",
+        "textMode": "value_and_name"
+      }
+    },
+    {
+      "title": "Workflow Run Duration (p50 / p95 / p99)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(archon_workflow_run_duration_seconds_bucket[5m])))",
+          "legendFormat": "p50",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(archon_workflow_run_duration_seconds_bucket[5m])))",
+          "legendFormat": "p95",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(archon_workflow_run_duration_seconds_bucket[5m])))",
+          "legendFormat": "p99",
+          "refId": "C"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    },
+    {
+      "title": "Step Failures by Node Type (req/s)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (node_type) (rate(archon_step_duration_seconds_count{status=\"failed\"}[5m]))",
+          "legendFormat": "{{node_type}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops" } }
+    },
+    {
+      "title": "Step Retries (req/s)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (node_type) (rate(archon_step_retries_total[5m]))",
+          "legendFormat": "{{node_type}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops" } }
+    },
+    {
+      "title": "Cancellations by Reason (req/s)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (reason) (rate(archon_run_cancellations_total[5m]))",
+          "legendFormat": "{{reason}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops" } }
+    },
+    {
+      "title": "Checkpoint Failures (req/s) — durability signal",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (kind) (rate(archon_checkpoint_failures_total[5m]))",
+          "legendFormat": "{{kind}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 0.001 }
+            ]
+          },
+          "custom": { "thresholdsStyle": { "mode": "line" } }
+        }
+      }
+    },
+    {
+      "title": "Active Workers (heartbeat in last 60s)",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 22 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "count(time() - archon_worker_heartbeat_seconds < 60)",
+          "legendFormat": "active workers",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "green", "value": 2 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Runs in Progress (live)",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 22 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum(archon_workflow_runs_in_progress)",
+          "legendFormat": "running",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Run Failure Ratio (rolling 5m)",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 22 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum(rate(archon_workflow_runs_total{status=\"failed\"}[5m])) / clamp_min(sum(rate(archon_workflow_runs_total[5m])), 1e-9)",
+          "legendFormat": "failure rate",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.05 },
+              { "color": "red", "value": 0.1 }
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["archon", "orchestration"],
+  "templating": { "list": [] },
+  "time": { "from": "now-6h", "to": "now" },
+  "timezone": "browser",
+  "title": "Archon Orchestration",
+  "uid": "archon-orchestration",
+  "version": 1,
+  "weekStart": ""
+}

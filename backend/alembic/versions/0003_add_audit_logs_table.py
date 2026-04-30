@@ -106,16 +106,20 @@ def upgrade() -> None:
         if_not_exists=True,
     )
 
-    # Enable RLS with tenant isolation
-    op.execute("ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY")
-    op.execute("ALTER TABLE audit_logs FORCE ROW LEVEL SECURITY")
-    op.execute("""
-        CREATE POLICY rls_tenant_policy ON audit_logs
-        USING (tenant_id::text = current_setting('app.tenant_id', true))
-    """)
+    # Enable RLS with tenant isolation (Postgres-only; no-op on SQLite)
+    bind = op.get_bind()
+    if bind.dialect.name == "postgresql":
+        op.execute("ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY")
+        op.execute("ALTER TABLE audit_logs FORCE ROW LEVEL SECURITY")
+        op.execute("""
+            CREATE POLICY rls_tenant_policy ON audit_logs
+            USING (tenant_id::text = current_setting('app.tenant_id', true))
+        """)
 
 
 def downgrade() -> None:
-    op.execute("DROP POLICY IF EXISTS rls_tenant_policy ON audit_logs")
-    op.execute("ALTER TABLE audit_logs DISABLE ROW LEVEL SECURITY")
+    bind = op.get_bind()
+    if bind.dialect.name == "postgresql":
+        op.execute("DROP POLICY IF EXISTS rls_tenant_policy ON audit_logs")
+        op.execute("ALTER TABLE audit_logs DISABLE ROW LEVEL SECURITY")
     op.drop_table("audit_logs", if_exists=True)

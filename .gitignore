@@ -17,6 +17,15 @@ env/
 dist/
 build/
 *.egg-info/
+# Frontend incremental + Playwright report artifacts
+*.tsbuildinfo
+frontend/tsconfig.tsbuildinfo
+frontend/playwright-report/
+frontend/test-results/
+frontend/coverage/
+# Test/lint caches
+.mypy_cache/
+.ruff_cache/
 
 # Environment
 .env

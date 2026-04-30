@@ -30,12 +30,22 @@ celery>=5.4.0
 langgraph>=0.2.0
 langchain-core>=0.3.0
 litellm>=1.55.0
+# Added by A3 (LangGraph checkpointing): AsyncPostgresSaver + psycopg3 connection pool
+langgraph-checkpoint-postgres>=2.0.0
 
 # WebSocket
 websockets>=14.0
 
 # Logging
 structlog>=24.0.0
+
+# Phase 5 / W5.2 — distributed tracing
+# Production deployments configure exporters via standard OTel env vars
+# (OTEL_EXPORTER_OTLP_ENDPOINT, OTEL_SERVICE_NAME, etc.) and set
+# ARCHON_OTEL_EXPORTER=otlp. tracing.py degrades to no-op without these.
+opentelemetry-api>=1.30.0
+opentelemetry-sdk>=1.30.0
+opentelemetry-instrumentation-fastapi>=0.51b0
 
 # Scheduling
 croniter>=2.0.0
@@ -66,6 +76,9 @@ urllib3>=2.6.3       # High(x3) + Medium(x2): multiple CVEs in urllib3<2.6.3
 # transitive dep of python-jose, but is NOT used at runtime because
 # python-jose[cryptography] is specified above — the cryptography backend takes
 # precedence, making the ecdsa code paths unreachable.
+
+# A15: enable safe expression eval in node_executors/condition.py and switch.py
+simpleeval>=0.9.13
 
 # Testing
 pytest>=8.0.0

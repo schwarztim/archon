@@ -1,6 +1,13 @@
 # ──────────────────────────────────────────────────────────────────────
 # Archon Integration Test Stack — Minimal Services
-# Usage: docker compose -f docker-compose.test.yml up -d --build --wait
+# Usage:
+#   docker compose -f docker-compose.test.yml up -d --build --wait
+#
+# Differences from docker-compose.yml:
+#   - Vault disabled (tests use mocks via LLM_STUB_MODE + in-process secret stub)
+#   - All services in stub mode (LLM_STUB_MODE=true)
+#   - Reduced healthcheck retries for fast CI feedback
+#   - Minimal port set (no keycloak, no separate worker container)
 # ──────────────────────────────────────────────────────────────────────
 
 services:
@@ -16,9 +23,9 @@ services:
       - pgdata-test:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U archon"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
+      interval: 3s
+      timeout: 3s
+      retries: 3
 
   redis:
     image: redis:7-alpine
@@ -26,9 +33,9 @@ services:
       - "6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
+      interval: 3s
+      timeout: 3s
+      retries: 3
 
   backend:
     build:
@@ -42,10 +49,14 @@ services:
       ARCHON_AUTH_DEV_MODE: "true"
       ARCHON_DEBUG: "true"
       ARCHON_LOG_LEVEL: DEBUG
-      # Azure OpenAI vars (from host env)
-      AZURE_OPENAI_API_KEY: ${AZURE_OPENAI_API_KEY}
-      AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT}
-      AZURE_OPENAI_DEPLOYMENT: ${AZURE_OPENAI_DEPLOYMENT}
+      LLM_STUB_MODE: "true"
+      # Vault disabled in tests — backend falls back to env-var secrets.
+      ARCHON_VAULT_ENABLED: "false"
+      # Azure OpenAI vars (stubbed; kept for env interpolation
+      # compatibility — host env may set or leave empty).
+      AZURE_OPENAI_API_KEY: ${AZURE_OPENAI_API_KEY:-}
+      AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT:-}
+      AZURE_OPENAI_DEPLOYMENT: ${AZURE_OPENAI_DEPLOYMENT:-}
       AZURE_OPENAI_API_VERSION: ${AZURE_OPENAI_API_VERSION:-2024-02-15-preview}
     volumes:
       - ./backend/app:/app/app
@@ -56,10 +67,30 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 15s
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.worker
+    environment:
+      ARCHON_DATABASE_URL: postgresql+asyncpg://archon:archon@postgres:5432/archon_test
+      ARCHON_REDIS_URL: redis://redis:6379/1
+      ARCHON_AUTH_DEV_MODE: "true"
+      ARCHON_DEBUG: "true"
+      LLM_STUB_MODE: "true"
+      ARCHON_VAULT_ENABLED: "false"
+      ARCHON_WORKER_CONCURRENCY: "2"
+      ARCHON_WORKER_SCAN_INTERVAL: "60"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: "no"
 
   frontend:
     build:

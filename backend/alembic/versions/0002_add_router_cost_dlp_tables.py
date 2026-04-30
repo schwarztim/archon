@@ -37,7 +37,15 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def _enable_rls(table: str, tenant_col: str = "tenant_id") -> None:
-    """Enable RLS and create tenant isolation policy for a table."""
+    """Enable RLS and create tenant isolation policy for a table.
+
+    Postgres-only — silently no-op on SQLite (used in tests / local dev).
+    Production deployments are expected to be Postgres; the RLS policy is
+    a security boundary that simply does not apply to SQLite.
+    """
+    bind = op.get_bind()
+    if bind.dialect.name != "postgresql":
+        return
     op.execute(f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY")
     op.execute(f"ALTER TABLE {table} FORCE ROW LEVEL SECURITY")
     op.execute(f"""
@@ -1007,77 +1015,101 @@ def upgrade() -> None:
     _enable_rls("connector_health_history")
 
     # ── 21. Add tenant_id to agents ────────────────────────────────────
-    # Use a try/except-style approach: check column existence via SQL
-    op.execute("""
-        DO $$
-        BEGIN
-            IF NOT EXISTS (
-                SELECT 1 FROM information_schema.columns
-                WHERE table_name='agents' AND column_name='tenant_id'
-            ) THEN
-                ALTER TABLE agents ADD COLUMN tenant_id TEXT;
-                UPDATE agents SET tenant_id = 'default-tenant' WHERE tenant_id IS NULL;
-                ALTER TABLE agents ALTER COLUMN tenant_id SET NOT NULL;
-                CREATE INDEX IF NOT EXISTS ix_agents_tenant_id ON agents (tenant_id);
-                ALTER TABLE agents ENABLE ROW LEVEL SECURITY;
-                ALTER TABLE agents FORCE ROW LEVEL SECURITY;
-                CREATE POLICY tenant_isolation ON agents
-                    USING (tenant_id = current_setting('app.tenant_id', true));
-            END IF;
-        END $$;
-    """)
+    # Postgres-only path uses anonymous DO blocks for conditional ALTER + RLS.
+    # SQLite path uses inspector + portable ALTER TABLE; RLS is a no-op there.
+    bind = op.get_bind()
+    if bind.dialect.name == "postgresql":
+        op.execute("""
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name='agents' AND column_name='tenant_id'
+                ) THEN
+                    ALTER TABLE agents ADD COLUMN tenant_id TEXT;
+                    UPDATE agents SET tenant_id = 'default-tenant' WHERE tenant_id IS NULL;
+                    ALTER TABLE agents ALTER COLUMN tenant_id SET NOT NULL;
+                    CREATE INDEX IF NOT EXISTS ix_agents_tenant_id ON agents (tenant_id);
+                    ALTER TABLE agents ENABLE ROW LEVEL SECURITY;
+                    ALTER TABLE agents FORCE ROW LEVEL SECURITY;
+                    CREATE POLICY tenant_isolation ON agents
+                        USING (tenant_id = current_setting('app.tenant_id', true));
+                END IF;
+            END $$;
+        """)
+    else:
+        inspector = sa.inspect(bind)
+        if "agents" in inspector.get_table_names():
+            cols = {c["name"] for c in inspector.get_columns("agents")}
+            if "tenant_id" not in cols:
+                op.add_column("agents", sa.Column("tenant_id", sa.Text(), nullable=True))
+                op.execute("UPDATE agents SET tenant_id = 'default-tenant' WHERE tenant_id IS NULL")
+                op.create_index("ix_agents_tenant_id", "agents", ["tenant_id"])
 
     # ── 22. Add tenant_id to executions ───────────────────────────────
-    op.execute("""
-        DO $$
-        BEGIN
-            IF NOT EXISTS (
-                SELECT 1 FROM information_schema.columns
-                WHERE table_name='executions' AND column_name='tenant_id'
-            ) THEN
-                ALTER TABLE executions ADD COLUMN tenant_id TEXT;
-                UPDATE executions SET tenant_id = 'default-tenant' WHERE tenant_id IS NULL;
-                ALTER TABLE executions ALTER COLUMN tenant_id SET NOT NULL;
-                CREATE INDEX IF NOT EXISTS ix_executions_tenant_id ON executions (tenant_id);
-                ALTER TABLE executions ENABLE ROW LEVEL SECURITY;
-                ALTER TABLE executions FORCE ROW LEVEL SECURITY;
-                CREATE POLICY tenant_isolation ON executions
-                    USING (tenant_id = current_setting('app.tenant_id', true));
-            END IF;
-        END $$;
-    """)
+    if bind.dialect.name == "postgresql":
+        op.execute("""
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name='executions' AND column_name='tenant_id'
+                ) THEN
+                    ALTER TABLE executions ADD COLUMN tenant_id TEXT;
+                    UPDATE executions SET tenant_id = 'default-tenant' WHERE tenant_id IS NULL;
+                    ALTER TABLE executions ALTER COLUMN tenant_id SET NOT NULL;
+                    CREATE INDEX IF NOT EXISTS ix_executions_tenant_id ON executions (tenant_id);
+                    ALTER TABLE executions ENABLE ROW LEVEL SECURITY;
+                    ALTER TABLE executions FORCE ROW LEVEL SECURITY;
+                    CREATE POLICY tenant_isolation ON executions
+                        USING (tenant_id = current_setting('app.tenant_id', true));
+                END IF;
+            END $$;
+        """)
+    else:
+        inspector = sa.inspect(bind)
+        if "executions" in inspector.get_table_names():
+            cols = {c["name"] for c in inspector.get_columns("executions")}
+            if "tenant_id" not in cols:
+                op.add_column("executions", sa.Column("tenant_id", sa.Text(), nullable=True))
+                op.execute("UPDATE executions SET tenant_id = 'default-tenant' WHERE tenant_id IS NULL")
+                op.create_index("ix_executions_tenant_id", "executions", ["tenant_id"])
 
 
 def downgrade() -> None:
-    # Remove tenant_id from agents/executions (best-effort)
-    op.execute("""
-        DO $$
-        BEGIN
-            IF EXISTS (
-                SELECT 1 FROM information_schema.columns
-                WHERE table_name='executions' AND column_name='tenant_id'
-            ) THEN
-                DROP POLICY IF EXISTS tenant_isolation ON executions;
-                ALTER TABLE executions DISABLE ROW LEVEL SECURITY;
-                DROP INDEX IF EXISTS ix_executions_tenant_id;
-                ALTER TABLE executions DROP COLUMN IF EXISTS tenant_id;
-            END IF;
-        END $$;
-    """)
-    op.execute("""
-        DO $$
-        BEGIN
-            IF EXISTS (
-                SELECT 1 FROM information_schema.columns
-                WHERE table_name='agents' AND column_name='tenant_id'
-            ) THEN
-                DROP POLICY IF EXISTS tenant_isolation ON agents;
-                ALTER TABLE agents DISABLE ROW LEVEL SECURITY;
-                DROP INDEX IF EXISTS ix_agents_tenant_id;
-                ALTER TABLE agents DROP COLUMN IF EXISTS tenant_id;
-            END IF;
-        END $$;
-    """)
+    # Remove tenant_id from agents/executions (best-effort, dialect-aware).
+    bind = op.get_bind()
+    if bind.dialect.name == "postgresql":
+        op.execute("""
+            DO $$
+            BEGIN
+                IF EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name='executions' AND column_name='tenant_id'
+                ) THEN
+                    DROP POLICY IF EXISTS tenant_isolation ON executions;
+                    ALTER TABLE executions DISABLE ROW LEVEL SECURITY;
+                    DROP INDEX IF EXISTS ix_executions_tenant_id;
+                    ALTER TABLE executions DROP COLUMN IF EXISTS tenant_id;
+                END IF;
+            END $$;
+        """)
+        op.execute("""
+            DO $$
+            BEGIN
+                IF EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name='agents' AND column_name='tenant_id'
+                ) THEN
+                    DROP POLICY IF EXISTS tenant_isolation ON agents;
+                    ALTER TABLE agents DISABLE ROW LEVEL SECURITY;
+                    DROP INDEX IF EXISTS ix_agents_tenant_id;
+                    ALTER TABLE agents DROP COLUMN IF EXISTS tenant_id;
+                END IF;
+            END $$;
+        """)
+    # SQLite: drop_column / drop_index are unreliable in batch mode for legacy
+    # schemas; we leave the columns/indexes in place. Tests use fresh DBs anyway.
 
     # Drop tables in reverse dependency order
     op.drop_table("connector_health_history", if_exists=True)

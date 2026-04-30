@@ -1,0 +1,2081 @@
+version: 1
+generated_at: "2026-04-29T21:23:57Z"
+generated_by: "Phase 0 / Step 4 — Archon Program Control agent"
+notes: |
+  Single source of truth for Archon feature classification. All status
+  assignments are evidence-based: each entry's `source_files` and `notes`
+  document the inspection that produced the verdict. The companion
+  human-readable rendering lives at docs/FEATURE_MATRIX.md and
+  scripts/check-feature-matrix.py validates this YAML against the codebase.
+
+  Status enum (exact strings):
+    production — code exists, tests prove it, wired end-to-end, safe in enterprise mode
+    beta       — code exists, partially proven, may have caveats — see `gap`
+    stub       — returns success but does not perform real work — must be blocked in enterprise mode
+    designed   — schema/route exists but no implementation
+    missing    — referenced in docs but not in code
+    blocked    — explicitly disabled (e.g., kill-switch envvar) — see `notes`
+
+categories:
+
+  # ──────────────────────────────────────────────────────────────────
+  node_executors:
+  # ──────────────────────────────────────────────────────────────────
+
+    - id: llmNode
+      status: production
+      source_files: ["backend/app/services/node_executors/llm.py"]
+      test_files: ["backend/tests/test_node_executors/test_all_executors.py"]
+      doc_refs: ["docs/ADR/orchestration/ADR-001-agent-vs-workflow-execution.md"]
+      notes: "Calls real LiteLLM via app.langgraph.llm.call_llm; returns content, model_used, latency_ms, token_usage, cost_usd. Tests exist (test_llm_node_stub_mode)."
+      gap: ""
+
+    - id: conditionNode
+      status: beta
+      source_files: ["backend/app/services/node_executors/condition.py"]
+      test_files: ["backend/tests/test_node_executors/test_all_executors.py"]
+      doc_refs: []
+      notes: "simpleeval-based safe expression eval with restricted-AST fallback when simpleeval is absent; supports both raw expression and ConditionGroup form."
+      gap: "Engine-side branch routing (true/false → downstream nodes) is the orchestration kernel's responsibility per ADR-003 and is not yet wired end-to-end through the durable run path."
+
+    - id: switchNode
+      status: beta
+      source_files: ["backend/app/services/node_executors/switch.py"]
+      test_files: ["backend/tests/test_node_executors/test_all_executors.py"]
+      doc_refs: ["docs/ADR/orchestration/ADR-003-branch-fanin-semantics.md"]
+      notes: "Evaluates expression and matches against case values; falls back to bare eval(no-builtins) if simpleeval missing."
+      gap: "Branch selection is a hint only; engine must implement multi-branch downstream routing (ADR-003)."
+
+    - id: parallelNode
+      status: beta
+      source_files: ["backend/app/services/node_executors/parallel.py"]
+      test_files: ["backend/tests/test_node_executors/test_all_executors.py"]
+      doc_refs: ["docs/ADR/orchestration/ADR-003-branch-fanin-semantics.md"]
+      notes: "Records execution_mode (all|any|n_of_m) and n; engine handles actual fan-out via asyncio.gather."
+      gap: "engine implements 'all' fan-in only; 'any' and 'n_of_m' semantics still designed (ADR-003)."
+
+    - id: mergeNode
+      status: beta
+      source_files: ["backend/app/services/node_executors/merge.py"]
+      test_files: ["backend/tests/test_node_executors/test_all_executors.py"]
+      doc_refs: []
+      notes: "Strategies: concat, merge (deep), first, all. All four strategies have explicit branches."
+      gap: "Engine-side fan-in coordination tied to upstream parallelNode is incomplete; mergeNode itself is functional in isolation but its inputs are dictated by engine readiness logic that is partial."
+
+    - id: loopNode
+      status: stub
+      source_files: ["backend/app/services/node_executors/loop.py"]
+      test_files: ["backend/tests/test_node_executors/test_all_executors.py"]
+      doc_refs: []
+      notes: "Returns _loop_hint with maxIterations, condition, iteration_var. Body sub-graph execution explicitly TODO(v2)."
+      gap: "MUST BE BLOCKED in enterprise mode — claims success without iterating any body. Workflow engine never re-enters the loop body."
+
+    - id: delayNode
+      status: beta
+      source_files: ["backend/app/services/node_executors/delay.py"]
+      test_files: ["backend/tests/test_node_executors/test_all_executors.py"]
+      doc_refs: []
+      notes: "asyncio.sleep in 0.1s chunks honouring ctx.cancel_check; supports `seconds` and `delayMs`. Tests cover zero-delay and cancel-during-sleep."
+      gap: "Not durable: in-process sleep is lost on worker restart. A real durable timer table (designed) is required for long delays — Phase 2 ADR-005."
+
+    - id: humanApprovalNode
+      status: beta
+      source_files: ["backend/app/services/node_executors/human_approval.py"]
+      test_files: ["backend/tests/test_node_executors/test_all_executors.py"]
+      doc_refs: []
+      notes: "Writes a row to pending_approvals via raw SQL (CREATE-on-the-fly), returns NodeResult(status='paused', paused_reason='awaiting_human_approval'). Test test_human_approval_node_pauses validates pause behaviour."
+      gap: "No canonical SQLModel for pending_approvals (raw SQL only), no migration, no approval-decision endpoint, no signal/resume bus, no workflow resume path. Pause is recorded but unrecoverable."
+
+    - id: humanInputNode
+      status: stub
+      source_files: ["backend/app/services/node_executors/human_input.py"]
+      test_files: []
+      doc_refs: []
+      notes: "Returns status='completed' with _stub: True and human_input: None. Internal TODO(v2) explicitly says it should return 'paused'."
+      gap: "MUST BE BLOCKED in enterprise mode — silently completes without collecting any input."
+
+    - id: dlpScanNode
+      status: beta
+      source_files: ["backend/app/services/node_executors/dlp_scan.py"]
+      test_files: ["backend/tests/test_node_executors/test_all_executors.py"]
+      doc_refs: []
+      notes: "Calls DLPService.scan_content; on high/critical risk + actionOnViolation=='block' returns failed (workflow aborted). Two tests: clean content passes, high-risk blocks."
+      gap: "Default actionOnViolation is 'flag' (fail-open) — must default to 'block' in enterprise mode. Unhandled exception during scan currently fails the node, but the policy table that maps tenant→action is not enforced at the executor layer."
+
+    - id: costGateNode
+      status: beta
+      source_files: ["backend/app/services/node_executors/cost_gate.py"]
+      test_files: ["backend/tests/test_node_executors/test_all_executors.py"]
+      doc_refs: []
+      notes: "Sums token_ledger.total_cost for current calendar month; blocks when current_total >= max_usd."
+      gap: "Fail-open in three places: (1) maxUsd<=0 → pass, (2) no db_session/tenant → pass with reason='no_tenant_context', (3) query exception → pass with reason='cost_query_failed'. In enterprise mode each of these must fail-closed (Phase 3 hardening)."
+
+    - id: httpRequestNode
+      status: beta
+      source_files: ["backend/app/services/node_executors/http_request.py"]
+      test_files: ["backend/tests/test_node_executors/test_all_executors.py"]
+      doc_refs: []
+      notes: "httpx.AsyncClient with method/url/headers/auth (bearer|api_key)/body/timeout. Cancels via ctx.cancel_check before issuing the request. JSON body auto-parsing. Tests cover GET success and 4xx failure."
+      gap: "No SSRF allow/deny list, no per-tenant rate limit, no DLP scan of response body. Egress unrestricted."
+
+    - id: mcpToolNode
+      status: stub
+      source_files: ["backend/app/services/node_executors/mcp_tool.py"]
+      test_files: []
+      doc_refs: []
+      notes: "Returns {_stub: true, server_name, tool_name, parameters, result: null}. TODO(v2) calls for real MCP client + container infrastructure."
+      gap: "MUST BE BLOCKED in enterprise mode — claims tool success without calling anything."
+
+    - id: toolNode
+      status: stub
+      source_files: ["backend/app/services/node_executors/tool.py"]
+      test_files: []
+      doc_refs: []
+      notes: "Returns {_stub: true, tool_name, parameters, result: null}. No tool registry exists yet."
+      gap: "MUST BE BLOCKED in enterprise mode."
+
+    - id: databaseQueryNode
+      status: stub
+      source_files: ["backend/app/services/node_executors/database_query.py"]
+      test_files: []
+      doc_refs: []
+      notes: "Returns {_stub: true, connector_id, query, rows: [], row_count: 0}. ConnectorService not wired."
+      gap: "MUST BE BLOCKED in enterprise mode — does not run the query."
+
+    - id: functionCallNode
+      status: stub
+      source_files: ["backend/app/services/node_executors/function_call.py"]
+      test_files: []
+      doc_refs: []
+      notes: "Returns {_stub: true, function_name, parameters, result: null}. No sandbox runner."
+      gap: "MUST BE BLOCKED in enterprise mode — no RestrictedPython / subprocess sandbox."
+
+    - id: subAgentNode
+      status: beta
+      source_files: ["backend/app/services/node_executors/sub_agent.py"]
+      test_files: []
+      doc_refs: []
+      notes: "Calls app.langgraph.engine.execute_agent with thread_id derived from step_id+agent_id. Real recursion."
+      gap: "Cycle/depth detection absent; recursive sub-agent loops can run unbounded. No tests in this slice."
+
+    - id: subWorkflowNode
+      status: beta
+      source_files: ["backend/app/services/node_executors/sub_workflow.py"]
+      test_files: []
+      doc_refs: []
+      notes: "Loads workflow definition from config or DB (SELECT graph_definition FROM workflows) and invokes execute_workflow_dag recursively. If neither config nor DB returns a definition, falls back to _stub: True branch — silent success."
+      gap: "Stub fallback hides missing definitions in enterprise mode; cycle detection absent. No tests in this slice."
+
+    - id: embeddingNode
+      status: stub
+      source_files: ["backend/app/services/node_executors/embedding.py"]
+      test_files: []
+      doc_refs: []
+      notes: "Returns {_stub: true, model, text_length, embedding: []}. TODO(v2) calls for litellm.aembedding."
+      gap: "MUST BE BLOCKED in enterprise mode."
+
+    - id: vectorSearchNode
+      status: stub
+      source_files: ["backend/app/services/node_executors/vector_search.py"]
+      test_files: []
+      doc_refs: []
+      notes: "Returns {_stub: true, collection, query, top_k, results: []}. No PGVector/Pinecone/Weaviate integration."
+      gap: "MUST BE BLOCKED in enterprise mode."
+
+    - id: documentLoaderNode
+      status: stub
+      source_files: ["backend/app/services/node_executors/document_loader.py"]
+      test_files: []
+      doc_refs: []
+      notes: "Returns {_stub: true, source, chunk_size, chunks: [], chunk_count: 0}. No document/chunker integration."
+      gap: "MUST BE BLOCKED in enterprise mode."
+
+    - id: visionNode
+      status: stub
+      source_files: ["backend/app/services/node_executors/vision.py"]
+      test_files: []
+      doc_refs: []
+      notes: "Returns {_stub: true, model, image_url, analysis: 'Vision analysis not yet implemented — stub response'}."
+      gap: "MUST BE BLOCKED in enterprise mode."
+
+    - id: structuredOutputNode
+      status: stub
+      source_files: ["backend/app/services/node_executors/structured_output.py"]
+      test_files: []
+      doc_refs: []
+      notes: "Returns {_stub: true, model, schema, result: {}}. No json-mode call_llm path."
+      gap: "MUST BE BLOCKED in enterprise mode."
+
+    - id: streamOutputNode
+      status: stub
+      source_files: ["backend/app/services/node_executors/stream_output.py"]
+      test_files: []
+      doc_refs: []
+      notes: "Concatenates upstream string-form outputs into streamed_content. No real WebSocket streaming."
+      gap: "MUST BE BLOCKED for streaming consumers — output is collected, not pushed incrementally."
+
+    - id: inputNode
+      status: production
+      source_files: ["backend/app/services/node_executors/input_node.py"]
+      test_files: ["backend/tests/test_node_executors/test_all_executors.py"]
+      doc_refs: []
+      notes: "Pass-through entry point: returns {data: initialInput|inputs}. No external dependencies."
+      gap: ""
+
+    - id: outputNode
+      status: production
+      source_files: ["backend/app/services/node_executors/output_node.py"]
+      test_files: ["backend/tests/test_node_executors/test_all_executors.py"]
+      doc_refs: []
+      notes: "Terminal pass-through: collects upstream into {result: ...}. Honours outputKey when present."
+      gap: ""
+
+    - id: webhookTriggerNode
+      status: beta
+      source_files: ["backend/app/services/node_executors/webhook_trigger.py"]
+      test_files: ["backend/tests/test_node_executors/test_all_executors.py"]
+      doc_refs: []
+      notes: "Pass-through: webhook payload arrives in ctx.inputs from the trigger endpoint. The executor itself does no validation."
+      gap: "Trigger ingestion (HMAC verification, replay protection, rate limit) is owned by routes/workflows.py /webhook endpoints, not this executor."
+
+    - id: scheduleTriggerNode
+      status: beta
+      source_files: ["backend/app/services/node_executors/schedule_trigger.py"]
+      test_files: ["backend/tests/test_node_executors/test_all_executors.py"]
+      doc_refs: []
+      notes: "Pass-through: records cron expression and triggered_at. Worker creates the WorkflowRun row when cron fires."
+      gap: "Cron evaluator + drift handling lives in worker.py and the schedule routes; this executor is purely informational."
+
+    # ── Infrastructure helpers (not node executors themselves) ────────
+    # Phase 3 / WS9 — production-readiness classification + stub-block gate.
+    # Listed here so scripts/check-feature-matrix.py finds a reference for
+    # every .py file in backend/app/services/node_executors/.
+
+    - id: nodeStatusRegistry
+      status: production
+      source_files: ["backend/app/services/node_executors/status_registry.py"]
+      test_files: ["backend/tests/test_node_status_registry.py"]
+      doc_refs: ["docs/adr/orchestration/ADR-005-production-durability-policy.md"]
+      notes: "Authoritative production-readiness classification (NodeStatus enum + NODE_STATUS dict). Mirrors the status field in this file's node_executors entries; drift is caught by test_every_registered_node_has_status."
+      gap: ""
+
+    - id: nodeStubBlock
+      status: production
+      source_files: ["backend/app/services/node_executors/_stub_block.py"]
+      test_files: ["backend/tests/test_stub_block_enforcement.py"]
+      doc_refs: ["docs/adr/orchestration/ADR-005-production-durability-policy.md"]
+      notes: "assert_node_runnable() raises StubBlockError when ARCHON_ENV is durable (production/staging) and the node is classified stub/blocked/designed. Run dispatcher gates the snapshot against this helper before invoking the workflow engine."
+      gap: ""
+
+  # ──────────────────────────────────────────────────────────────────
+  rest_routes:
+  # ──────────────────────────────────────────────────────────────────
+
+    # Execution endpoints — semantic conflict resolved by ADR-001
+    - id: "POST /api/v1/executions"
+      handler: "backend.app.routes.executions:create_and_run_execution"
+      status: beta
+      auth_required: true
+      tenant_scoped: true
+      source_files: ["backend/app/routes/executions.py"]
+      test_files: ["backend/tests/", "tests/integration/test_vertical_slice.py"]
+      doc_refs: ["docs/ADR/orchestration/ADR-001-agent-vs-workflow-execution.md"]
+      notes: "Calls ExecutionService.run_execution. ADR-001 unifies this with the WorkflowRun model; current implementation does NOT invoke a real graph."
+      gap: "ADR-001 SEMANTIC CONFLICT: this endpoint creates an Execution row that ExecutionService.run_execution marks completed without calling execute_agent or execute_workflow_dag. Phase 1 must replace with WorkflowRun-backed dispatch."
+
+    - id: "POST /api/v1/execute"
+      handler: "backend.app.routes.executions:create_execution"
+      status: beta
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/executions.py"]
+      test_files: ["backend/tests/"]
+      doc_refs: ["docs/ADR/orchestration/ADR-001-agent-vs-workflow-execution.md"]
+      notes: "Creates an Execution and asyncio.create_task(dispatch_run(created.id))."
+      gap: "ADR-001 SEMANTIC CONFLICT: dispatch_run expects a WorkflowRun ID, not Execution.id — passing Execution.id will not find the row and the agent never runs. Also missing auth/tenant gating."
+
+    - id: "POST /api/v1/agents/{agent_id}/execute"
+      handler: "backend.app.routes.executions:execute_agent"
+      status: beta
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/executions.py"]
+      test_files: ["backend/tests/"]
+      doc_refs: ["docs/ADR/orchestration/ADR-001-agent-vs-workflow-execution.md"]
+      notes: "Convenience wrapper: POST {input_data} for a given agent."
+      gap: "Same ADR-001 conflict as /execute — dispatches via Execution.id; will not run."
+
+    - id: "GET /api/v1/executions"
+      handler: "backend.app.routes.executions:list_executions"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/executions.py"]
+      test_files: ["backend/tests/"]
+      doc_refs: []
+      notes: "Filters: agent_id, status, limit, offset. Returns envelope with pagination."
+      gap: "No tenant filtering — multi-tenant leakage."
+
+    - id: "GET /api/v1/executions/{execution_id}"
+      handler: "backend.app.routes.executions:get_execution"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/executions.py"]
+      test_files: ["backend/tests/"]
+      doc_refs: []
+      notes: "Single-row read."
+      gap: "No tenant ownership check."
+
+    - id: "POST /api/v1/executions/{execution_id}/replay"
+      handler: "backend.app.routes.executions:replay_execution"
+      status: beta
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/executions.py"]
+      test_files: []
+      doc_refs: []
+      notes: "Replay endpoint exists but does not yet bind to event-history per Phase 1."
+      gap: "No event-history table; replay reconstructs from row state, not deterministic event log."
+
+    - id: "POST /api/v1/executions/{execution_id}/cancel"
+      handler: "backend.app.routes.executions:cancel_execution"
+      status: beta
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/executions.py"]
+      test_files: []
+      doc_refs: []
+      notes: "Cancel endpoint exists; ctx.cancel_check is honoured by delay/http executors only."
+      gap: "Engine-wide cancellation token plumbing is partial; long-running executors (subAgent, subWorkflow) ignore cancel."
+
+    - id: "DELETE /api/v1/executions/{execution_id}"
+      handler: "backend.app.routes.executions:delete_execution"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/executions.py"]
+      test_files: []
+      doc_refs: []
+      notes: "Returns 204."
+      gap: "No tenant ownership check."
+
+    # Health / metrics
+    - id: "GET /health"
+      handler: "backend.app.health:health"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/health.py"]
+      test_files: []
+      doc_refs: []
+      notes: "Liveness probe."
+      gap: ""
+
+    - id: "GET /api/v1/health"
+      handler: "backend.app.health:health_v1"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/health.py"]
+      test_files: []
+      doc_refs: []
+      notes: "Versioned alias of /health."
+      gap: ""
+
+    - id: "GET /ready"
+      handler: "backend.app.health:ready"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/health.py"]
+      test_files: []
+      doc_refs: []
+      notes: "Readiness probe (DB + Vault)."
+      gap: ""
+
+    - id: "GET /metrics"
+      handler: "backend.app.metrics:metrics"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/metrics.py", "backend/app/middleware/metrics_middleware.py"]
+      test_files: []
+      doc_refs: []
+      notes: "Prometheus text format. archon_* metrics emitted from middleware."
+      gap: "Three dashboard-referenced metrics absent: archon_blocked_requests_total, archon_audit_events_total, archon_security_alerts."
+
+    # Agents
+    - id: "GET /api/v1/agents"
+      handler: "backend.app.routes.agents:list_agents"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/agents.py"]
+      test_files: ["backend/tests/"]
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "POST /api/v1/agents"
+      handler: "backend.app.routes.agents:create_agent"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/agents.py"]
+      test_files: ["backend/tests/"]
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "GET /api/v1/agents/{agent_id}"
+      handler: "backend.app.routes.agents:get_agent"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/agents.py"]
+      test_files: ["backend/tests/"]
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "PUT /api/v1/agents/{agent_id}"
+      handler: "backend.app.routes.agents:update_agent"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/agents.py"]
+      test_files: ["backend/tests/"]
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "DELETE /api/v1/agents/{agent_id}"
+      handler: "backend.app.routes.agents:delete_agent"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/agents.py"]
+      test_files: ["backend/tests/"]
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "POST /api/v1/agents/{agent_id}/execute"
+      handler: "backend.app.routes.agents:execute_agent"
+      status: beta
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/agents.py"]
+      test_files: ["backend/tests/"]
+      doc_refs: ["docs/ADR/orchestration/ADR-001-agent-vs-workflow-execution.md"]
+      notes: "Second copy of the agents/.../execute pattern; same ADR-001 issue."
+      gap: "Duplicates the executions.py path; ADR-001 unifies."
+
+    # Workflows (selection)
+    - id: "GET /api/v1/workflows"
+      handler: "backend.app.routes.workflows:list_workflows"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/workflows.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "POST /api/v1/workflows"
+      handler: "backend.app.routes.workflows:create_workflow"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/workflows.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "GET /api/v1/workflows/{workflow_id}"
+      handler: "backend.app.routes.workflows:get_workflow"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/workflows.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "PUT /api/v1/workflows/{workflow_id}"
+      handler: "backend.app.routes.workflows:update_workflow"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/workflows.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "DELETE /api/v1/workflows/{workflow_id}"
+      handler: "backend.app.routes.workflows:delete_workflow"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/workflows.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "POST /api/v1/workflows/{workflow_id}/execute"
+      handler: "backend.app.routes.workflows:execute_workflow"
+      status: beta
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/workflows.py"]
+      test_files: []
+      doc_refs: []
+      notes: "Calls execute_workflow_dag inline — does NOT create a WorkflowRun row, so no durable record exists for this path."
+      gap: "Phase 1 — must transition to WorkflowRun-backed dispatch with run_id return."
+
+    - id: "GET /api/v1/workflows/{workflow_id}/runs"
+      handler: "backend.app.routes.workflows:list_workflow_runs"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/workflows.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "GET /api/v1/workflows/{workflow_id}/runs/{run_id}"
+      handler: "backend.app.routes.workflows:get_workflow_run"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/workflows.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "PUT /api/v1/workflows/{workflow_id}/schedule"
+      handler: "backend.app.routes.workflows:set_schedule"
+      status: beta
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/workflows.py"]
+      test_files: []
+      doc_refs: []
+      notes: "Persists cron config; worker._drain_pending_runs evaluates."
+      gap: "Drift handling and missed-run policy not specified."
+
+    - id: "POST /api/v1/workflows/{workflow_id}/webhook"
+      handler: "backend.app.routes.workflows:webhook_trigger"
+      status: beta
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/workflows.py"]
+      test_files: []
+      doc_refs: []
+      notes: "Trigger workflow via webhook; payload becomes initial input."
+      gap: "No HMAC verification, no replay protection."
+
+    # Audit
+    - id: "GET /api/v1/audit-logs"
+      handler: "backend.app.routes.audit_logs:list_audit_logs"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/audit_logs.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "GET /api/v1/audit-logs/export"
+      handler: "backend.app.routes.audit_logs:export_audit_logs"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/audit_logs.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "GET /api/v1/audit-logs/verify-chain"
+      handler: "backend.app.routes.audit_logs:verify_chain"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/audit_logs.py", "backend/app/services/audit_service.py"]
+      test_files: []
+      doc_refs: []
+      notes: "Walks rows checking entry.prev_hash against last hash; returns chain status."
+      gap: ""
+
+    # DLP
+    - id: "GET /api/v1/dlp/detectors"
+      handler: "backend.app.routes.dlp:list_detectors"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/dlp.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "POST /api/v1/dlp/scan"
+      handler: "backend.app.routes.dlp:scan"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/dlp.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "POST /api/v1/dlp/redact"
+      handler: "backend.app.routes.dlp:redact"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/dlp.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "POST /api/v1/dlp/guardrails"
+      handler: "backend.app.routes.dlp:check_guardrails"
+      status: beta
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/dlp.py", "backend/app/services/guardrail_service.py"]
+      test_files: []
+      doc_refs: []
+      notes: "DLP-style guardrails (built into DLPService); not NeMo Guardrails."
+      gap: "Not the NeMo Guardrails library — just the DLP guardrail check."
+
+    - id: "POST /api/v1/dlp/policies"
+      handler: "backend.app.routes.dlp:create_policy"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/dlp.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "GET /api/v1/dlp/policies"
+      handler: "backend.app.routes.dlp:list_policies"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/dlp.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    # Governance
+    - id: "GET /api/v1/governance/policies"
+      handler: "backend.app.routes.governance:list_policies"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/governance.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "POST /api/v1/governance/policies"
+      handler: "backend.app.routes.governance:create_policy"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/governance.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "POST /api/v1/governance/compliance/check"
+      handler: "backend.app.routes.governance:compliance_check"
+      status: beta
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/governance.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: "Compliance frameworks ({SOC2, HIPAA, ...}) referenced but not all evidence-mapped."
+
+    - id: "POST /api/v1/governance/audit"
+      handler: "backend.app.routes.governance:create_audit_entry"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/governance.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "GET /api/v1/governance/audit"
+      handler: "backend.app.routes.governance:list_audit"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/governance.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "GET /api/v1/governance/audit/verified"
+      handler: "backend.app.routes.governance:list_verified_audit"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/governance.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "POST /api/v1/governance/policies/opa"
+      handler: "backend.app.routes.governance:create_opa_policy"
+      status: designed
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/governance.py"]
+      test_files: []
+      doc_refs: []
+      notes: "Endpoint exists, but no OPA evaluator is invoked at execution time."
+      gap: "OPA policies are persisted via this route but never enforced — referenced in dlp_service.py only as a string label."
+
+    # MCP & MCP security
+    - id: "POST /api/v1/mcp/sessions"
+      handler: "backend.app.routes.mcp:create_session"
+      status: beta
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/mcp.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: "MCP session lifecycle wired but mcpToolNode itself is a stub."
+
+    - id: "GET /api/v1/mcp/sessions"
+      handler: "backend.app.routes.mcp:list_sessions"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/mcp.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "POST /api/v1/mcp/authorize"
+      handler: "backend.app.routes.mcp_security:authorize"
+      status: beta
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/mcp_security.py"]
+      test_files: []
+      doc_refs: []
+      notes: "v1_router — restored 2026-04-28 (was orphaned)."
+      gap: ""
+
+    - id: "POST /api/v1/mcp/execute"
+      handler: "backend.app.routes.mcp_security:execute_tool"
+      status: stub
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/mcp_security.py"]
+      test_files: []
+      doc_refs: []
+      notes: "Wraps mcpToolNode-style invocation."
+      gap: "Same gap as mcpToolNode — must be blocked in enterprise mode."
+
+    - id: "POST /api/v1/mcp/containers"
+      handler: "backend.app.routes.mcp_containers:create_container"
+      status: beta
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/mcp_containers.py"]
+      test_files: []
+      doc_refs: []
+      notes: "Manages container lifecycle (ToolHive pattern)."
+      gap: ""
+
+    # Cost
+    - id: "GET /api/v1/cost/dashboard"
+      handler: "backend.app.routes.cost:dashboard"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/cost.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "POST /api/v1/cost/usage"
+      handler: "backend.app.routes.cost:record_usage"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/cost.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "POST /api/v1/cost/check"
+      handler: "backend.app.routes.cost:check_budget"
+      status: beta
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/cost.py"]
+      test_files: []
+      doc_refs: []
+      notes: "Pairs with costGateNode; same fail-open caveats."
+      gap: "Fail-open in three places (see costGateNode)."
+
+    - id: "GET /api/v1/cost/forecast"
+      handler: "backend.app.routes.cost:forecast"
+      status: beta
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/cost.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: "Forecast model is heuristic; no ML-backed prediction."
+
+    # Auth / SSO / SAML / SCIM / TOTP
+    - id: "POST /api/v1/auth/login"
+      handler: "backend.app.routes.auth_routes:login"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/auth_routes.py"]
+      test_files: []
+      doc_refs: []
+      notes: "Dev login + JWT issue."
+      gap: ""
+
+    - id: "GET /api/v1/auth/me"
+      handler: "backend.app.routes.auth_routes:me"
+      status: production
+      auth_required: true
+      tenant_scoped: true
+      source_files: ["backend/app/routes/auth_routes.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "POST /api/v1/auth/token/refresh"
+      handler: "backend.app.routes.auth_routes:token_refresh"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/auth_routes.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "POST /api/v1/saml/login"
+      handler: "backend.app.routes.saml:saml_login"
+      status: beta
+      auth_required: false
+      tenant_scoped: true
+      source_files: ["backend/app/routes/saml.py", "backend/app/services/saml_service.py"]
+      test_files: []
+      doc_refs: []
+      notes: "SAML service exists; per-tenant IdP metadata is configurable."
+      gap: "End-to-end SAML flow not proven by tests in this slice."
+
+    - id: "POST /api/v1/saml/acs"
+      handler: "backend.app.routes.saml:saml_acs"
+      status: beta
+      auth_required: false
+      tenant_scoped: true
+      source_files: ["backend/app/routes/saml.py"]
+      test_files: []
+      doc_refs: []
+      notes: "Assertion Consumer Service."
+      gap: "No automated end-to-end test."
+
+    - id: "POST /api/v1/sso/test-connection"
+      handler: "backend.app.routes.sso:test_connection"
+      status: beta
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/sso.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "GET /api/v1/scim/v2/Users"
+      handler: "backend.app.routes.scim:list_users"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/scim.py", "backend/app/services/scim_service.py"]
+      test_files: []
+      doc_refs: []
+      notes: "SCIM 2.0 Users."
+      gap: ""
+
+    - id: "POST /api/v1/scim/v2/Users"
+      handler: "backend.app.routes.scim:create_user"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/scim.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "POST /api/v1/auth/totp/enroll"
+      handler: "backend.app.routes.totp:enroll"
+      status: production
+      auth_required: true
+      tenant_scoped: true
+      source_files: ["backend/app/routes/totp.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    # Secrets
+    - id: "POST /api/v1/secrets"
+      handler: "backend.app.routes.secrets:create_secret"
+      status: beta
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/secrets.py", "backend/app/secrets/manager.py"]
+      test_files: []
+      doc_refs: []
+      notes: "Vault-backed via VaultSecretsManager (hvac)."
+      gap: "Vault service is in docker-compose.yml; rotation policy enforcement only partially wired."
+
+    - id: "POST /api/v1/secrets/{secret_id}/rotate"
+      handler: "backend.app.routes.secrets:rotate_secret"
+      status: beta
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/secrets.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: "Auto-rotation worker scheduling not end-to-end proven."
+
+    - id: "GET /api/v1/secrets/rotation-dashboard"
+      handler: "backend.app.routes.secrets:rotation_dashboard"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/secrets.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    # Tenancy
+    - id: "POST /api/v1/tenants"
+      handler: "backend.app.routes.tenants:create_tenant"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/tenants.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "GET /api/v1/tenants"
+      handler: "backend.app.routes.tenants:list_tenants"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/tenants.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "POST /api/v1/tenants (legacy /tenants prefix)"
+      handler: "backend.app.routes.tenancy:create_tenant"
+      status: beta
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/tenancy.py"]
+      test_files: []
+      doc_refs: []
+      notes: "Two tenant routers (tenants.py and tenancy.py) registered with different prefixes."
+      gap: "Duplicate surface — needs consolidation."
+
+    # RBAC
+    - id: "GET /api/v1/rbac/custom-roles"
+      handler: "backend.app.routes.rbac:list_custom_roles"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/rbac.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "POST /api/v1/rbac/custom-roles"
+      handler: "backend.app.routes.rbac:create_custom_role"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/rbac.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "GET /api/v1/rbac/group-mappings"
+      handler: "backend.app.routes.rbac:list_group_mappings"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/rbac.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "GET /api/v1/rbac/matrix"
+      handler: "backend.app.routes.sso_config:rbac_matrix"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/sso_config.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    # Connectors
+    - id: "GET /api/v1/connectors"
+      handler: "backend.app.routes.connectors:list_connectors"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/connectors.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "POST /api/v1/connectors"
+      handler: "backend.app.routes.connectors:create_connector"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/connectors.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "POST /api/v1/connectors/{connector_id}/oauth/start"
+      handler: "backend.app.routes.connectors:start_oauth"
+      status: beta
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/connectors.py"]
+      test_files: []
+      doc_refs: []
+      notes: "Enterprise connector OAuth start."
+      gap: ""
+
+    - id: "POST /api/v1/connectors/{connector_id}/test"
+      handler: "backend.app.routes.connectors:test_connector"
+      status: beta
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/connectors.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    # Models / Router
+    - id: "GET /api/v1/models"
+      handler: "backend.app.routes.models:list_models"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/models.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "POST /api/v1/router/route"
+      handler: "backend.app.routes.router:route"
+      status: beta
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/router.py", "backend/app/services/router_service.py"]
+      test_files: []
+      doc_refs: []
+      notes: "Model routing rules + fallback policy."
+      gap: "Tenant residency / latency-based routing partial."
+
+    - id: "GET /api/v1/router/providers/health"
+      handler: "backend.app.routes.router:providers_health"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/router.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    # Sandbox
+    - id: "POST /api/v1/sandbox/execute"
+      handler: "backend.app.routes.sandbox:execute"
+      status: beta
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/sandbox.py", "backend/app/services/sandbox_service.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: "Sandbox isolation strategy not documented in code."
+
+    # Wizard
+    - id: "POST /api/v1/wizard/describe"
+      handler: "backend.app.routes.wizard:describe"
+      status: beta
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/wizard.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "POST /api/v1/wizard/generate"
+      handler: "backend.app.routes.wizard:generate"
+      status: beta
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/wizard.py"]
+      test_files: []
+      doc_refs: []
+      notes: "Generates an agent or workflow scaffold."
+      gap: ""
+
+    # Templates / Marketplace
+    - id: "GET /api/v1/templates"
+      handler: "backend.app.routes.templates:list_templates"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/templates.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "POST /api/v1/templates/{template_id}/install"
+      handler: "backend.app.routes.templates:install_template"
+      status: beta
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/templates.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "GET /api/v1/marketplace/listings"
+      handler: "backend.app.routes.marketplace:list_listings"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/marketplace.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "POST /api/v1/marketplace/{listing_id}/install"
+      handler: "backend.app.routes.marketplace:install_listing"
+      status: beta
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/marketplace.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    # SentinelScan
+    - id: "POST /api/v1/sentinelscan/scan"
+      handler: "backend.app.routes.sentinelscan:scan"
+      status: beta
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/sentinelscan.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "GET /api/v1/sentinelscan/posture/summary"
+      handler: "backend.app.routes.sentinelscan:posture_summary"
+      status: beta
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/sentinelscan.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    # Lifecycle
+    - id: "POST /api/v1/lifecycle/deployments"
+      handler: "backend.app.routes.lifecycle:create_deployment"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/lifecycle.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "POST /api/v1/lifecycle/deployments/{deployment_id}/rollback"
+      handler: "backend.app.routes.lifecycle:rollback_deployment"
+      status: beta
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/lifecycle.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "POST /api/v1/lifecycle/{agent_id}/lifecycle/transition"
+      handler: "backend.app.routes.lifecycle:transition (enterprise_router)"
+      status: beta
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/lifecycle.py"]
+      test_files: []
+      doc_refs: []
+      notes: "enterprise_router restored 2026-04-28 (was orphaned)."
+      gap: ""
+
+    # A2A
+    - id: "POST /api/v1/a2a/discover"
+      handler: "backend.app.routes.a2a:discover"
+      status: beta
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/a2a.py"]
+      test_files: []
+      doc_refs: []
+      notes: "Agent-to-agent discovery."
+      gap: ""
+
+    - id: "POST /api/v1/a2a/partners"
+      handler: "backend.app.routes.a2a:create_partner (federation_router)"
+      status: beta
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/a2a.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    # Mesh / Edge
+    - id: "POST /api/v1/mesh/nodes"
+      handler: "backend.app.routes.mesh:create_node"
+      status: beta
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/mesh.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "POST /api/v1/edge/devices"
+      handler: "backend.app.routes.edge:create_device"
+      status: beta
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/edge.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "POST /api/v1/edge/sync"
+      handler: "backend.app.routes.edge:create_sync"
+      status: beta
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/edge.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    # DocForge
+    - id: "POST /api/v1/docforge/documents/ingest"
+      handler: "backend.app.routes.docforge:ingest_document"
+      status: beta
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/docforge.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "POST /api/v1/docforge/documents/search"
+      handler: "backend.app.routes.docforge:search_documents"
+      status: beta
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/docforge.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    # Mobile / Deployment / Redteam / Misc
+    - id: "POST /api/v1/mobile/devices"
+      handler: "backend.app.routes.mobile:register_device"
+      status: beta
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/mobile.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "POST /api/v1/deploy"
+      handler: "backend.app.routes.deployment:deploy"
+      status: beta
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/deployment.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "POST /api/v1/redteam/security/scan"
+      handler: "backend.app.routes.redteam:scan"
+      status: beta
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/redteam.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "POST /api/v1/proxy/request"
+      handler: "backend.app.routes.security_proxy:proxy_request"
+      status: beta
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/security_proxy.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "GET /api/v1/admin/users"
+      handler: "backend.app.routes.admin:list_users"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/admin.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "GET /api/v1/settings"
+      handler: "backend.app.routes.settings:get_settings"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/settings.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    # Components / MCP-interactive
+    - id: "POST /api/v1/components/sessions"
+      handler: "backend.app.routes.mcp_interactive:create_component_session"
+      status: beta
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/mcp_interactive.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    # WebSocket
+    - id: "WS /ws/executions/{execution_id}"
+      handler: "backend.app.websocket.routes:execution_websocket"
+      status: beta
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/websocket/routes.py", "backend/app/websocket/manager.py"]
+      test_files: []
+      doc_refs: []
+      notes: "Streams execution updates."
+      gap: "Frontend depends on WS for live updates; if connection drops, history reconstruction relies on the missing event-history table."
+
+    # QA / Improvements / Tenants admin
+    - id: "POST /api/v1/qa/trigger"
+      handler: "backend.app.routes.qa:trigger_qa"
+      status: beta
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/qa.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "POST /api/v1/improvements/analyze"
+      handler: "backend.app.routes.improvements:analyze"
+      status: beta
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/improvements.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "POST /api/v1/tenancy/tenants"
+      handler: "backend.app.routes.tenants:create_tenant"
+      status: beta
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/tenants.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    # Agent Versions
+    - id: "GET /api/v1/agent-versions"
+      handler: "backend.app.routes.agent_versions:list_versions"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/agent_versions.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "POST /api/v1/agent-versions"
+      handler: "backend.app.routes.agent_versions:create_version"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/agent_versions.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "GET /api/v1/agent-versions/latest"
+      handler: "backend.app.routes.agent_versions:get_latest_version"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/agent_versions.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "GET /api/v1/agent-versions/{version_id}"
+      handler: "backend.app.routes.agent_versions:get_version"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/agent_versions.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    # Versioning
+    - id: "GET /api/v1/versioning/agents/{agent_id}/versions/list"
+      handler: "backend.app.routes.versioning:list_versions"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/versioning.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+    - id: "POST /api/v1/versioning/agents/{agent_id}/versions/{version_id}/rollback"
+      handler: "backend.app.routes.versioning:rollback_version"
+      status: production
+      auth_required: false
+      tenant_scoped: false
+      source_files: ["backend/app/routes/versioning.py"]
+      test_files: []
+      doc_refs: []
+      notes: ""
+      gap: ""
+
+  # ──────────────────────────────────────────────────────────────────
+  enterprise_capabilities:
+  # ──────────────────────────────────────────────────────────────────
+
+    - id: rls_postgres
+      status: beta
+      source_files: ["backend/app/models/rls.py"]
+      test_files: []
+      doc_refs: []
+      notes: "RLS policy DDL exists with idempotent CREATE-IF-NOT-EXISTS pattern; tenant-scoped tables enabled. Super-user/migration sessions bypass via BYPASSRLS."
+      gap: "FORCE RLS applied to table owners but no end-to-end test verifies a non-bypass session is denied cross-tenant access."
+
+    - id: rbac
+      status: production
+      source_files: ["backend/app/routes/rbac.py", "backend/app/routes/sso_config.py", "backend/app/services/", "backend/app/models/rbac.py", "backend/app/models/custom_role.py"]
+      test_files: []
+      doc_refs: []
+      notes: "Custom roles + group mappings CRUD; GET /rbac/matrix returns the role/permission grid."
+      gap: "Permission enforcement at route level uses Depends() patterns inconsistently; not all destructive routes verify role."
+
+    - id: audit_hash_chain
+      status: production
+      source_files: ["backend/app/services/audit_service.py", "backend/app/middleware/audit_middleware.py", "backend/app/routes/audit_logs.py"]
+      test_files: []
+      doc_refs: []
+      notes: "SHA-256(prev_hash + JSON(entry_data)) chain. verify_chain endpoint walks rows, comparing entry.prev_hash against the running hash starting at 'genesis'."
+      gap: ""
+
+    - id: dlp
+      status: production
+      source_files: ["backend/app/services/dlp_service.py", "backend/app/middleware/dlp_middleware.py", "backend/app/routes/dlp.py", "backend/app/services/node_executors/dlp_scan.py"]
+      test_files: ["backend/tests/test_node_executors/test_all_executors.py"]
+      doc_refs: []
+      notes: "Detector library + middleware + route + executor. DLPMiddleware intercepts mutating execution endpoints."
+      gap: "Default executor action is 'flag' (fail-open) — Phase 3 must enforce 'block' in enterprise mode."
+
+    - id: cost_gates
+      status: beta
+      source_files: ["backend/app/services/cost_service.py", "backend/app/routes/cost.py", "backend/app/services/node_executors/cost_gate.py"]
+      test_files: ["backend/tests/test_node_executors/test_all_executors.py"]
+      doc_refs: []
+      notes: "Tenant running total over current calendar month vs maxUsd threshold."
+      gap: "Three fail-open paths in costGateNode (no threshold, no tenant context, query exception) all return 'completed: passed=true'."
+
+    - id: sso_saml
+      status: beta
+      source_files: ["backend/app/routes/saml.py", "backend/app/routes/sso.py", "backend/app/routes/sso_config.py", "backend/app/services/saml_service.py", "backend/app/models/saml.py"]
+      test_files: []
+      doc_refs: []
+      notes: "Per-tenant SAML IdP config + ACS + metadata + test-connection."
+      gap: "No automated end-to-end SAML test; relies on Keycloak in docker-compose for local dev."
+
+    - id: secret_rotation
+      status: beta
+      source_files: ["backend/app/routes/secrets.py", "backend/app/secrets/manager.py", "backend/app/secrets/config.py", "backend/app/secrets/exceptions.py", "backend/app/services/secret_access_logger.py"]
+      test_files: []
+      doc_refs: []
+      notes: "VaultSecretsManager (hvac) handles KV-v2, PKI, dynamic credentials with TTL cache. Secret rotation endpoint + dashboard exist."
+      gap: "Auto-rotation worker scheduling not end-to-end; the worker.py loop checks rotations but no proven test asserts rotation actually occurs."
+
+    - id: opa
+      status: designed
+      source_files: ["backend/app/routes/governance.py", "backend/app/services/governance_service.py", "backend/app/services/dlp_service.py", "backend/app/models/governance.py"]
+      test_files: []
+      doc_refs: []
+      notes: "POST /governance/policies/opa endpoint persists OPA policies; the string 'opa' appears in dlp_service.py as a label."
+      gap: "No OPA evaluator (e.g. python-rego, OPA HTTP sidecar) is invoked at execution time. Policies are stored but not enforced."
+
+    - id: multi_tenant_isolation
+      status: beta
+      source_files: ["backend/app/middleware/tenant_middleware.py", "backend/app/middleware/dlp_middleware.py", "backend/app/middleware/audit_middleware.py", "backend/app/models/rls.py"]
+      test_files: []
+      doc_refs: []
+      notes: "TenantMiddleware extracts tenant_id from JWT (unverified claim), stamps request.state.tenant_id; downstream middleware reads it."
+      gap: "Unverified-claim extraction means a forged JWT can set tenant_id without signature validation; signature verification is in auth.py and not all middleware routes through it."
+
+    - id: fail_closed_checkpointing
+      status: beta
+      source_files: ["backend/app/langgraph/checkpointer.py", "backend/app/langgraph/engine.py"]
+      test_files: []
+      doc_refs: ["docs/ADR/orchestration/ADR-005-production-durability-policy.md"]
+      notes: "Postgres checkpointer is the default; Memory mode for tests; explicit 'false/0/off/none/disabled' values disable checkpointing."
+      gap: "On Postgres failure get_checkpointer falls back to MemorySaver silently — ADR-005 mandates fatal failure in production. Phase 1 must enforce."
+
+    - id: vault_integration
+      status: beta
+      source_files: ["backend/app/secrets/manager.py", "backend/app/secrets/config.py", "backend/app/routes/secrets.py", "docker-compose.yml"]
+      test_files: []
+      doc_refs: []
+      notes: "VaultSecretsManager wraps hvac with KV-v2, PKI, dynamic credential support and tenant-namespaced paths. Vault and vault-init services declared in docker-compose.yml."
+      gap: "Secret rotation worker not proven end-to-end; tenant ↔ vault namespace policies present in code but no integration test seal/unseal/rotate flow."
+
+    - id: idempotency
+      status: missing
+      source_files: []
+      test_files: []
+      doc_refs: ["docs/ADR/orchestration/ADR-004-idempotency-contract.md"]
+      notes: "ADR-004 specifies X-Idempotency-Key contract; no implementation in routes."
+      gap: "Phase 1 deliverable: add idempotency_key column to WorkflowRun + (tenant_id, idempotency_key) unique index + 200-with-existing-run-on-duplicate response."
+
+    - id: signals_resume
+      status: missing
+      source_files: []
+      test_files: []
+      doc_refs: ["docs/ADR/orchestration/ADR-002-event-ownership.md"]
+      notes: "humanApprovalNode pauses but no signal/decision/resume endpoint exists."
+      gap: "Phase 1: add signal bus, approval-decision endpoint, resume_run(workflow_run_id, signal_payload)."
+
+  # ──────────────────────────────────────────────────────────────────
+  orchestration_primitives:
+  # ──────────────────────────────────────────────────────────────────
+
+    - id: durable_runs
+      status: designed
+      source_files: ["backend/app/models/workflow.py"]
+      test_files: []
+      doc_refs: ["docs/ADR/orchestration/ADR-001-agent-vs-workflow-execution.md"]
+      notes: "WorkflowRun model has id, workflow_id, status, started_at, completed_at, duration_ms, error. Missing per ADR-001: agent_id (nullable), definition_snapshot, definition_version, lease_owner, lease_expires_at, attempt, idempotency_key, queued_at, cancel_requested_at, paused_at, resumed_at, output_data, metrics, error_code."
+      gap: "Phase 1 — current schema is closer to a status-tracker than a durable run record."
+
+    - id: workflow_run_steps
+      status: beta
+      source_files: ["backend/app/models/workflow.py"]
+      test_files: []
+      doc_refs: ["docs/ADR/orchestration/ADR-001-agent-vs-workflow-execution.md"]
+      notes: "WorkflowRunStep model exists with id, run_id, step_id, status, started_at, completed_at, duration_ms, input_data, output_data, error, agent_execution_id."
+      gap: "Engine never persists per-step results — execute_workflow_dag returns step results but neither dispatch_run nor _dispatch_already_running writes WorkflowRunStep rows. Add: attempt, retry_count, idempotency_key, checkpoint_thread_id, input_hash, output_artifact_id, token_usage, cost, worker_id, error_code."
+
+    - id: event_history
+      status: missing
+      source_files: []
+      test_files: []
+      doc_refs: ["docs/ADR/orchestration/ADR-002-event-ownership.md"]
+      notes: "ADR-002 names a WorkflowRunEvent model owned by WS1 (workstream 1). No model file exists yet."
+      gap: "Phase 1: add WorkflowRunEvent (sequence number, event type, timestamp, payload, tenant, trace/correlation IDs, step ID, prev_hash). All replay/streaming/UI history depends on this."
+
+    - id: signals_approvals
+      status: missing
+      source_files: []
+      test_files: []
+      doc_refs: []
+      notes: "humanApprovalNode raw-SQL inserts into pending_approvals but no SQLModel, no migration, no decision endpoint, no resume bus."
+      gap: "Phase 1 deliverable."
+
+    - id: durable_timers
+      status: missing
+      source_files: []
+      test_files: []
+      doc_refs: []
+      notes: "delayNode uses asyncio.sleep — non-durable."
+      gap: "Phase 2 deliverable: durable timers table with worker reaper for pending fires after restart."
+
+    - id: retry_policy
+      status: missing
+      source_files: []
+      test_files: []
+      doc_refs: []
+      notes: "No retry semantics on WorkflowRun or WorkflowRunStep."
+      gap: "Phase 1 — add attempt + retry_count + retry_policy_json to step row."
+
+    - id: idempotency_unique
+      status: missing
+      source_files: []
+      test_files: []
+      doc_refs: ["docs/ADR/orchestration/ADR-004-idempotency-contract.md"]
+      notes: "See enterprise_capabilities.idempotency."
+      gap: "Phase 1."
+
+    - id: cancellation
+      status: beta
+      source_files: ["backend/app/services/node_executors/delay.py", "backend/app/services/node_executors/http_request.py", "backend/app/services/run_dispatcher.py"]
+      test_files: ["backend/tests/test_node_executors/test_all_executors.py"]
+      doc_refs: []
+      notes: "ctx.cancel_check() honoured by delayNode and httpRequestNode. Cancel route exists."
+      gap: "subAgent, subWorkflow, llm, condition, switch, etc. do NOT honour cancel mid-execution. No engine-wide cancellation token plumbing."
+
+    - id: replay
+      status: beta
+      source_files: ["backend/app/routes/executions.py"]
+      test_files: []
+      doc_refs: []
+      notes: "/executions/{id}/replay endpoint exists."
+      gap: "Without WorkflowRunEvent, replay is non-deterministic — re-runs the live definition rather than the snapshot+events."
+
+    - id: leases_heartbeats
+      status: missing
+      source_files: ["backend/app/worker.py"]
+      test_files: []
+      doc_refs: []
+      notes: "worker.py drains pending runs; mentions last_heartbeat_at in code comments only."
+      gap: "Phase 1 deliverable: lease_owner + lease_expires_at columns + claim_run(run_id, worker_id) atomic claim + heartbeat reaper."
+
+    - id: worker_registry
+      status: missing
+      source_files: []
+      test_files: []
+      doc_refs: []
+      notes: "Single worker.py module; no worker registry table."
+      gap: "Phase 1/2: add workers table with worker_id, host, version, last_heartbeat, capabilities."
+
+    - id: definition_snapshot
+      status: missing
+      source_files: []
+      test_files: []
+      doc_refs: ["docs/ADR/orchestration/ADR-001-agent-vs-workflow-execution.md"]
+      notes: "run_dispatcher reads live Workflow row at run time — definition mutation between queue and dispatch causes drift."
+      gap: "Phase 1: add definition_snapshot JSONB column to WorkflowRun; engine reads snapshot, not live row."
+
+  # ──────────────────────────────────────────────────────────────────
+  observability:
+  # ──────────────────────────────────────────────────────────────────
+
+    - id: metric_archon_requests_total
+      status: production
+      source_files: ["backend/app/middleware/metrics_middleware.py"]
+      test_files: []
+      doc_refs: ["infra/grafana/dashboards/platform-overview.json"]
+      notes: "Counter, labels: method, path, status. Dashboard query: rate(archon_requests_total[5m])."
+      gap: ""
+
+    - id: metric_archon_request_duration_seconds
+      status: production
+      source_files: ["backend/app/middleware/metrics_middleware.py"]
+      test_files: []
+      doc_refs: ["infra/grafana/dashboards/platform-overview.json"]
+      notes: "Histogram, labels: method, path. Dashboard queries P50/P95/P99."
+      gap: ""
+
+    - id: metric_archon_executions_total
+      status: production
+      source_files: ["backend/app/middleware/metrics_middleware.py"]
+      test_files: []
+      doc_refs: ["infra/grafana/dashboards/platform-overview.json"]
+      notes: "Counter — declared in render_metrics with HELP/TYPE but currently emits zero series (no recorder calls)."
+      gap: "Series is declared but never incremented — execution service must call inc."
+
+    - id: metric_archon_active_agents
+      status: production
+      source_files: ["backend/app/middleware/metrics_middleware.py"]
+      test_files: []
+      doc_refs: ["infra/grafana/dashboards/platform-overview.json"]
+      notes: "Gauge via set_active_agents()."
+      gap: "Caller wiring (which service updates the gauge) not reviewed in this slice."
+
+    - id: metric_archon_vault_status
+      status: production
+      source_files: ["backend/app/middleware/metrics_middleware.py"]
+      test_files: []
+      doc_refs: ["infra/grafana/dashboards/platform-overview.json", "infra/grafana/dashboards/security-dashboard.json"]
+      notes: "Gauge via set_vault_status(up: bool)."
+      gap: ""
+
+    - id: metric_archon_token_usage_total
+      status: production
+      source_files: ["backend/app/middleware/metrics_middleware.py"]
+      test_files: []
+      doc_refs: ["infra/grafana/dashboards/cost-dashboard.json"]
+      notes: "Counter, labels: tenant_id, model, kind. record_token_usage helper."
+      gap: ""
+
+    - id: metric_archon_cost_total
+      status: production
+      source_files: ["backend/app/middleware/metrics_middleware.py"]
+      test_files: []
+      doc_refs: ["infra/grafana/dashboards/cost-dashboard.json"]
+      notes: "Counter, labels: tenant_id, model."
+      gap: ""
+
+    - id: metric_archon_workflow_runs_total
+      status: production
+      source_files: ["backend/app/middleware/metrics_middleware.py"]
+      test_files: []
+      doc_refs: []
+      notes: "Counter, labels: status, tenant_id. record_workflow_run helper."
+      gap: "Not referenced by any dashboard yet."
+
+    - id: metric_archon_workflow_run_duration_seconds
+      status: production
+      source_files: ["backend/app/middleware/metrics_middleware.py"]
+      test_files: []
+      doc_refs: []
+      notes: "Histogram."
+      gap: "Not referenced by any dashboard yet."
+
+    - id: metric_archon_dlp_findings_total
+      status: production
+      source_files: ["backend/app/middleware/metrics_middleware.py"]
+      test_files: []
+      doc_refs: ["infra/grafana/dashboards/security-dashboard.json"]
+      notes: "Counter, labels: tenant_id, severity, pattern."
+      gap: ""
+
+    - id: metric_archon_blocked_requests_total
+      status: missing
+      source_files: []
+      test_files: []
+      doc_refs: ["infra/grafana/dashboards/security-dashboard.json"]
+      notes: "Referenced by security-dashboard.json (rate(archon_blocked_requests_total[5m])) but never emitted by middleware/metrics_middleware.py."
+      gap: "Dashboard claim without backing emitter — silent zero series. Phase 0 issue: doc/dashboard parity violation."
+
+    - id: metric_archon_audit_events_total
+      status: missing
+      source_files: []
+      test_files: []
+      doc_refs: ["infra/grafana/dashboards/security-dashboard.json"]
+      notes: "Referenced by security-dashboard.json but never emitted."
+      gap: "Same parity issue as archon_blocked_requests_total."
+
+    - id: metric_archon_security_alerts
+      status: missing
+      source_files: []
+      test_files: []
+      doc_refs: ["infra/grafana/dashboards/security-dashboard.json"]
+      notes: "Referenced by security-dashboard.json but never emitted."
+      gap: "Same parity issue."
+
+    - id: grafana_dashboard_platform_overview
+      status: production
+      source_files: ["infra/grafana/dashboards/platform-overview.json"]
+      test_files: []
+      doc_refs: []
+      notes: "Panels: request rate, error rate, P50/P95/P99 latency, active_agents, executions/hr, vault."
+      gap: ""
+
+    - id: grafana_dashboard_cost
+      status: production
+      source_files: ["infra/grafana/dashboards/cost-dashboard.json"]
+      test_files: []
+      doc_refs: []
+      notes: "Panels: token rate, cost total, sum(cost), increase(cost,1h)."
+      gap: ""
+
+    - id: grafana_dashboard_security
+      status: beta
+      source_files: ["infra/grafana/dashboards/security-dashboard.json"]
+      test_files: []
+      doc_refs: []
+      notes: "Panels query DLP findings, blocked requests, audit events, security alerts, vault status."
+      gap: "Three of five panels query metrics that don't exist (blocked_requests_total, audit_events_total, security_alerts) — see metric entries above."
+
+    - id: opentelemetry_traces
+      status: designed
+      source_files: ["backend/app/routes/executions.py"]
+      test_files: []
+      doc_refs: []
+      notes: "from opentelemetry import trace appears once (try/except ImportError) in routes/executions.py; create_execution wraps a span. No exporter or SDK config."
+      gap: "OpenTelemetry SDK not wired — no spans are exported to a collector. Phase 2 (visibility plane)."
+
+    - id: event_history_api
+      status: missing
+      source_files: []
+      test_files: []
+      doc_refs: ["docs/ADR/orchestration/ADR-002-event-ownership.md"]
+      notes: "GET /api/v1/executions/{id}/events and /workflow-runs/{id}/events not yet implemented."
+      gap: "Phase 1 deliverable per master plan §Phase 1 step 11."
+
+  # ──────────────────────────────────────────────────────────────────
+  infra_services:
+  # ──────────────────────────────────────────────────────────────────
+
+    - id: docker_postgres
+      status: production
+      source_files: ["docker-compose.yml"]
+      test_files: []
+      doc_refs: []
+      notes: "Postgres service with persistent volume postgres_data."
+      gap: ""
+
+    - id: docker_redis
+      status: production
+      source_files: ["docker-compose.yml"]
+      test_files: []
+      doc_refs: []
+      notes: "Redis service for cache / pub-sub."
+      gap: ""
+
+    - id: docker_vault
+      status: production
+      source_files: ["docker-compose.yml"]
+      test_files: []
+      doc_refs: []
+      notes: "Vault dev-mode container; vault_data volume. Makefile vault-up + dev-enterprise targets reference it."
+      gap: ""
+
+    - id: docker_vault_init
+      status: production
+      source_files: ["docker-compose.yml"]
+      test_files: []
+      doc_refs: []
+      notes: "vault-init service runs the bootstrap script. Makefile target secrets-init invokes 'docker compose run --rm vault-init'."
+      gap: ""
+
+    - id: docker_keycloak
+      status: production
+      source_files: ["docker-compose.yml"]
+      test_files: []
+      doc_refs: []
+      notes: "Keycloak service for SAML / OIDC dev. infra/keycloak-provision.sh seeds realm."
+      gap: ""
+
+    - id: docker_backend
+      status: production
+      source_files: ["docker-compose.yml", "backend/Dockerfile"]
+      test_files: []
+      doc_refs: []
+      notes: "FastAPI app container."
+      gap: ""
+
+    - id: docker_worker
+      status: production
+      source_files: ["docker-compose.yml", "backend/app/worker.py"]
+      test_files: []
+      doc_refs: []
+      notes: "Background worker for pending runs, secret rotation, scheduled scans."
+      gap: ""
+
+    - id: docker_frontend
+      status: production
+      source_files: ["docker-compose.yml"]
+      test_files: []
+      doc_refs: []
+      notes: "Next.js / React frontend container."
+      gap: ""
+
+    - id: docker_test_compose
+      status: production
+      source_files: ["docker-compose.test.yml"]
+      test_files: []
+      doc_refs: []
+      notes: "Test-only compose: postgres, redis, backend, worker, frontend, pgdata-test volume. NO vault/keycloak — deliberately skinny for CI."
+      gap: ""
+
+    - id: makefile_dev_enterprise
+      status: production
+      source_files: ["Makefile"]
+      test_files: []
+      doc_refs: []
+      notes: "make dev-enterprise brings up postgres, redis, vault, keycloak; runs vault-init."
+      gap: ""
+
+    - id: makefile_verify
+      status: production
+      source_files: ["Makefile", "scripts/verify.sh"]
+      test_files: []
+      doc_refs: []
+      notes: "make verify chains backend, gateway, integration test suites."
+      gap: "CI (.github/workflows/ci.yml) does NOT call make verify — Phase 0 hard-gate alignment."
+
+    - id: helm_archon
+      status: beta
+      source_files: ["infra/helm/archon/Chart.yaml", "infra/helm/archon/values.yaml", "infra/helm/archon/templates/"]
+      test_files: []
+      doc_refs: []
+      notes: "Helm chart for archon platform."
+      gap: ""
+
+    - id: helm_archon_platform
+      status: beta
+      source_files: ["infra/helm/archon-platform/Chart.yaml", "infra/helm/archon-platform/values.yaml"]
+      test_files: []
+      doc_refs: []
+      notes: "Umbrella platform chart."
+      gap: ""
+
+    - id: helm_vault
+      status: beta
+      source_files: ["infra/helm/vault/Chart.yaml", "infra/helm/vault/values.yaml"]
+      test_files: []
+      doc_refs: []
+      notes: "Vault chart values."
+      gap: ""
+
+    - id: prometheus_config
+      status: production
+      source_files: ["infra/prometheus/prometheus.yml", "infra/monitoring/prometheus-values.yaml"]
+      test_files: []
+      doc_refs: []
+      notes: "Scrape config for /metrics."
+      gap: ""
+
+    - id: argocd_application
+      status: beta
+      source_files: ["infra/argocd/application.yaml"]
+      test_files: []
+      doc_refs: []
+      notes: "ArgoCD Application manifest."
+      gap: ""
+
+    - id: gateway_service
+      status: beta
+      source_files: ["gateway/app/main.py", "gateway/app/config.py", "gateway/Dockerfile", "gateway/requirements.txt"]
+      test_files: ["gateway/tests/test_dispatch.py", "gateway/tests/test_invoke.py", "gateway/tests/test_capabilities.py", "gateway/tests/test_guardrails.py", "gateway/tests/test_plugin_loader.py"]
+      doc_refs: ["docs/WS6_GATEWAY_REPORT.md"]
+      notes: "Plugin-based gateway in gateway/. Has its own test suite."
+      gap: "Not registered in main docker-compose.yml as a long-running service in this slice."
+
+    - id: nemo_guardrails
+      status: missing
+      source_files: []
+      test_files: []
+      doc_refs: []
+      notes: "Documentation references 'guardrails' broadly but the only impl is DLPService.check_guardrails — NOT NeMo Guardrails."
+      gap: "If NeMo Guardrails is a target capability, no library import or service exists."
+
+# ──────────────────────────────────────────────────────────────────
+status_summary:
+# ──────────────────────────────────────────────────────────────────
+  production: 95
+  beta: 79
+  stub: 13
+  designed: 4
+  missing: 15
+  blocked: 0
+  total: 206

@@ -150,9 +150,20 @@ def upgrade() -> None:
     )
 
     # ── SettingsAPIKey — add rate_limit column ────────────────────────
-    op.add_column(
-        "settings_api_keys", sa.Column("rate_limit", sa.Integer(), nullable=True)
-    )
+    # Idempotent: settings_api_keys is created later by 0004's
+    # SQLModel.metadata.create_all when migrating from base on a fresh DB.
+    # On legacy DBs where the table predates this migration, the column is
+    # added; otherwise this branch is a no-op and the column lands as part
+    # of create_all.
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    if "settings_api_keys" in inspector.get_table_names():
+        existing_cols = {c["name"] for c in inspector.get_columns("settings_api_keys")}
+        if "rate_limit" not in existing_cols:
+            op.add_column(
+                "settings_api_keys",
+                sa.Column("rate_limit", sa.Integer(), nullable=True),
+            )
 
     # ── SecretRegistration and SecretAccessLog tables ─────────────────
     # These tables may not exist yet if the initial migration predates them.
@@ -243,7 +254,12 @@ def downgrade() -> None:
     )
     op.drop_table("secret_registrations")
 
-    op.drop_column("settings_api_keys", "rate_limit")
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    if "settings_api_keys" in inspector.get_table_names():
+        existing_cols = {c["name"] for c in inspector.get_columns("settings_api_keys")}
+        if "rate_limit" in existing_cols:
+            op.drop_column("settings_api_keys", "rate_limit")
 
     op.drop_index(op.f("ix_custom_roles_name"), table_name="custom_roles")
     op.drop_index(op.f("ix_custom_roles_tenant_id"), table_name="custom_roles")

@@ -1,273 +1,363 @@
 # Archon — Deployment Guide
 
-> Version 1.0 | February 2026
-
----
+**Status:** Pre-1.0. The deploy paths described here all run; the production path adds startup gates that fail closed on misconfiguration.
+**Authority:** [`docker-compose.yml`](../docker-compose.yml), [`infra/helm/archon-platform/`](../infra/helm/archon-platform/), [`infra/terraform/aws/main.tf`](../infra/terraform/aws/main.tf), [`backend/app/startup_checks.py`](../backend/app/startup_checks.py).
 
 ## 1. Prerequisites
 
-| Tool | Minimum Version | Purpose |
-|------|----------------|---------|
-| Docker | 24.x | Container runtime |
-| Docker Compose | 2.x | Local development |
-| Kubernetes | 1.29+ | Production deployment |
-| Helm | 3.14+ | Chart management |
-| kubectl | 1.29+ | Cluster interaction |
-| Terraform | 1.7+ | Cloud infrastructure |
+| Tool | Minimum version | Purpose |
+|------|-----------------|---------|
+| Docker | 24.x | Container runtime. |
+| Docker Compose | 2.x | Local development. |
+| Kubernetes | 1.29+ | Production deployment. |
+| Helm | 3.14+ | Chart management. |
+| kubectl | 1.29+ | Cluster interaction. |
+| Terraform | 1.7+ | Cloud infrastructure (AWS module ships; Azure / GCP are scaffolds). |
 
----
-
-## 2. Local Development (Docker Compose)
+## 2. Local development (Docker Compose)
 
 ### 2.1 Clone and configure
 
 ```bash
-git clone https://github.com/your-org/archon.git
+git clone <repo-url>
 cd archon
 cp env.example .env
-# Edit .env with your secrets (JWT_SECRET, database passwords, etc.)
+# Edit .env: at minimum, leave defaults for dev. The .env defaults are
+# safe for local dev (ARCHON_AUTH_DEV_MODE=true, dev JWT secret); they
+# are NOT safe for staging / production.
 ```
 
-### 2.2 Start all services
+### 2.2 Start the eight-service stack
 
 ```bash
-docker compose up -d
+make up
+# Equivalent to: docker compose up -d
 ```
 
-This starts: PostgreSQL, Redis, Keycloak, MinIO, Backend API, Frontend, Gateway.
+This brings up:
 
-### 2.3 Verify health
+| Service | Port (host) | Role |
+|---------|-------------|------|
+| `postgres` | 5432 | Primary datastore. |
+| `redis` | 6379 | Rate limiter, WebSocket replay, idempotency cache. |
+| `backend` | 8000 | FastAPI control plane. Depends on `vault-init` completion. |
+| `worker` | (none) | Background worker — drain, reclaim, timer-fire. |
+| `frontend` | 3000 | React SPA. |
+| `keycloak` | 8180 | OIDC provider (dev profile). |
+| `vault` | 8200 | Secrets backend (dev mode). |
+| `vault-init` | (one-shot) | Idempotent KV-v2 / Transit / PKI / AppRole bootstrap. |
+
+The backend's `depends_on` on `vault-init: { condition: service_completed_successfully }` ensures Vault is initialized before the API binds.
+
+### 2.3 Run migrations + verify
 
 ```bash
-curl http://localhost:8000/health   # Backend
-curl http://localhost:8080/health   # MCP Gateway
-curl http://localhost:3000          # Frontend
+make migrate     # alembic upgrade head — safe, never drops data
+make verify      # 5-gate pipeline (unit + integration + frontend + contracts + slice)
+make test-slice  # vertical-slice REST canary
 ```
+
+`make test-slice` issues `POST /api/v1/agents` → `POST /api/v1/executions` and asserts a durable `WorkflowRun` reaches a terminal status. It's the heartbeat — when this passes, the kernel works.
 
 ### 2.4 Default credentials (dev only)
 
-| Service | URL | Credentials |
+| Surface | URL | Credentials |
 |---------|-----|-------------|
-| Frontend | http://localhost:3000 | admin / admin |
-| Backend API | http://localhost:8000/docs | JWT via `/auth/dev-login` |
-| Keycloak | http://localhost:8180 | admin / admin |
-| MinIO | http://localhost:9001 | minioadmin / minioadmin |
+| Frontend | http://localhost:3000 | static `dev-token` (auth dev mode) |
+| Backend API | http://localhost:8000/docs | static `dev-token` |
+| Keycloak | http://localhost:8180 | `admin` / `admin` |
+| Vault | http://localhost:8200 | root token: `dev-root-token` |
 
----
+These credentials are dev-mode only. They will be rejected in production by the startup gates documented in [`docs/PRODUCTION_CONFIG.md`](PRODUCTION_CONFIG.md).
 
-## 3. Kubernetes (Production)
+### 2.5 Tear down
 
-### 3.1 Namespace setup
+```bash
+make down            # stop services, keep volumes
+make clean           # stop + remove volumes (DESTRUCTIVE)
+```
+
+## 3. Staging (Helm)
+
+Staging mirrors production except secrets come from a real Vault instance and `ARCHON_ENV=staging` activates the same fail-closed startup gates.
+
+### 3.1 Install
+
+```bash
+helm repo add archon <repo-url>      # if published
+# or use the local chart:
+cd infra/helm/archon-platform
+helm dependency update
+
+kubectl create namespace archon-staging
+
+helm upgrade --install archon . \
+  --namespace archon-staging \
+  -f values.yaml \
+  -f values-staging.yaml \           # operator overlay (machine-local)
+  --set backend.env.ARCHON_ENV=staging \
+  --set worker.env.ARCHON_ENV=staging
+```
+
+### 3.2 Required values
+
+| Override | Source |
+|----------|--------|
+| `ARCHON_DATABASE_URL` | Postgres connection string (NOT SQLite — startup will reject) |
+| `ARCHON_REDIS_URL` | Redis connection string |
+| `ARCHON_JWT_SECRET` | 32+ byte random value (NOT a dev default) |
+| `ARCHON_AUTH_DEV_MODE` | `false` |
+| `LANGGRAPH_CHECKPOINTING` | `postgres` |
+| `ARCHON_ENTERPRISE_STRICT_TENANT` | `true` (or unset; default is strict) |
+| `ARCHON_KEYCLOAK_URL` | OIDC issuer URL |
+
+These are the same gates documented in [`docs/PRODUCTION_CONFIG.md §3`](PRODUCTION_CONFIG.md#3-startup-gates-run_startup_checks). If the chart is misconfigured, the backend pod CrashLoopBackOff with `startup_checks_failed` in the logs.
+
+### 3.3 Verify the deploy
+
+```bash
+kubectl -n archon-staging get pods                    # all Running
+kubectl -n archon-staging logs deploy/archon-backend  # look for "startup_checks: passed (env=staging)"
+kubectl -n archon-staging port-forward svc/archon-backend 8000:8000
+curl http://localhost:8000/health
+curl http://localhost:8000/api/v1/health
+```
+
+Then run `make test-slice` against the staging API:
+
+```bash
+ARCHON_BASE_URL=http://localhost:8000 make test-slice
+```
+
+## 4. Production
+
+Production = staging with two additions:
+
+1. `ARCHON_ENV=production` (same gates, slightly stricter wording in error messages).
+2. Multi-zone Postgres + ElastiCache + multi-AZ EKS via the AWS Terraform module.
+
+### 4.1 Provision infrastructure (AWS)
+
+```bash
+cd infra/terraform/aws
+terraform init
+terraform workspace select prod   # or terraform workspace new prod
+terraform plan -var-file=production.tfvars
+terraform apply -var-file=production.tfvars
+```
+
+The AWS module ships with VPC + EKS + RDS PG16 multi-AZ + ElastiCache + S3 with KMS. Output values feed Helm.
+
+### 4.2 Create namespace + secrets
 
 ```bash
 kubectl create namespace archon
-kubectl create namespace archon-staging
+
+# Secrets are managed via External Secrets Operator pulling from Vault.
+# Apply the ESO ClusterSecretStore + ExternalSecret manifests:
+kubectl apply -f infra/k8s/external-secrets/
 ```
 
-### 3.2 Secrets
-
-All secrets are managed via HashiCorp Vault. Bootstrap Vault:
+### 4.3 Bootstrap Vault (first deploy only)
 
 ```bash
-# Apply Vault Helm chart
 helm upgrade --install vault infra/helm/vault \
   --namespace vault \
   --create-namespace \
   -f infra/helm/vault/values.yaml
 
-# Initialize and unseal (first time only)
+# Initialize + unseal (operator-only, do NOT script the unseal keys):
+kubectl exec -it -n vault vault-0 -- vault operator init
+# Distribute unseal keys per your operator policy.
+kubectl exec -it -n vault vault-0 -- vault operator unseal
+
+# Bootstrap KV-v2 + Transit + PKI + AppRole (idempotent):
 bash infra/helm/vault/vault-init.sh
-
-# Apply Archon policy
-vault policy write archon infra/helm/vault/vault-policy.hcl
 ```
 
-### 3.3 Deploy with Helm
+### 4.4 Install the platform
 
 ```bash
-# Production
-helm upgrade --install archon infra/helm/archon-platform \
+cd infra/helm/archon-platform
+helm dependency update
+
+helm upgrade --install archon . \
   --namespace archon \
-  --set backend.image.tag=<SHA> \
-  --set frontend.image.tag=<SHA> \
-  --set gateway.image.tag=<SHA> \
-  --set backend.config.databaseUrl="postgresql+asyncpg://..." \
-  --set backend.config.redisUrl="redis://..." \
-  -f infra/helm/archon-platform/values.yaml
-
-# Staging (uses ArgoCD)
-# See infra/argocd/application.yaml
+  -f values.yaml \
+  -f values-production.yaml \    # operator overlay
+  --set backend.env.ARCHON_ENV=production \
+  --set worker.env.ARCHON_ENV=production
 ```
 
-### 3.4 Verify deployment
+### 4.5 Production startup gates
+
+On startup the backend and worker run [`run_startup_checks`](../backend/app/startup_checks.py) and abort if any of the following fail:
+
+- `ARCHON_DATABASE_URL` is empty or `sqlite://...`
+- `ARCHON_JWT_SECRET` is a known dev default (`changeme`, `dev-secret`, etc.)
+- `ARCHON_AUTH_DEV_MODE=true`
+- `LANGGRAPH_CHECKPOINTING in {memory, disabled}`
+- `ARCHON_ENTERPRISE_STRICT_TENANT in {false, 0, no, off}`
+- The LangGraph Postgres saver fails to construct (any reason)
+
+A failed gate logs `startup_checks_failed` at CRITICAL and exits non-zero. The HTTP listener never binds. There is no silent fallback.
+
+See [`docs/PRODUCTION_CONFIG.md`](PRODUCTION_CONFIG.md) for the full env-var contract.
+
+## 5. Migrations
+
+### 5.1 Apply
 
 ```bash
-kubectl get pods -n archon
-kubectl rollout status deployment/archon-backend -n archon
-kubectl rollout status deployment/archon-gateway -n archon
+# In any environment:
+kubectl exec deploy/archon-backend -- alembic upgrade head
 ```
 
----
-
-## 4. Azure Container Apps (Recommended for Cloud)
-
-### 4.1 Infrastructure provisioning
+Or locally:
 
 ```bash
-cd infra/terraform/azure
-terraform init
-terraform plan -var-file="prod.tfvars"
-terraform apply -var-file="prod.tfvars"
+make migrate-up
 ```
 
-### 4.2 Required Azure resources
+Migrations are idempotent (`0007_canonical_run_substrate.py` and later use inspector helpers `_table_exists`, `_column_exists`, `_index_exists` that no-op on existing schema elements). They apply cleanly to a fresh database AND to one already partway through the chain.
 
-- **Azure Container Apps** — backend, gateway, frontend
-- **Azure Database for PostgreSQL Flexible Server** — primary database
-- **Azure Cache for Redis** — session cache and task queue
-- **Azure Container Registry** — image storage
-- **Azure Key Vault** — secrets management (replaces HashiCorp Vault in cloud)
-- **Azure Storage** — object storage (replaces MinIO)
+### 5.2 Roll back
 
-### 4.3 Environment variables
-
-Set these on each Container App:
-
-```
-ARCHON_DATABASE_URL=postgresql+asyncpg://<user>:<pass>@<host>:5432/archon
-ARCHON_REDIS_URL=rediss://<host>:6380/0
-ARCHON_JWT_SECRET=<vault-secret>
-ARCHON_AUTH_DEV_MODE=false
-ARCHON_SMTP_HOST=<smtp-host>
-ARCHON_SMTP_PORT=587
-ARCHON_SMTP_FROM=archon@yourdomain.com
-ARCHON_SMTP_USERNAME=<smtp-user>
-ARCHON_SMTP_PASSWORD=<smtp-password>
-ARCHON_TEAMS_WEBHOOK_URL=<teams-incoming-webhook>
-```
-
-### 4.4 Container App scaling rules
-
-```yaml
-# backend
-minReplicas: 2
-maxReplicas: 20
-rules:
-  - name: http-scale
-    http:
-      metadata:
-        concurrentRequests: "50"
-
-# gateway
-minReplicas: 1
-maxReplicas: 5
-```
-
----
-
-## 5. CI/CD Pipeline
-
-### 5.1 GitHub Actions workflows
-
-| Workflow | Trigger | Steps |
-|---------|---------|-------|
-| `ci.yml` | Push / PR to `main` | lint, test, test-gateway, build, security-scan |
-| `cd.yml` | Push to `main` | build+push images, deploy to staging |
-
-### 5.2 Required secrets (GitHub repository secrets)
-
-```
-GHCR_TOKEN          — GitHub Container Registry write token
-KUBE_CONFIG_STAGING — kubeconfig for staging cluster (base64)
-KUBE_CONFIG_PROD    — kubeconfig for prod cluster (base64)
-```
-
----
-
-## 6. SMTP Configuration
-
-Configure SMTP for email notifications via environment variables or the Settings UI:
-
-```
-ARCHON_SMTP_HOST=smtp.sendgrid.net
-ARCHON_SMTP_PORT=587
-ARCHON_SMTP_FROM=archon@yourdomain.com
-ARCHON_SMTP_USERNAME=apikey
-ARCHON_SMTP_PASSWORD=<sendgrid-api-key>
-```
-
-Or via the Settings API:
 ```bash
-PUT /api/v1/settings
-{
-  "notifications": {
-    "smtp_host": "smtp.sendgrid.net",
-    "smtp_port": 587,
-    "smtp_from": "archon@yourdomain.com",
-    "smtp_username": "apikey",
-    "smtp_password": "<key>"
-  }
-}
+make migrate-down       # rolls back one revision
+# or:
+kubectl exec deploy/archon-backend -- alembic downgrade -1
 ```
 
-Test with:
+The full chain (0001 → 0010) round-trips on SQLite (test) and Postgres (production). Verify with:
+
 ```bash
-POST /api/v1/settings/notifications/test
-{ "channel": "email", "recipient": "test@example.com" }
+alembic upgrade head
+alembic downgrade base
+alembic upgrade head      # should succeed again
 ```
 
----
+### 5.3 Generate a new migration
 
-## 7. Microsoft Teams Integration
-
-Add a Teams Incoming Webhook connector to your Teams channel, then configure:
-
-```
-ARCHON_TEAMS_WEBHOOK_URL=https://outlook.office.com/webhook/...
-```
-
-Or in the Settings UI under **Notifications → Teams Webhook URL**.
-
-Test with:
 ```bash
-POST /api/v1/settings/notifications/test
-{ "channel": "teams" }
+# Inside the backend container (so app.config + models import cleanly):
+docker compose exec backend alembic revision --autogenerate -m "<description>"
 ```
 
----
+Review the generated file. If it includes Postgres-specific DDL (RLS, partial indexes), guard it with:
 
-## 8. Health & Readiness Checks
+```python
+if op.get_bind().dialect.name == "postgresql":
+    op.execute(...)
+```
 
-| Endpoint | Service | Type |
-|---------|---------|------|
-| `GET /health` | Backend | Liveness |
-| `GET /health/ready` | Backend | Readiness |
-| `GET /health` | Gateway | Liveness |
-| `GET /metrics` | Backend | Prometheus scrape |
+Module-level `from app.models import *` imports are required (Python 3.12 syntax error if placed inside a function).
 
----
+## 6. Backup & restore
+
+### 6.1 Manual backup
+
+```bash
+bash scripts/backup-postgres.sh > /tmp/archon-$(date +%Y%m%d-%H%M).sql.gz
+```
+
+The script uses `pg_dump` against `ARCHON_DATABASE_URL` and writes a compressed plain-format dump.
+
+### 6.2 Restore
+
+```bash
+gunzip -c /tmp/archon-20260429-1500.sql.gz | bash scripts/restore-postgres.sh
+```
+
+`scripts/restore-postgres.sh` refuses to run against a database whose name starts with `archon_prod` unless `ARCHON_RESTORE_FORCE=true` is set — a guardrail against accidental restore over production.
+
+### 6.3 PITR (production)
+
+The AWS Terraform module enables RDS automated backups with 35-day retention. PITR is performed via the AWS console / `aws rds restore-db-instance-to-point-in-time`, not via this script. See your operator runbook.
+
+## 7. Monitoring & alerts
+
+### 7.1 Grafana
+
+Dashboards live in `infra/grafana/dashboards/archon-*.json`. Loaded by the Grafana sidecar via the `grafana_dashboard` ConfigMap label.
+
+```bash
+kubectl -n archon-monitoring port-forward svc/archon-monitoring-grafana 3000:80
+open http://localhost:3000
+```
+
+### 7.2 Prometheus alerts
+
+Alert rules in `infra/monitoring/alerts/archon-orchestration.yaml` and `infra/monitoring/prometheus-values.yaml`. Loaded by `kube-prometheus-stack` via `additionalPrometheusRulesMap`.
+
+Every alert references a metric in [`docs/metrics-catalog.md`](metrics-catalog.md). The CI gate `scripts/check-grafana-metric-parity.py` rejects PRs that introduce metric drift.
+
+See [`docs/runbooks/observability.md`](runbooks/observability.md) for the operational walkthrough.
+
+## 8. Health & readiness
+
+| Endpoint | Type | When ready |
+|----------|------|-----------|
+| `GET /health` | Liveness | Process is up. |
+| `GET /ready` | Readiness | Database connected, migrations at head, Vault reachable, checkpointer initialized. |
+| `GET /api/v1/health` | Equivalent to `/health`. | — |
+| `GET /metrics` | Prometheus scrape. | Always available. |
+
+A backend pod that fails its startup gates **never** becomes Ready (it crashes before `Ready` can be true). A worker that fails the same gates exits with a non-zero code and Kubernetes restarts it; the backoff is the operator's signal that gates are misconfigured.
 
 ## 9. Troubleshooting
 
-### Database connection refused
+### 9.1 `startup_checks_failed` in logs
+
+Read the failure list. Each line names the env var to fix. See [`docs/PRODUCTION_CONFIG.md §3`](PRODUCTION_CONFIG.md#3-startup-gates-run_startup_checks).
+
+### 9.2 Worker not draining pending runs
+
 ```bash
-kubectl logs deployment/archon-backend -n archon | grep "database"
-# Ensure DATABASE_URL is correct and PostgreSQL is reachable
+kubectl logs deploy/archon-worker -n archon | grep "drain_loop"
+# Look for: "claimed run <uuid>" lines
+# If none: check ARCHON_DATABASE_URL is correct and worker has DB connectivity.
+# If lease errors: another worker may hold the run; check worker_registry table.
 ```
 
-### SMTP send failures
+### 9.3 Postgres checkpointer fails to initialize
+
 ```bash
-# Check backend logs
-kubectl logs deployment/archon-backend -n archon | grep "smtp_send_failed"
-# Verify SMTP credentials and TLS support on port 587
+kubectl exec -it deploy/archon-backend -- python -c "
+from app.langgraph.checkpointer import get_checkpointer
+import asyncio
+asyncio.run(get_checkpointer())
+"
+# In production this MUST succeed and return an AsyncPostgresSaver.
+# Common causes:
+#   - DATABASE_URL not Postgres
+#   - langgraph-checkpoint-postgres package not installed in the image
+#   - Postgres instance unreachable
 ```
 
-### Gateway plugin not loading
+### 9.4 Vertical slice fails
+
 ```bash
-kubectl logs deployment/archon-gateway -n archon | grep "plugin"
-# Ensure YAML files in gateway/plugins/ are valid
+make test-slice  # exits non-zero
 ```
 
----
+Read the pytest output. The slice asserts on:
+1. `POST /api/v1/agents` returns 201.
+2. `POST /api/v1/executions` returns 200/201 with a run_id.
+3. The run reaches a terminal status (`completed`).
+4. `workflow_run_steps` rows exist.
+5. `workflow_run_events` chain verifies.
 
-*This guide is maintained alongside the codebase. For questions, open an issue or see `docs/CONTRIBUTING.md`.*
+Whichever assertion fails localizes the regression.
+
+### 9.5 Frontend not connecting to WebSocket
+
+Check `VITE_API_BASE_URL` and `VITE_WS_BASE_URL` in `frontend/.env` (or the Helm value `frontend.env.VITE_API_BASE_URL`). The WebSocket client uses `wss://` if served over HTTPS.
+
+## 10. Cross-references
+
+- [`docs/PRODUCTION_CONFIG.md`](PRODUCTION_CONFIG.md) — env var + startup gate map.
+- [`docs/STATE_MACHINE.md`](STATE_MACHINE.md) — what "terminal" means.
+- [`docs/runbooks/observability.md`](runbooks/observability.md) — Grafana / Prometheus operational guide.
+- [`docs/ARCHITECTURE.md`](ARCHITECTURE.md) — bounded contexts the deploy maps onto.
+- [`docs/adr/orchestration/ADR-005-production-durability-policy.md`](adr/orchestration/ADR-005-production-durability-policy.md) — fail-closed durability.

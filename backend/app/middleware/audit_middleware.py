@@ -161,10 +161,15 @@ async def _write_audit_entry(
     user_agent: str | None,
     details: dict[str, Any] | None,
 ) -> None:
-    """Write an audit entry in a fresh session (fire-and-forget helper)."""
+    """Write a hash-chained audit entry in a fresh session (fire-and-forget).
+
+    Routes through :func:`app.services.audit_chain.append_audit_log` so every
+    row carries ``prev_hash`` + ``hash`` linkage.  Exceptions are swallowed —
+    audit logging must never break the originating request.
+    """
     try:
         from app.database import async_session_factory
-        from app.services.audit_service import AuditService
+        from app.services.audit_chain import append_audit_log
 
         # Normalise actor_id to UUID | None
         actor: UUID | None = None
@@ -178,7 +183,7 @@ async def _write_audit_entry(
         safe_details = _scrub_details(details)
 
         async with async_session_factory() as session:
-            await AuditService.log_action(
+            await append_audit_log(
                 session=session,
                 tenant_id=tenant_id,
                 correlation_id=correlation_id,
@@ -189,7 +194,7 @@ async def _write_audit_entry(
                 status_code=status_code,
                 ip_address=ip_address,
                 user_agent=user_agent,
-                details=details,
+                details=safe_details,
             )
     except Exception:
         # Audit logging must NEVER fail a request
@@ -342,7 +347,8 @@ class AuditMiddleware(BaseHTTPMiddleware):
                         status_code=response.status_code,
                         ip_address=ip_address,
                         user_agent=user_agent,
-                        details=safe_details,
+                        # _write_audit_entry scrubs details internally
+                        details=details,
                     )
                 )
             except Exception:

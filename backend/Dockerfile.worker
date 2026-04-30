@@ -1,0 +1,26 @@
+# Archon Background Worker
+#
+# Same Python base as the API backend, but launched as `app.worker` so the
+# worker process runs in its own container with its own scaling / restart
+# policy independent of the HTTP API.
+#
+# Owned by W0.1 (compose). The worker module itself lives at backend/app/worker.py.
+
+FROM python:3.12-slim AS base
+
+WORKDIR /app
+
+# System deps for asyncpg (libpq) + curl for healthchecks.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends gcc libpq-dev curl \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY app/ ./app/
+
+# Worker has no listening port — it consumes from postgres + redis queues.
+# Healthcheck pings a sentinel file the worker touches once it has loaded.
+# (Soft check: the process being alive is the primary signal.)
+CMD ["python", "-m", "app.worker"]

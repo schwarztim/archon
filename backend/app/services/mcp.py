@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.utils.time import utcnow as _utcnow
 from typing import Any
@@ -96,7 +96,7 @@ class MCPService:
         for key, value in data.items():
             if hasattr(component, key):
                 setattr(component, key, value)
-        component.updated_at = _utcnow()
+        component.updated_at = datetime.now(timezone.utc)
         session.add(component)
         await session.commit()
         await session.refresh(component)

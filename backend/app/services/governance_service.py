@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from app.utils.time import utcnow as _utcnow
 from typing import Any
@@ -174,7 +174,7 @@ class GovernanceService:
         """
         check_permission(user, "governance", "create")
 
-        now = _utcnow()
+        now = datetime.now(timezone.utc)
         elevation = ElevationRequest(
             id=uuid4(),
             tenant_id=tenant_id,

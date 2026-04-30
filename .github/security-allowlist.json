@@ -1,0 +1,5 @@
+{
+  "_comment": "Each entry must include cve_id (or vulnerability_id), rationale, and review_date. Re-review every 90 days. See docs/runbooks/ci-gates.md for severity policy.",
+  "cve_ids": [],
+  "rationale": {}
+}

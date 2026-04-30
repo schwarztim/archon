@@ -9,6 +9,9 @@ import { BuilderPage } from "@/pages/BuilderPage";
 import { TemplatesPage } from "@/pages/TemplatesPage";
 import { ExecutionsPage } from "@/pages/ExecutionsPage";
 import { ExecutionDetailPage } from "@/pages/ExecutionDetailPage";
+import { RunHistoryPage } from "@/pages/RunHistoryPage";
+import { ApprovalsPage } from "@/pages/ApprovalsPage";
+import { ArtifactsPage } from "@/pages/ArtifactsPage";
 import { WorkflowsPage } from "@/pages/WorkflowsPage";
 import { ModelRouterPage } from "@/pages/ModelRouterPage";
 import { LifecyclePage } from "@/pages/LifecyclePage";
@@ -66,6 +69,9 @@ function AuthGate() {
           <Route path="templates" element={<TemplatesPage />} />
           <Route path="executions" element={<ExecutionsPage />} />
           <Route path="executions/:id" element={<ExecutionDetailPage />} />
+          <Route path="runs" element={<RunHistoryPage />} />
+          <Route path="approvals" element={<ApprovalsPage />} />
+          <Route path="artifacts" element={<ArtifactsPage />} />
           <Route path="workflows" element={<WorkflowsPage />} />
           <Route path="router" element={<ModelRouterPage />} />
           <Route path="lifecycle" element={<LifecyclePage />} />

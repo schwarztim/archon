@@ -2,22 +2,28 @@
 
 from __future__ import annotations
 
-import random
+import asyncio
 from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
-from app.models import Agent, Execution
+from app.middleware.auth import get_current_user
+from app.interfaces.models.enterprise import AuthenticatedUser
+from app.models import Agent
 from app.schemas.agent_schemas import (
     AgentCreate,
     AgentUpdate,
     ExecuteAgentRequest,
 )
-from app.services import agent_service, execution_service
+from app.services import agent_service
+from app.services.dispatch_runtime import schedule_dispatch
+from app.services.execution_facade import ExecutionFacade
+from app.services.idempotency_service import IdempotencyConflict
+from app.services.run_dispatcher import dispatch_run
 
 try:
     from opentelemetry import trace
@@ -129,63 +135,76 @@ async def delete_agent(
     return Response(status_code=204)
 
 
-# ── Mock execution helpers ───────────────────────────────────────────
-
-_MOCK_STEPS: list[dict[str, Any]] = [
-    {"name": "input", "status": "completed"},
-    {"name": "llm_call", "status": "completed", "tokens": 150},
-    {"name": "output", "status": "completed"},
-]
-
-_MOCK_OUTPUT: dict[str, Any] = {
-    "response": "Agent execution completed successfully",
-    "steps": _MOCK_STEPS,
-}
-
-
-def _utcnow() -> datetime:
-    """Return naive UTC timestamp for TIMESTAMP WITHOUT TIME ZONE columns."""
-    return datetime.utcnow()
-
-
-def _simulate_execution(execution: Execution) -> None:
-    """Populate *execution* with mock completed-run data (in-place)."""
-    now = _utcnow()
-    duration_ms = random.randint(120, 2500)
-    execution.status = "running"
-    execution.started_at = now
-    execution.output_data = _MOCK_OUTPUT
-    execution.status = "completed"
-    execution.completed_at = now
-    execution.steps = _MOCK_STEPS
-    execution.metrics = {
-        "duration_ms": duration_ms,
-        "total_tokens": 150,
-        "estimated_cost": round(150 * 0.00003, 6),
-    }
-    execution.updated_at = now
-
-
-@router.post("/{agent_id}/execute", status_code=201)
+@router.post("/{agent_id}/execute")
 async def execute_agent(
     agent_id: UUID,
     body: ExecuteAgentRequest,
+    response: Response,
+    x_idempotency_key: str | None = Header(default=None, alias="X-Idempotency-Key"),
     session: AsyncSession = Depends(get_session),
+    user: AuthenticatedUser = Depends(get_current_user),
 ) -> dict[str, Any]:
-    """Create and run an execution for a given agent.
+    """Create and run an execution for a given agent (canonical path).
 
-    Accepts ``{"input": {...}, "config_overrides": {...}}``, creates an
-    Execution record, stubs the processing, and returns the execution_id.
+    Per ADR-001: persists a WorkflowRun with kind="agent" via the
+    ExecutionFacade. The dispatcher receives a real WorkflowRun.id —
+    closing Conflict 9 (Execution.id was previously handed to dispatch_run
+    and silently no-oped because the row never existed in workflow_runs).
+
+    Returns 201 + ``execution_id`` (alias for ``run_id``) on new runs;
+    200 + ``execution_id`` on idempotent replay; 409 on idempotency
+    conflict.
     """
-    # Verify the agent exists
-    agent = await agent_service.get_agent(session, agent_id)
-    if agent is None:
-        raise HTTPException(status_code=404, detail="Agent not found")
+    tenant_id = (
+        UUID(user.tenant_id)
+        if user and user.tenant_id
+        else UUID("00000000-0000-0000-0000-000000000000")
+    )
 
-    execution = Execution(agent_id=agent_id, input_data=body.input)
-    _simulate_execution(execution)
-    created = await execution_service.create_execution(session, execution)
+    try:
+        run, is_new = await ExecutionFacade.create_run(
+            session,
+            kind="agent",
+            agent_id=agent_id,
+            tenant_id=tenant_id,
+            input_data=body.input or {},
+            triggered_by=(user.email if user else "") or "",
+            trigger_type="manual",
+            idempotency_key=x_idempotency_key,
+        )
+    except IdempotencyConflict as exc:
+        response.status_code = 409
+        return {
+            "error": {
+                "code": "idempotency_conflict",
+                "message": "Idempotency key already used with different input.",
+                "key": exc.key,
+                "existing_run_id": str(exc.existing_run_id),
+            },
+            "meta": _meta(),
+        }
+    except ValueError as exc:
+        # Agent missing or other invariant — surface as 404.
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    if is_new:
+        # Hand the dispatcher a WorkflowRun.id (NOT an Execution.id) — this
+        # is the structural fix for Conflict 9. schedule_dispatch awaits
+        # inline under ARCHON_DISPATCH_INLINE=1 (test/CI) and otherwise
+        # schedules a tracked background task with done-callback logging.
+        # run_id lets the runtime persist a terminal failed state on the
+        # row if the background coroutine raises (P0 hardening).
+        await schedule_dispatch(dispatch_run(run.id), run_id=run.id)
+        response.status_code = 201
+    else:
+        response.status_code = 200
+
     return {
-        "data": {"execution_id": str(created.id)},
-        "meta": _meta(),
+        "data": {
+            "execution_id": str(run.id),
+            "run_id": str(run.id),
+            "kind": run.kind,
+            "status": run.status,
+        },
+        "meta": _meta(replay=not is_new),
     }

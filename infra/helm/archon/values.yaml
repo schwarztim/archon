@@ -1,11 +1,28 @@
-# -- Global settings
+# ──────────────────────────────────────────────────────────────────────────
+# Archon Helm Chart — Default Values
+#
+# Targets the `archon-dev` namespace by default. Stub-mode LLM, low replica
+# counts, no autoscaling, no PDB, no NetworkPolicies. Override via
+# values-production.yaml for hardened deployments.
+# ──────────────────────────────────────────────────────────────────────────
+
+# -- Global settings shared across all components.
 global:
+  # Image registry prepended to every image (e.g. ghcr.io/archon-ai). Empty = use
+  # the image's `repository` field verbatim.
   imageRegistry: ""
   imagePullSecrets: []
+  # Deployment environment label — propagated to ARCHON_ENV in pods.
+  archonEnv: "dev"
 
-# -- Backend (FastAPI) service
+# -- Stub mode toggles. When true, LLM calls are short-circuited to a deterministic
+#    stub (no external API spend, no network egress for inference).
+stubMode: true
+
+# -- Backend (FastAPI) HTTP service.
 backend:
-  replicaCount: 2
+  enabled: true
+  replicaCount: 1
   image:
     repository: archon/backend
     tag: ""  # defaults to .Chart.AppVersion
@@ -20,14 +37,195 @@ backend:
     limits:
       cpu: "1"
       memory: 1Gi
+  # Liveness / readiness probes — backend exposes /health (see app/health.py).
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: http
+    initialDelaySeconds: 15
+    periodSeconds: 20
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readinessProbe:
+    httpGet:
+      path: /ready
+      port: http
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+  startupProbe:
+    httpGet:
+      path: /health
+      port: http
+    failureThreshold: 30
+    periodSeconds: 5
+  # securityContext applied to backend pods + containers.
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: false
+    runAsNonRoot: true
+    runAsUser: 1000
+    capabilities:
+      drop:
+        - ALL
+  # Autoscaling — disabled by default in dev.
   autoscaling:
-    enabled: true
-    minReplicas: 2
+    enabled: false
+    minReplicas: 1
     maxReplicas: 10
     targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
   podDisruptionBudget:
-    enabled: true
+    enabled: false
     minAvailable: 1
+  # Component-level env (key/value) merged into pod spec.
+  env: {}
+  # Extra env sources (secrets, configmaps).
+  envFrom: []
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# -- Worker (background jobs — scans, secret rotation, scheduled tasks).
+worker:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: archon/worker
+    tag: ""  # defaults to .Chart.AppVersion
+    pullPolicy: IfNotPresent
+  command:
+    - python
+    - -m
+    - app.worker
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  # Worker has no HTTP listener — use exec/file-based liveness or none.
+  # The default liveness check pgreps the worker process to confirm it is alive.
+  livenessProbe:
+    exec:
+      command:
+        - sh
+        - -c
+        - "pgrep -f 'app.worker' >/dev/null"
+    initialDelaySeconds: 30
+    periodSeconds: 30
+    timeoutSeconds: 5
+    failureThreshold: 3
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: false
+    runAsNonRoot: true
+    runAsUser: 1000
+    capabilities:
+      drop:
+        - ALL
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 70
+  podDisruptionBudget:
+    enabled: false
+    minAvailable: 1
+  concurrency: 4
+  scanInterval: 300
+  env: {}
+  envFrom: []
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# -- Frontend (React static — served by nginx).
+frontend:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: archon/frontend
+    tag: ""  # defaults to .Chart.AppVersion
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 3000
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  livenessProbe:
+    httpGet:
+      path: /
+      port: http
+    initialDelaySeconds: 10
+    periodSeconds: 20
+  readinessProbe:
+    httpGet:
+      path: /
+      port: http
+    initialDelaySeconds: 5
+    periodSeconds: 10
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 101  # nginx user in nginx:alpine
+    fsGroup: 101
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: false
+    runAsNonRoot: true
+    capabilities:
+      drop:
+        - ALL
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 4
+    targetCPUUtilizationPercentage: 80
+  podDisruptionBudget:
+    enabled: false
+    minAvailable: 1
+  env: {}
+  envFrom: []
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# -- Gateway (model/router proxy — uvicorn on 8080).
+gateway:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: archon/gateway
+    tag: ""  # defaults to .Chart.AppVersion
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8080
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
   livenessProbe:
     httpGet:
       path: /health
@@ -40,36 +238,33 @@ backend:
       port: http
     initialDelaySeconds: 5
     periodSeconds: 10
-  startupProbe:
-    httpGet:
-      path: /health
-      port: http
-    failureThreshold: 30
-    periodSeconds: 5
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    fsGroup: 1000
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: false
+    runAsNonRoot: true
+    runAsUser: 1000
+    capabilities:
+      drop:
+        - ALL
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 70
+  podDisruptionBudget:
+    enabled: false
+    minAvailable: 1
   env: {}
-  # Extra environment variables from secrets/configmaps
   envFrom: []
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
 
-# -- Frontend (React) service
-frontend:
-  enabled: true
-  replicaCount: 2
-  image:
-    repository: archon/frontend
-    tag: ""
-    pullPolicy: IfNotPresent
-  service:
-    type: ClusterIP
-    port: 3000
-  resources:
-    requests:
-      cpu: 100m
-      memory: 128Mi
-    limits:
-      cpu: 500m
-      memory: 256Mi
-
-# -- Ingress
+# -- Ingress — disabled by default. Enable for cluster-external access.
 ingress:
   enabled: false
   className: ""
@@ -82,6 +277,9 @@ ingress:
         - path: /api
           pathType: Prefix
           service: backend
+        - path: /gateway
+          pathType: Prefix
+          service: gateway
         - path: /
           pathType: Prefix
           service: frontend
@@ -90,38 +288,90 @@ ingress:
   #    hosts:
   #      - archon.local
 
-# -- ConfigMap values
+# -- ConfigMap values — non-secret env vars merged into all pods via envFrom.
 config:
   logLevel: INFO
   debug: "false"
   corsOrigins: "*"
+  # Feature flags
+  featureDlpEnabled: "true"
+  featureCostTracking: "true"
+  featureMcpSecurity: "true"
+  featureA2aEnabled: "true"
+  # LangGraph checkpointing backend (memory|postgres). Production must be postgres.
+  langgraphCheckpointing: "memory"
+  # Strict tenant enforcement — must be true in production.
+  enterpriseStrictTenant: "false"
 
-# -- External dependencies (when not using sub-charts)
+# -- External PostgreSQL connection settings (chart does not provision Postgres).
 postgresql:
   host: ""
   port: 5432
   database: archon
   username: archon
+  # Existing secret holding the password under the key referenced below.
   existingSecret: ""
   existingSecretPasswordKey: password
+  # asyncpg URL is built from the above when host is set.
+  sslMode: ""
 
+# -- External Redis connection settings.
 redis:
   host: ""
   port: 6379
+  database: 0
   existingSecret: ""
   existingSecretPasswordKey: password
 
-# -- Service account
+# -- External Vault connection settings.
+vault:
+  enabled: true
+  addr: ""
+  namespace: archon
+  mountPoint: secret
+  # Token sourced from a secret. Populated by the operator (e.g. via External
+  # Secrets Operator or AppRole-issued token).
+  existingSecret: ""
+  existingSecretTokenKey: token
+
+# -- App-wide secret references (created out-of-band by operator). The chart
+#    never creates secrets containing live credentials.
+secrets:
+  # Name of an existing Secret whose keys are exposed to all pods via envFrom.
+  # Convention: keys ARCHON_JWT_SECRET, ARCHON_VAULT_TOKEN, etc.
+  existingAppSecret: ""
+
+# -- Service account.
 serviceAccount:
   create: true
   name: ""
   annotations: {}
 
-# -- Pod-level settings
-nodeSelector: {}
-tolerations: []
-affinity: {}
+# -- Migration job — runs `alembic upgrade head` as a Helm pre-install/pre-upgrade hook.
+migration:
+  enabled: true
+  image:
+    repository: archon/backend
+    tag: ""
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  backoffLimit: 2
+  activeDeadlineSeconds: 600
+  # Hook weight — runs early in pre-install/pre-upgrade.
+  hookWeight: "-5"
 
-# -- Network policy
-networkPolicy:
+# -- NetworkPolicies — disabled by default. Production overrides enable a
+#    default-deny policy plus explicit allow rules per component.
+networkPolicies:
   enabled: false
+  # When enabled, allow ingress to backend from these namespace selectors.
+  ingressNamespaceSelectors: []
+  # When enabled, allow gateway egress to these CIDR blocks (e.g. external LLM APIs).
+  gatewayEgressCIDRs:
+    - 0.0.0.0/0

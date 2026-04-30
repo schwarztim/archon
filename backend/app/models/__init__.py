@@ -280,7 +280,16 @@ from app.models.redteam import (  # noqa: E402
     VulnerabilityFinding,
 )
 from app.models.settings import FeatureFlag, PlatformSetting, SettingsAPIKey  # noqa: E402
-from app.models.workflow import Workflow, WorkflowRun, WorkflowRunStep, WorkflowSchedule  # noqa: E402
+from app.models.workflow import (  # noqa: E402
+    Workflow,
+    WorkflowRun,
+    WorkflowRunEvent,
+    WorkflowRunStep,
+    WorkflowSchedule,
+)
+from app.models.worker_registry import WorkerHeartbeat  # noqa: E402
+from app.models.timers import Timer  # noqa: E402
+from app.models.approval import Approval, Signal  # noqa: E402
 from app.models.oauth import OAuthPendingState  # noqa: E402
 from app.models.rbac import CustomRole  # noqa: E402
 from app.models.custom_role import GroupRoleMapping  # noqa: E402
@@ -288,6 +297,7 @@ from app.models.scim_db import SCIMGroupRecord, SCIMUserRecord  # noqa: E402
 from app.models.qa import QAWorkflowRequest  # noqa: E402
 from app.models.improvement import ImprovementGap, ImprovementProposal  # noqa: E402
 from app.models.mcp_container import MCPServerContainer  # noqa: E402
+from app.models.artifact import Artifact  # noqa: E402
 
 
 __all__ = [
@@ -297,7 +307,9 @@ __all__ = [
     "APIKey",
     "Agent",
     "AgentVersion",
+    "Approval",
     "AgentRegistryEntry",
+    "Artifact",
     "AttackCategory",
     "AuditEntry",
     "AuditLog",
@@ -355,6 +367,7 @@ __all__ = [
     "RoutingRule",
     "SAMLProvider",
     "ScanSummary",
+    "Signal",
     "SearchHit",
     "SearchResult",
     "SecretRegistration",
@@ -366,6 +379,7 @@ __all__ = [
     "Severity",
     "Template",
     "Tenant",
+    "Timer",
     "TenantConfiguration",
     "TenantQuota",
     "TokenLedger",
@@ -376,8 +390,10 @@ __all__ = [
     "UserRole",
     "VisualRoutingRuleDB",
     "VulnerabilityFinding",
+    "WorkerHeartbeat",
     "Workflow",
     "WorkflowRun",
+    "WorkflowRunEvent",
     "WorkflowRunStep",
     "WorkflowSchedule",
     "CustomRole",

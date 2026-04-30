@@ -1,0 +1,148 @@
+{
+  "annotations": { "list": [] },
+  "description": "Cost & token observability: tenant spend, provider mix, top spenders, cost-gate denials.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [
+    {
+      "title": "Archon Orchestration",
+      "type": "dashboards",
+      "tags": ["archon", "orchestration"]
+    },
+    {
+      "title": "Archon Tenants",
+      "type": "dashboards",
+      "tags": ["archon", "tenants"]
+    }
+  ],
+  "panels": [
+    {
+      "title": "Spend per Tenant ($/h)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (tenant_id) (rate(archon_cost_total[1h])) * 3600",
+          "legendFormat": "{{tenant_id}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "currencyUSD", "decimals": 4 } }
+    },
+    {
+      "title": "Tokens (prompt vs completion) per Provider (tok/s)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (provider, kind) (rate(archon_token_usage_total[5m]))",
+          "legendFormat": "{{provider}} / {{kind}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops" } }
+    },
+    {
+      "title": "Top 10 Most Expensive Tenants (24h $)",
+      "type": "table",
+      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "topk(10, sum by (tenant_id) (increase(archon_cost_total[24h])))",
+          "legendFormat": "{{tenant_id}}",
+          "refId": "A",
+          "format": "table",
+          "instant": true
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time": true },
+            "indexByName": {},
+            "renameByName": { "Value": "USD (24h)" }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 4,
+          "custom": { "align": "left" }
+        }
+      }
+    },
+    {
+      "title": "Cost-gate Blocks by Reason (req/s)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (reason) (rate(archon_cost_gate_blocks_total[5m]))",
+          "legendFormat": "{{reason}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops" } }
+    },
+    {
+      "title": "Cumulative Spend (USD)",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 18 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum(archon_cost_total)",
+          "legendFormat": "total",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "currencyUSD", "decimals": 2 } }
+    },
+    {
+      "title": "Provider Cost Share (last 24h)",
+      "type": "piechart",
+      "gridPos": { "h": 8, "w": 9, "x": 6, "y": 18 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (provider) (increase(archon_cost_total[24h]))",
+          "legendFormat": "{{provider}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "currencyUSD" } }
+    },
+    {
+      "title": "$ per 1M Tokens (provider, last 1h)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 9, "x": 15, "y": 18 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (provider) (increase(archon_cost_total[1h])) / clamp_min(sum by (provider) (increase(archon_token_usage_total[1h])) / 1e6, 1e-9)",
+          "legendFormat": "{{provider}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "currencyUSD", "decimals": 4 } }
+    }
+  ],
+  "refresh": "1m",
+  "schemaVersion": 39,
+  "tags": ["archon", "cost"],
+  "templating": { "list": [] },
+  "time": { "from": "now-24h", "to": "now" },
+  "timezone": "browser",
+  "title": "Archon Cost",
+  "uid": "archon-cost",
+  "version": 1,
+  "weekStart": ""
+}

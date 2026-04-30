@@ -185,6 +185,41 @@ class WorkflowStepCreate(BaseModel):
     agent_id: str
     config: dict[str, Any] = PField(default_factory=dict)
     depends_on: list[str] = PField(default_factory=list)
+    # Optional top-level node_type / type so the REST surface can persist them
+    # alongside config.node_type. _normalize_steps already falls back to
+    # config.node_type, but lifting them at create time makes the persisted
+    # JSON shape canonical and survives downstream re-loads.
+    node_type: str | None = None
+    type: str | None = None
+
+
+def _lift_step_node_type(step: dict[str, Any]) -> dict[str, Any]:
+    """Lift node_type / type from step.config to top-level on persisted steps.
+
+    The REST `WorkflowStepCreate` schema accepts either a top-level node_type
+    or one nested under `config`. After serializing for storage we copy the
+    nested value to the top so workflow_engine sees node_type without needing
+    to peek into config. Idempotent.
+    """
+    config = step.get("config") or {}
+    if not isinstance(config, dict):
+        return step
+    nt = (
+        step.get("node_type")
+        or config.get("node_type")
+        or config.get("type")
+        or config.get("nodeType")
+    )
+    tp = (
+        step.get("type")
+        or config.get("type")
+        or nt
+    )
+    if nt is not None:
+        step["node_type"] = nt
+    if tp is not None:
+        step["type"] = tp
+    return step
 
 
 class WorkflowCreate(BaseModel):
@@ -263,13 +298,17 @@ async def create_workflow(
 ) -> dict[str, Any]:
     """Create a new workflow."""
     steps = [
-        {
-            "step_id": str(uuid4()),
-            "name": s.name,
-            "agent_id": s.agent_id,
-            "config": s.config,
-            "depends_on": s.depends_on,
-        }
+        _lift_step_node_type(
+            {
+                "step_id": str(uuid4()),
+                "name": s.name,
+                "agent_id": s.agent_id,
+                "config": s.config,
+                "depends_on": s.depends_on,
+                "node_type": s.node_type,
+                "type": s.type,
+            }
+        )
         for s in body.steps
     ]
     wf = Workflow(
@@ -316,13 +355,17 @@ async def update_workflow(
     updates = body.model_dump(exclude_unset=True)
     if "steps" in updates and updates["steps"] is not None:
         updates["steps"] = [
-            {
-                "step_id": str(uuid4()),
-                "name": s.name,
-                "agent_id": s.agent_id,
-                "config": s.config,
-                "depends_on": s.depends_on,
-            }
+            _lift_step_node_type(
+                {
+                    "step_id": str(uuid4()),
+                    "name": s.name,
+                    "agent_id": s.agent_id,
+                    "config": s.config,
+                    "depends_on": s.depends_on,
+                    "node_type": s.node_type,
+                    "type": s.type,
+                }
+            )
             for s in body.steps  # type: ignore[union-attr]
         ]
     for key, value in updates.items():

@@ -7,7 +7,8 @@ entries and full attribution chains.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
@@ -1088,6 +1089,215 @@ class CostService:
                     session.add(alert)
 
 
+# ── Module-level convenience API (used by node executors + cost_gate) ──────────
+
+
+async def record_usage(
+    db: AsyncSession,
+    *,
+    tenant_id: UUID,
+    execution_id: UUID,
+    step_id: UUID | None = None,
+    model: str,
+    prompt_tokens: int,
+    completion_tokens: int,
+    cost_usd: float | None,
+) -> None:
+    """Record a single LLM call's token usage and cost to the token ledger.
+
+    When *cost_usd* is None, the cost is calculated from the rate card
+    registered in ``ProviderPricing`` or the ``CostService.PRICING`` dict.
+
+    Called by the LLM node executor (via ``node_executors/llm.py``) after
+    every successful LLM call.  The *step_id* parameter is retained for
+    future per-step cost attribution — currently stored via ``execution_id``.
+    """
+    # Resolve provider prefix from model name (e.g. "anthropic/..." → "anthropic")
+    if "/" in model:
+        provider, model_id = model.split("/", 1)
+    elif model.startswith("claude"):
+        provider, model_id = "anthropic", model
+    elif model.startswith("gemini"):
+        provider, model_id = "google", model
+    elif model.startswith("gpt") or model.startswith("o1") or model.startswith("o3"):
+        provider, model_id = "openai", model
+    else:
+        provider, model_id = "openai", model
+
+    event = UsageEvent(
+        execution_id=execution_id,
+        provider=provider,
+        model=model_id,
+        input_tokens=prompt_tokens,
+        output_tokens=completion_tokens,
+        cost_usd=cost_usd,
+    )
+    await CostService.record_usage(db, str(tenant_id), event)
+
+
+async def tenant_running_total(
+    db: AsyncSession,
+    tenant_id: UUID,
+    since: datetime,
+    *,
+    enterprise_strict: bool = False,
+) -> Decimal:
+    """Return the running cost total for *tenant_id* since *since* (UTC).
+
+    Used by the ``cost_gate`` node executor to check if the tenant is within
+    budget before allowing an LLM call to proceed.
+
+    Args:
+        db: Async DB session.
+        tenant_id: Tenant scope.
+        since: Window lower bound.
+        enterprise_strict: When True, propagate any underlying DB error to
+            the caller instead of silently returning ``Decimal("0")``. This
+            is required for fail-closed cost gates in production / staging
+            (Phase 4 / WS11) — the previous default fail-open behaviour
+            allowed unbounded spend on tracking outages.
+
+    Raises:
+        Exception: Any DB-layer exception, when ``enterprise_strict=True``.
+    """
+    from decimal import Decimal as _Decimal
+    from sqlalchemy.ext.asyncio import AsyncSession as _AS  # noqa: F401
+    from sqlmodel import col, select
+
+    from app.models.cost import TokenLedger
+
+    stmt = select(TokenLedger).where(
+        TokenLedger.tenant_id == str(tenant_id),
+        col(TokenLedger.created_at) >= since,
+    )
+    try:
+        result = await db.exec(stmt)
+        entries = list(result.all())
+    except Exception:  # noqa: BLE001
+        if enterprise_strict:
+            raise
+        logger.warning(
+            "cost_service.tenant_running_total.query_failed",
+            extra={"tenant_id": str(tenant_id)},
+            exc_info=True,
+        )
+        return _Decimal("0")
+
+    total = sum(e.total_cost for e in entries)
+    return _Decimal(str(round(total, 10)))
+
+
+async def aggregate_for_period(
+    db: AsyncSession,
+    tenant_id: UUID,
+    period_start: datetime,
+    period_end: datetime | None = None,
+    *,
+    enterprise_strict: bool = False,
+) -> float:
+    """Return tenant spend in USD over a closed/open period.
+
+    Thin helper consumed by ``app.services.budget_service`` to aggregate
+    spend without duplicating SQL across modules. When
+    ``enterprise_strict=True`` any DB error is re-raised; when False the
+    helper returns ``0.0`` and logs a warning.
+
+    Args:
+        db: Async DB session.
+        tenant_id: Tenant scope.
+        period_start: Inclusive lower bound (UTC).
+        period_end: Optional exclusive upper bound (UTC). When None,
+            aggregates everything since ``period_start``.
+        enterprise_strict: Re-raise underlying DB errors when True.
+    """
+    from sqlmodel import col, select
+
+    from app.models.cost import TokenLedger
+
+    stmt = select(TokenLedger).where(
+        TokenLedger.tenant_id == str(tenant_id),
+        col(TokenLedger.created_at) >= period_start,
+    )
+    if period_end is not None:
+        stmt = stmt.where(col(TokenLedger.created_at) < period_end)
+
+    try:
+        result = await db.exec(stmt)
+        entries = list(result.all())
+    except Exception:  # noqa: BLE001
+        if enterprise_strict:
+            raise
+        logger.warning(
+            "cost_service.aggregate_for_period.query_failed",
+            extra={"tenant_id": str(tenant_id)},
+            exc_info=True,
+        )
+        return 0.0
+
+    return float(sum(e.total_cost for e in entries))
+
+
+async def cost_summary(
+    db: AsyncSession,
+    tenant_id: UUID | None = None,
+) -> dict:
+    """Return today/week/month totals plus top agents and models.
+
+    When *tenant_id* is None, aggregates across all tenants (admin view).
+    Used by ``GET /api/v1/cost/summary``.
+    """
+    from datetime import timedelta
+    from decimal import Decimal as _Decimal
+    from sqlmodel import col, select
+
+    from app.models.cost import TokenLedger
+
+    now = _utcnow()
+    day_ago = now - timedelta(days=1)
+    week_ago = now - timedelta(days=7)
+    month_ago = now - timedelta(days=30)
+
+    base = select(TokenLedger)
+    if tenant_id is not None:
+        base = base.where(TokenLedger.tenant_id == str(tenant_id))
+
+    result = await db.exec(base.where(col(TokenLedger.created_at) >= month_ago))
+    all_entries = list(result.all())
+
+    def _sum(entries: list, since: datetime) -> float:
+        return sum(e.total_cost for e in entries if e.created_at >= since)
+
+    today_total = _sum(all_entries, day_ago)
+    week_total = _sum(all_entries, week_ago)
+    month_total = _sum(all_entries, month_ago)
+
+    # Top 5 agents by cost
+    agent_spend: dict[str, float] = {}
+    for e in all_entries:
+        if e.agent_id is not None:
+            k = str(e.agent_id)
+            agent_spend[k] = agent_spend.get(k, 0.0) + e.total_cost
+    top_agents = sorted(agent_spend.items(), key=lambda x: x[1], reverse=True)[:5]
+
+    # Top 5 models by cost
+    model_spend: dict[str, float] = {}
+    for e in all_entries:
+        model_spend[e.model_id] = model_spend.get(e.model_id, 0.0) + e.total_cost
+    top_models = sorted(model_spend.items(), key=lambda x: x[1], reverse=True)[:5]
+
+    return {
+        "today": round(today_total, 6),
+        "week": round(week_total, 6),
+        "month": round(month_total, 6),
+        "top_agents": [{"agent_id": a, "cost": round(c, 6)} for a, c in top_agents],
+        "top_models": [{"model": m, "cost": round(c, 6)} for m, c in top_models],
+    }
+
+
 __all__ = [
     "CostService",
+    "aggregate_for_period",
+    "cost_summary",
+    "record_usage",
+    "tenant_running_total",
 ]

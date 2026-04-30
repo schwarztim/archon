@@ -1,0 +1,21 @@
+{{/*
+PodDisruptionBudget — emitted per component when podDisruptionBudget.enabled is true.
+*/}}
+{{- range $name, $cfg := dict "backend" .Values.backend "worker" .Values.worker "frontend" .Values.frontend "gateway" .Values.gateway }}
+{{- if and $cfg.enabled $cfg.podDisruptionBudget.enabled }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "archon.fullname" $ }}-{{ $name }}
+  labels:
+    {{- include "archon.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $name }}
+spec:
+  minAvailable: {{ $cfg.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "archon.selectorLabels" $ | nindent 6 }}
+      app.kubernetes.io/component: {{ $name }}
+{{- end }}
+{{- end }}

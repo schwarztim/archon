@@ -31,14 +31,14 @@
       ]
     },
     {
-      "title": "Budget Utilization (%)",
+      "title": "Budget Utilization (cumulative cost USD)",
       "type": "gauge",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
-          "expr": "(archon_cost_total / archon_budget_limit) * 100",
-          "legendFormat": "utilization"
+          "expr": "sum(archon_cost_total)",
+          "legendFormat": "total cost USD"
         }
       ],
       "fieldConfig": {

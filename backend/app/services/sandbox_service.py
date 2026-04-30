@@ -336,8 +336,12 @@ class SandboxService:
         if sandbox.status == SandboxStatus.DESTROYED:
             raise ValueError("Sandbox has been destroyed")
 
-        now = utcnow()
-        if sandbox.expires_at and now > sandbox.expires_at:
+        now = datetime.now(timezone.utc)
+        expires = sandbox.expires_at
+        # Normalize expires_at to aware if stored as naive
+        if expires is not None and expires.tzinfo is None:
+            expires = expires.replace(tzinfo=timezone.utc)
+        if expires is not None and now > expires:
             sandbox.status = SandboxStatus.DESTROYED
             raise ValueError("Sandbox has expired")
 

@@ -13,8 +13,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field as PField
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from sqlalchemy import select
+
 from app.database import get_session
 from app.models.router import ModelRegistryEntry, RoutingRule
+from app.models.visual_rule import VisualRule as VisualRuleModel
 from app.secrets.manager import get_secrets_manager
 from app.services.router import ModelRegistry, RoutingEngine, RoutingRuleService
 from starlette.responses import Response
@@ -230,31 +233,104 @@ async def create_rule(
     return {"data": created.model_dump(mode="json"), "meta": _meta()}
 
 
-# In-memory store for visual rules (replace with DB persistence later)
-_visual_rules_store: list[dict[str, Any]] = []
-
-
 @router.get("/rules/visual")
-async def get_visual_rules() -> dict[str, Any]:
-    """Get visual rule builder data."""
-    return {"data": {"rules": _visual_rules_store}, "meta": _meta()}
+async def get_visual_rules(
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Get visual rule builder data (DB-backed)."""
+    stmt = select(VisualRuleModel).order_by(VisualRuleModel.priority.desc())
+    result = await session.exec(stmt)
+    rows = result.all()
+    rules = [
+        {
+            "id": str(r.id),
+            "name": r.name,
+            "priority": r.priority,
+            "conditions": r.conditions or [],
+            "action": r.action or {},
+            "is_active": r.is_active,
+        }
+        for r in rows
+    ]
+    return {"data": {"rules": rules}, "meta": _meta()}
 
 
 @router.put("/rules/visual")
-async def save_visual_rules(body: VisualRulesPayload) -> dict[str, Any]:
-    """Save visual rule builder data."""
-    global _visual_rules_store
-    _visual_rules_store = [r.model_dump() for r in body.rules]
-    return {"data": {"rules": _visual_rules_store}, "meta": _meta()}
+async def save_visual_rules(
+    body: VisualRulesPayload,
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Replace all visual rules (DB-backed).
+
+    Full-replace semantics: existing rows are deleted, then the new set is inserted.
+    This mirrors the original in-memory assignment.
+    """
+    from sqlalchemy import delete as sa_delete
+
+    now = datetime.now(tz=timezone.utc)
+
+    # Drop existing rules (full replace)
+    await session.exec(sa_delete(VisualRuleModel))  # type: ignore[arg-type]
+
+    new_rows = []
+    for rule_schema in body.rules:
+        row = VisualRuleModel(
+            name=rule_schema.name,
+            conditions=rule_schema.conditions,
+            action=rule_schema.action,
+            is_active=rule_schema.is_active,
+            created_at=now,
+            updated_at=now,
+        )
+        if rule_schema.id:
+            try:
+                from uuid import UUID as _UUID
+                row.id = _UUID(rule_schema.id)
+            except (ValueError, AttributeError):
+                pass
+        session.add(row)
+        new_rows.append(row)
+
+    await session.commit()
+
+    saved = [
+        {
+            "id": str(r.id),
+            "name": r.name,
+            "priority": r.priority,
+            "conditions": r.conditions or [],
+            "action": r.action or {},
+            "is_active": r.is_active,
+        }
+        for r in new_rows
+    ]
+    return {"data": {"rules": saved}, "meta": _meta()}
 
 
 @router.post("/route/visual")
-async def evaluate_visual_route(body: VisualRouteRequest) -> dict[str, Any]:
-    """Evaluate a visual routing rule against the given context."""
-    matched_rules = []
-    for rule in _visual_rules_store:
-        if rule.get("is_active", True):
-            matched_rules.append(rule)
+async def evaluate_visual_route(
+    body: VisualRouteRequest,
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Evaluate a visual routing rule against the given context (DB-backed)."""
+    stmt = (
+        select(VisualRuleModel)
+        .where(VisualRuleModel.is_active == True)  # noqa: E712
+        .order_by(VisualRuleModel.priority.desc())
+    )
+    result = await session.exec(stmt)
+    rows = result.all()
+
+    matched_rules = [
+        {
+            "id": str(r.id),
+            "name": r.name,
+            "conditions": r.conditions or [],
+            "action": r.action or {},
+            "is_active": r.is_active,
+        }
+        for r in rows
+    ]
     action = matched_rules[0]["action"] if matched_rules else {}
     return {
         "data": {

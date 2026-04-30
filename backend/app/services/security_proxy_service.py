@@ -11,7 +11,7 @@ import base64
 import logging
 import time
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from app.utils.time import utcnow
 from typing import Any
@@ -263,7 +263,7 @@ class SecurityProxyService:
             user_id=user_id,
             tenant_id=tenant_id or issuer,
             authenticated_via="saml",
-            expires_at=utcnow() + timedelta(hours=_SESSION_TTL_HOURS),
+            expires_at=datetime.now(timezone.utc) + timedelta(hours=_SESSION_TTL_HOURS),
             email=email,
             roles=roles,
         )

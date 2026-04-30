@@ -24,3 +24,4 @@ class AgentState(TypedDict):
     current_step: str
     output: Any
     error: Optional[str]
+    token_usage: dict[str, int]
