@@ -263,7 +263,7 @@ The chain now upgrades + downgrades cleanly on SQLite (verified) and applies cle
 
 ## Bottom line
 
-The plan's master thesis — *"make one end-to-end AI workflow execute through the same production path every user, worker, schedule, webhook, approval, replay, and UI surface uses, then harden that path until it has Temporal-like guarantees adapted for AI agents"* — is **structurally satisfied across all 9 phases**.
+The plan's master thesis — *"make one end-to-end AI workflow execute through the same production path every user, worker, schedule, webhook, approval, replay, and UI surface uses, then harden that path until it has production-proven durable-execution guarantees adapted for AI agents"* — is **structurally satisfied across all 9 phases**.
 
 The vertical slice REST canary, which **failed honestly with HTTP 422** at the start of the cycle, now **passes end-to-end**: REST → durable WorkflowRun → workflow_run_steps → hash-chained workflow_run_events → terminal status → token_usage / cost_usd recorded. Operator can run `bash scripts/test-slice.sh` to confirm the kernel still works.
 

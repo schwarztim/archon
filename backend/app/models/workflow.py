@@ -225,6 +225,7 @@ class WorkflowRunEvent(SQLModel, table=True):
             "'run.created','run.queued','run.claimed','run.started',"
             "'run.completed','run.failed','run.cancelled',"
             "'run.paused','run.resumed',"
+            "'run.cancel_requested','run.terminated',"
             "'step.started','step.completed','step.failed',"
             "'step.skipped','step.retry','step.paused'"
             ")",

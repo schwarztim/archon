@@ -944,6 +944,15 @@ async def _execute_claimed_run_inner(
     # Phase 5: emit canonical run-terminal metrics for completed/failed/
     # paused/cancelled finalisations. The status label distinguishes them.
     _emit_run_terminal_metrics(run, duration_ms=duration_ms)
+    # W17a: emit archon_runs_total + archon_run_duration_seconds.
+    try:
+        from app.services.metrics_service import record_run, record_run_duration  # noqa: PLC0415
+        trigger_type = getattr(run, "trigger_type", None) or "api"
+        record_run(status=final_status, trigger_type=str(trigger_type))
+        if duration_ms is not None:
+            record_run_duration(duration_ms / 1000.0, status=final_status, trigger_type=str(trigger_type))
+    except Exception as exc:  # noqa: BLE001
+        log.debug("W17a run metrics emit failed: %s", exc)
 
 
 # ----------------------------------------------------------------------
@@ -1411,8 +1420,282 @@ async def _gate_stub_blocked_steps(
     return True
 
 
+# ----------------------------------------------------------------------
+# W3 — ActivityRuntime bridge for node executors
+# ----------------------------------------------------------------------
+#
+# The dispatcher's call site for node executors lives inside
+# ``workflow_engine._dispatch_step`` (an existing legacy path that hands
+# every step to ``executor.execute(NodeContext) -> NodeResult``). W4a-d
+# will rewire individual executors to call ``ActivityRuntime.execute``
+# directly with the new ``ActivityContext`` / ``ActivityResult`` shape.
+#
+# To unblock W4a-d in parallel, this worker (W3) ships two adapters:
+#
+#   * ``build_activity_context_for_step`` — derive an ``ActivityContext``
+#     from the dispatcher's view of a step.
+#   * ``adapt_legacy_executor`` — wrap a ``NodeExecutor.execute`` (which
+#     accepts ``NodeContext`` and returns ``NodeResult``) into a callable
+#     compatible with ``ActivityRuntime.execute`` (which accepts
+#     ``ActivityContext`` and must return ``ActivityResult``).
+#
+# These adapters are deliberately additive: the existing
+# ``workflow_engine._dispatch_step`` path is unchanged, so every
+# pre-W3 executor test continues to pass. Once an executor is rewritten
+# against the new contract by its W4 owner, the dispatcher's invocation
+# of that executor is swapped to ``ActivityRuntime.execute`` directly.
+
+
+def build_activity_context_for_step(
+    *,
+    run,  # WorkflowRun
+    step: dict[str, Any],
+    worker_id: str,
+    queue_name: str = "default",
+    task_id: str | None = None,
+    inputs: dict[str, Any] | None = None,
+    db_session: Any = None,
+    correlation_id: str | None = None,
+):
+    """Build an ``ActivityContext`` from the dispatcher's view of a step.
+
+    Used by W4a-d when they swap an executor over to the new contract.
+    The ``heartbeat`` / ``check_cancelled`` / ``write_artifact`` /
+    ``resolve_secret`` callbacks are no-op placeholders; the runtime's
+    ``execute`` overrides them with the real buffered/canceling versions.
+    """
+    from app.services.activity_runtime import (  # noqa: PLC0415
+        ActivityCancelled,
+        ActivityContext,
+    )
+
+    async def _noop_heartbeat(_details: dict[str, Any]) -> None:
+        return None
+
+    async def _cancel_if_run_cancelled() -> None:
+        # Dispatcher checks ``run.cancel_requested_at`` between batches;
+        # we surface that to executors via the cooperative check.
+        if getattr(run, "cancel_requested_at", None) is not None:
+            raise ActivityCancelled("run cancellation requested")
+
+    async def _placeholder_write_artifact(
+        _name: str,
+        _payload: Any,
+        _metadata: dict[str, Any],
+    ) -> str:
+        # Real write happens via ActivityRuntime._persist_artifact when
+        # the runtime wraps the executor; this placeholder is only used
+        # if a caller skips the runtime (which is a contract violation
+        # the runtime detects via type check).
+        return ""
+
+    async def _placeholder_resolve_secret(_secret_ref: str) -> str:
+        return ""
+
+    step_id_raw = str(step.get("step_id") or step.get("name") or "")
+    activity_type = str(step.get("node_type") or step.get("type") or "unknown")
+
+    return ActivityContext(
+        tenant_id=str(run.tenant_id) if getattr(run, "tenant_id", None) else "",
+        run_id=str(run.id),
+        step_id=step_id_raw,
+        task_id=task_id,
+        queue_name=queue_name,
+        activity_type=activity_type,
+        attempt=int(getattr(run, "attempt", 1) or 1),
+        idempotency_key=str(uuid.uuid4()),
+        input_data=inputs or {},
+        node_config=(step.get("config") or {}),
+        definition_snapshot=run.definition_snapshot or {},
+        db_session=db_session,
+        worker_id=worker_id,
+        heartbeat=_noop_heartbeat,
+        check_cancelled=_cancel_if_run_cancelled,
+        write_artifact=_placeholder_write_artifact,
+        resolve_secret=_placeholder_resolve_secret,
+        trace_id=None,
+        correlation_id=correlation_id,
+    )
+
+
+def adapt_legacy_executor(legacy_execute):
+    """Adapt a legacy ``NodeExecutor.execute`` to the ActivityRuntime shape.
+
+    Returns an ``async (ActivityContext) -> ActivityResult`` callable that
+    drives the legacy executor with a ``NodeContext`` rebuilt from the
+    activity context. The dict-shape passthrough preserves existing
+    executor semantics — W4a-d use this adapter as a stop-gap when they
+    can promote the dispatch site without rewriting the executor body.
+    """
+    from app.services.activity_runtime import ActivityResult  # noqa: PLC0415
+    from app.services.node_executors import NodeContext  # noqa: PLC0415
+
+    async def _runner(ctx):
+        node_ctx = NodeContext(
+            step_id=ctx.step_id,
+            node_type=ctx.activity_type,
+            node_data={
+                "step_id": ctx.step_id,
+                "type": ctx.activity_type,
+                "config": ctx.node_config,
+            },
+            inputs=ctx.input_data,
+            tenant_id=ctx.tenant_id or None,
+            secrets=None,
+            db_session=ctx.db_session,
+            cancel_check=lambda: False,
+        )
+        legacy_result = await legacy_execute(node_ctx)
+        # Map NodeResult -> ActivityResult. Status passthrough; output
+        # promoted to ``output_data``; error fields surface as
+        # error_message + ``error_code='NodeExecutorError'`` so the
+        # dispatcher's retry policy keeps its existing classification.
+        status = getattr(legacy_result, "status", "completed")
+        if status not in {
+            "completed",
+            "failed",
+            "paused",
+            "cancelled",
+            "retry_scheduled",
+        }:
+            status = "failed" if status == "error" else "completed"
+        return ActivityResult(
+            status=status,  # type: ignore[arg-type]
+            output_data=dict(getattr(legacy_result, "output", {}) or {}),
+            metrics={
+                "token_usage": getattr(legacy_result, "token_usage", None) or {},
+                "cost_usd": getattr(legacy_result, "cost_usd", None) or 0.0,
+            },
+            error_code=(
+                "NodeExecutorError"
+                if status == "failed" and getattr(legacy_result, "error", None)
+                else None
+            ),
+            error_message=getattr(legacy_result, "error", None),
+        )
+
+    return _runner
+
+
+# ----------------------------------------------------------------------
+# W1.5 — Task-queue-aware dispatch loop
+# ----------------------------------------------------------------------
+
+
+async def claim_next_task_for_dispatch(
+    session: AsyncSession,
+    *,
+    queue_names: list[str],
+    worker_id: str,
+    tenant_id: "UUID | None" = None,
+    lease_seconds: int = 30,
+) -> "Any | None":
+    """Claim the next Task from the named queues for this worker.
+
+    Returns the claimed Task row on success, None when no eligible tasks
+    exist. Thin delegation to task_queue_service so the dispatcher module
+    does not need to know the claim algorithm.
+
+    tenant_id is required for the select predicate. When None the function
+    returns None immediately (no implicit cross-tenant polling).
+    """
+    if tenant_id is None:
+        return None
+    if not queue_names:
+        return None
+
+    from app.services.task_queue_service import claim_next_task  # noqa: PLC0415
+
+    return await claim_next_task(
+        session,
+        tenant_id=tenant_id,
+        queue_names=queue_names,
+        worker_id=worker_id,
+        lease_ttl_seconds=lease_seconds,
+    )
+
+
+async def dispatch_next_from_task_queue(
+    *,
+    queue_names: list[str],
+    worker_id: str,
+    tenant_id: "UUID | None" = None,
+    lease_seconds: int = 30,
+) -> "Any | None":
+    """Poll the task queue, claim the next task, and dispatch its run.
+
+    This is the primary entry point for the W1.5 polling loop. It:
+      1. Claims the next visible Task from the named queues.
+      2. Extracts run_id from the Task and dispatches it via dispatch_run.
+      3. On successful dispatch: marks the task completed.
+      4. On failure: marks the task failed (non-retryable) or releases it
+         (transient — the task becomes visible again for the next poll).
+
+    Returns the dispatched WorkflowRun on success, None when no task was
+    found or the dispatch could not proceed.
+
+    The legacy WorkflowRun drain (claim_and_dispatch) continues to function
+    in parallel as a fallback for runs that have no Task row.
+    """
+    from app.services.task_queue_service import (  # noqa: PLC0415
+        complete_task,
+        fail_task,
+        release_task,
+    )
+
+    async with async_session_factory() as session:
+        task = await claim_next_task_for_dispatch(
+            session,
+            queue_names=queue_names,
+            worker_id=worker_id,
+            tenant_id=tenant_id,
+            lease_seconds=lease_seconds,
+        )
+        if task is None:
+            return None
+
+        task_id = task.id
+        run_id: UUID = task.run_id
+        await session.commit()
+
+    # Dispatch outside the claim session to avoid holding a connection
+    # during engine execution. The task lease provides the distributed lock.
+    try:
+        result = await dispatch_run(run_id, worker_id=worker_id)
+    except Exception as exc:  # noqa: BLE001
+        log.exception(
+            "dispatch_next_from_task_queue: run %s failed; releasing task %s",
+            run_id,
+            task_id,
+        )
+        # Release the task so it can be retried on the next poll.
+        async with async_session_factory() as session:
+            await release_task(session, task_id=task_id)
+            await session.commit()
+        return None
+
+    # Mark the task completed if the run reached a terminal state.
+    if result is not None:
+        run_status = getattr(result, "status", None)
+        async with async_session_factory() as session:
+            if run_status in ("completed", "paused"):
+                await complete_task(session, task_id=task_id)
+            elif run_status in ("failed", "cancelled"):
+                await fail_task(session, task_id=task_id)
+            else:
+                # Unknown/missing status — complete so we don't re-poll.
+                await complete_task(session, task_id=task_id)
+            await session.commit()
+
+    return result
+
+
 __all__ = [
+    "adapt_legacy_executor",
+    "build_activity_context_for_step",
     "claim_and_dispatch",
+    "claim_next_task_for_dispatch",
+    "dispatch_next_from_task_queue",
     "dispatch_run",
     "execute_claimed_run",
     "resume_run_from_signal",

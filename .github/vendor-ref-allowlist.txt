@@ -1,0 +1,48 @@
+# Vendor-reference allowlist for scripts/check-vendor-refs.sh
+# Format: path:line:term  OR  path  OR  # comment
+# Each entry must include a comment explaining why the reference is OK
+# (e.g., comparison docs, ADRs that explicitly contrast Archon to upstream tools).
+#
+# Two categories of entries below:
+#   1. LEGITIMATE-KEEP — false positives where the matched word is the English
+#      noun (e.g. "cadence" = frequency, not the Cadence workflow tool) or
+#      where the reference is a security-catalog entry rather than product
+#      positioning. These stay forever.
+#   2. TODO-REMOVE — genuine upstream-vendor references that the durable
+#      orchestration plan forbids. The follow-up worker that rewrites the
+#      reference must also delete the matching allowlist entry, so the gate
+#      catches any regression.
+
+# ---------------------------------------------------------------------------
+# LEGITIMATE-KEEP: "cadence" — English noun for frequency/rate, NOT the
+# Cadence workflow orchestration tool. The regex collides on the word.
+# ---------------------------------------------------------------------------
+backend/app/services/worker_registry.py:136:Cadence
+docs/ARCHITECTURE.md:101:Cadence
+docs/runbooks/backup-restore.md:20:Cadence
+docs/runbooks/backup-restore.md:176:cadence
+docs/runbooks/ci-gates.md:147:cadence
+docs/PRODUCTION_CONFIG.md:77:Cadence
+
+# ---------------------------------------------------------------------------
+# LEGITIMATE-KEEP: ArgoCD is a GitOps deployment tool referenced in the
+# infrastructure-architecture diagram. It is distinct from "Argo Workflows"
+# (the workflow orchestration tool the plan forbids). The regex matches the
+# `Argo` substring in `ArgoCD`. Deployment-substrate references are outside
+# the orchestration vendor-neutrality scope.
+# ---------------------------------------------------------------------------
+docs/architecture/integration-map.md:62:Argo
+docs/architecture/integration-map.md:111:Argo
+
+# ---------------------------------------------------------------------------
+# LEGITIMATE-KEEP: sentinelscan_service.py catalogs external SaaS AI services
+# for DLP/risk classification. These entries describe services Archon
+# protects USERS FROM (data egress targets), not Archon's product positioning.
+# They are part of a security catalog payload, not user-facing language.
+# ---------------------------------------------------------------------------
+backend/app/services/sentinelscan_service.py:1106:Zapier
+backend/app/services/sentinelscan_service.py:1107:zapier
+backend/app/services/sentinelscan_service.py:1110:zapier
+backend/app/services/sentinelscan_service.py:1122:n8n
+backend/app/services/sentinelscan_service.py:1123:n8n
+backend/app/services/sentinelscan_service.py:1126:n8n

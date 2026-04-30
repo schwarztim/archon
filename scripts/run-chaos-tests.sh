@@ -40,10 +40,10 @@ export ARCHON_VAULT_TOKEN="${ARCHON_VAULT_TOKEN:-test-token}"
 # connects unless a test explicitly uses it, which the chaos suite
 # does not.
 
-echo "▶ Phase 6 chaos test suite"
+echo "▶ Phase 6 chaos test suite (test_chaos) + W18 chaos suite (chaos)"
 echo "  PYTHONPATH=$PYTHONPATH"
 echo "  LLM_STUB_MODE=$LLM_STUB_MODE"
 echo "  ARCHON_DATABASE_URL=${ARCHON_DATABASE_URL:-<default postgres url, lazy>}"
 echo
 
-python3 -m pytest backend/tests/test_chaos/ -v --no-header --tb=short "$@"
+python3 -m pytest backend/tests/test_chaos/ backend/tests/chaos/ -v --no-header --tb=short "$@"

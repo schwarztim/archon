@@ -82,16 +82,24 @@ NODE_STATUS: dict[str, NodeStatus] = {
     "embeddingNode": NodeStatus.BETA,
     "structuredOutputNode": NodeStatus.BETA,
     "visionNode": NodeStatus.BETA,
+    # ── Beta (promoted W4c/W4d — real implementations) ───────────────
+    "loopNode": NodeStatus.BETA,
+    "vectorSearchNode": NodeStatus.BETA,
+    "documentLoaderNode": NodeStatus.BETA,
+    "streamOutputNode": NodeStatus.BETA,
+    # ── Beta (promoted W4b — ActivityContext entry implemented) ────────
+    "toolNode": NodeStatus.BETA,
+    "databaseQueryNode": NodeStatus.BETA,
+    # ── Beta (W9b pipeline activities) ───────────────────────────────────
+    "pipelineStartNode": NodeStatus.BETA,
+    "pipelineWaitNode": NodeStatus.BETA,
+    "pipelineCancelNode": NodeStatus.BETA,
+    "pipelineArtifactUploadNode": NodeStatus.BETA,
+    "pipelineArtifactDownloadNode": NodeStatus.BETA,
     # ── Stub (must be blocked in production / staging) ────────────────
-    "loopNode": NodeStatus.STUB,
     "humanInputNode": NodeStatus.STUB,
     "mcpToolNode": NodeStatus.STUB,
-    "toolNode": NodeStatus.STUB,
-    "databaseQueryNode": NodeStatus.STUB,
     "functionCallNode": NodeStatus.STUB,
-    "vectorSearchNode": NodeStatus.STUB,
-    "documentLoaderNode": NodeStatus.STUB,
-    "streamOutputNode": NodeStatus.STUB,
 }
 
 

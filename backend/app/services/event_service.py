@@ -38,7 +38,7 @@ from app.models.workflow import WorkflowRunEvent
 #: workflow_run_events table.
 EVENT_TYPES: frozenset[str] = frozenset(
     {
-        # Run-level (9)
+        # Run-level (11)
         "run.created",
         "run.queued",
         "run.claimed",
@@ -48,6 +48,9 @@ EVENT_TYPES: frozenset[str] = frozenset(
         "run.cancelled",
         "run.paused",
         "run.resumed",
+        # W6 lifecycle control events
+        "run.cancel_requested",
+        "run.terminated",
         # Step-level (6)
         "step.started",
         "step.completed",

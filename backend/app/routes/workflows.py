@@ -35,6 +35,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from starlette.responses import Response
 from app.database import get_session
 from app.models.workflow import Workflow, WorkflowRun, WorkflowRunStep, WorkflowSchedule
+from app.services.execution_facade import ExecutionFacade
+from app.services.idempotency_service import IdempotencyConflict
 from app.services.workflow_engine import (
     WorkflowEngineError,
     WorkflowValidationError,
@@ -414,21 +416,47 @@ async def execute_workflow(
     workflow_id: str,
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    """Execute a workflow using the LangGraph engine."""
+    """Execute a workflow using the LangGraph engine.
+
+    P0-E (canonical run path): the UI builder/test-run path goes through
+    ``ExecutionFacade.create_run`` so the row gets the canonical definition
+    snapshot, lifecycle events, and idempotency record. We preserve the
+    legacy synchronous semantics of this endpoint (drives the engine inline
+    and returns the completed run + steps in the response body) for backward
+    compatibility — only the *creation* side moves through the facade. UI
+    test-runs are not deduplicated, so ``idempotency_key=None`` is correct.
+    The ``trigger_type='ui_test'`` marker preserves the existing
+    UI-distinguishes-test-runs semantic without requiring a new schema column
+    (W11 owns ``is_test`` if/when it is added).
+    """
     wf = await session.get(Workflow, UUID(workflow_id))
     if wf is None:
         raise HTTPException(status_code=404, detail="Workflow not found")
 
     wf_dict = _workflow_to_dict(wf)
+
+    try:
+        run, _ = await ExecutionFacade.create_run(
+            session,
+            kind="workflow",
+            workflow_id=wf.id,
+            tenant_id=wf.tenant_id,
+            input_data={},
+            triggered_by=wf.created_by or "",
+            trigger_type="ui_test",
+            idempotency_key=None,
+        )
+    except IdempotencyConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    # Transition queued -> running and stamp started_at — the facade leaves
+    # the row in 'queued' but this endpoint executes synchronously, so we
+    # advance the lifecycle ourselves before driving the engine.
     now = datetime.utcnow()
-    run = WorkflowRun(
-        workflow_id=wf.id,
-        tenant_id=wf.tenant_id,
-        status="running",
-        trigger_type="manual",
-        triggered_by=wf.created_by,
-        started_at=now,
-    )
+    run.status = "running"
+    run.started_at = now
     session.add(run)
     await session.commit()
     await session.refresh(run)
@@ -732,26 +760,56 @@ async def webhook_trigger(
     workflow_id: str,
     payload: dict = Body(...),
     x_api_key: str = Header(None, alias="X-API-Key"),
+    x_event_id: str | None = Header(default=None, alias="X-Event-Id"),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    """Accept webhook payload and trigger workflow execution."""
+    """Accept webhook payload and trigger workflow execution via ExecutionFacade.
+
+    P0-E (canonical run path): webhook ingress goes through the facade so
+    the run gets canonical definition snapshot, lifecycle events, and
+    duplicate-event suppression via idempotency.
+
+    Idempotency: derived from the inbound provider event id when supplied
+    (header ``X-Event-Id`` or payload ``event_id``/``id`` field). When the
+    caller provides no event id we fall back to a per-call UUID (no
+    deduplication) so the existing contract remains permissive.
+    """
     # Verify workflow exists
     workflow = await session.get(Workflow, UUID(workflow_id))
     if not workflow:
         raise HTTPException(404, f"Workflow {workflow_id} not found")
-    # Create a new run with the webhook payload as input
-    run = WorkflowRun(
-        id=uuid4(),
-        workflow_id=workflow.id,
-        status="pending",
-        trigger_type="webhook",
-        input_data=payload,
-        tenant_id=workflow.tenant_id,
+
+    # Derive idempotency key from the inbound provider event id. Header wins
+    # over body to match the ADR-004 idempotency-key resolution rule.
+    event_id: str | None = x_event_id
+    if not event_id and isinstance(payload, dict):
+        event_id = payload.get("event_id") or payload.get("id")
+    idempotency_key = (
+        f"webhook:{event_id}" if event_id is not None and event_id != "" else None
     )
-    session.add(run)
-    await session.commit()
-    await session.refresh(run)
-    return {"run_id": str(run.id), "status": "pending", "trigger": "webhook"}
+
+    try:
+        run, _is_new = await ExecutionFacade.create_run(
+            session,
+            kind="workflow",
+            workflow_id=workflow.id,
+            tenant_id=workflow.tenant_id,
+            input_data=payload if isinstance(payload, dict) else {"payload": payload},
+            triggered_by="webhook",
+            trigger_type="webhook",
+            idempotency_key=idempotency_key,
+        )
+    except IdempotencyConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    return {
+        "run_id": str(run.id),
+        "status": run.status,
+        "trigger": "webhook",
+        "idempotency_key": idempotency_key,
+    }
 
 
 @router.post("/events", summary="Fire event to trigger matching workflows")
@@ -759,14 +817,40 @@ async def fire_event(
     event: dict = Body(...),  # {type, source, data}
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    """Match event to workflow trigger rules and fire matching workflows."""
+    """Match event to workflow trigger rules and fire matching workflows via ExecutionFacade.
+
+    P0-E (canonical run path): event-trigger ingress is one of the four
+    fan-out write paths the durable orchestration plan calls out. Every
+    target workflow gets a per-target idempotent ``ExecutionFacade.create_run``
+    call so a replayed event does not duplicate runs across the fanout. Key
+    shape: ``event:{event_id}:{target_workflow_id}``. When the inbound event
+    omits an ``id`` we skip idempotency (event source did not assert
+    once-only delivery — we fall back to permissive create-on-each-fire).
+    """
     event_type = event.get("type", "")
     event_source = event.get("source")
+    event_id = event.get("id") or event.get("event_id")
 
-    # Query all active workflows that have a trigger_config
-    stmt = select(Workflow).where(Workflow.is_active)
+    # Query all active workflows that have a trigger_config. Use a strict
+    # equality predicate so SQLModel's ``session.exec`` reliably unwraps
+    # the result to ``Workflow`` model instances (the truthy ``where(... .is_active)``
+    # form returns raw Row objects on some SQLAlchemy versions, which would
+    # then fail attribute access on ``trigger_config``).
+    stmt = select(Workflow).where(Workflow.is_active == True)  # noqa: E712
     result = await session.exec(stmt)
-    all_workflows = result.all()
+    rows = result.all()
+    # Defensive: handle both Row tuples (legacy SQLAlchemy fallback) and
+    # bare model instances. Either form is iterable to extract the model.
+    all_workflows: list[Workflow] = []
+    for row in rows:
+        if isinstance(row, Workflow):
+            all_workflows.append(row)
+        else:
+            # Row-like — unwrap the first column.
+            try:
+                all_workflows.append(row[0])
+            except (TypeError, IndexError, KeyError):
+                continue
 
     # Filter workflows whose trigger_config matches this event
     matched_workflow_ids: list[str] = []
@@ -782,20 +866,45 @@ async def fire_event(
         if tc.get("source") and tc.get("source") != event_source:
             continue
 
-        run = WorkflowRun(
-            id=uuid4(),
-            workflow_id=workflow.id,
-            tenant_id=workflow.tenant_id,
-            status="pending",
-            trigger_type="event",
-            input_data=event,
+        idempotency_key = (
+            f"event:{event_id}:{workflow.id}" if event_id else None
         )
-        session.add(run)
+
+        try:
+            run, _is_new = await ExecutionFacade.create_run(
+                session,
+                kind="workflow",
+                workflow_id=workflow.id,
+                tenant_id=workflow.tenant_id,
+                input_data=event,
+                triggered_by=f"event:{event_type}",
+                trigger_type="event",
+                idempotency_key=idempotency_key,
+            )
+        except IdempotencyConflict:
+            # Replayed event with the same key but different input — skip
+            # the target. The original run is the canonical record.
+            logger.warning(
+                "fire_event.idempotency_conflict",
+                extra={
+                    "event_id": event_id,
+                    "event_type": event_type,
+                    "workflow_id": str(workflow.id),
+                },
+            )
+            continue
+        except ValueError:
+            logger.exception(
+                "fire_event.facade_value_error",
+                extra={
+                    "event_id": event_id,
+                    "workflow_id": str(workflow.id),
+                },
+            )
+            continue
+
         matched_workflow_ids.append(str(workflow.id))
         created_run_ids.append(str(run.id))
-
-    if matched_workflow_ids:
-        await session.commit()
 
     return {
         "status": "accepted",

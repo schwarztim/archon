@@ -98,6 +98,44 @@ _provider_fallback_counts: dict[tuple[str, str, str], int] = defaultdict(int)
 # archon_dlp_findings_total{tenant_id, severity, pattern}
 _dlp_finding_counts: dict[tuple[str, str, str], int] = defaultdict(int)
 
+# ── W17a: runtime-path metrics storage ──────────────────────────────
+# Queue metrics
+_queue_depth_gauges: dict[tuple[str, str], int] = defaultdict(int)
+_queue_drain_counts: dict[tuple[str, str], int] = defaultdict(int)
+
+# Worker metrics
+_worker_heartbeat_counts: dict[str, int] = defaultdict(int)
+_worker_active_tasks: dict[str, int] = defaultdict(int)
+
+# Task metrics
+_tasks_claimed_counts: dict[str, int] = defaultdict(int)
+_tasks_completed_counts: dict[str, int] = defaultdict(int)
+_tasks_failed_counts: dict[str, int] = defaultdict(int)
+
+# Run metrics: archon_runs_total{status, trigger_type}
+_runs_total_counts: dict[tuple[str, str], int] = defaultdict(int)
+# archon_run_duration_seconds{status, trigger_type}
+_run_duration_sums: dict[tuple[str, str], float] = defaultdict(float)
+_run_duration_counts: dict[tuple[str, str], int] = defaultdict(int)
+_run_duration_buckets: dict[tuple[str, str, float], int] = defaultdict(int)
+
+# Activity metrics
+_activity_retry_counts: dict[str, int] = defaultdict(int)
+_activity_heartbeat_age: dict[str, float] = defaultdict(float)
+
+# Schedule metrics
+_schedule_fires_counts: dict[str, int] = defaultdict(int)
+_schedule_missed_counts: dict[str, int] = defaultdict(int)
+
+# Pipeline metrics
+_pipeline_ingress_counts: dict[str, int] = defaultdict(int)
+_pipeline_callback_counts: dict[str, int] = defaultdict(int)
+
+# Policy / DLP / Budget metrics
+_policy_deny_counts: dict[tuple[str, str], int] = defaultdict(int)
+_dlp_block_counts: dict[str, int] = defaultdict(int)
+_budget_deny_counts: dict[str, int] = defaultdict(int)
+
 
 # ──────────────────────────────────────────────
 # Label-bounding helpers (Phase 5 acceptance #2)
@@ -779,6 +817,164 @@ def render_metrics() -> str:
     for (tenant_id, severity, pattern), count in sorted(_dlp_finding_counts.items()):
         lines.append(
             f'archon_dlp_findings_total{{tenant_id="{tenant_id}",severity="{severity}",pattern="{pattern}"}} {count}'
+        )
+
+    # ── W17a: runtime-path metrics ───────────────────────────────────────
+
+    # archon_queue_depth{tenant_id, queue_name}
+    lines.append("# HELP archon_queue_depth Current depth of the durable task queue")
+    lines.append("# TYPE archon_queue_depth gauge")
+    for (tenant_id, queue_name), depth in sorted(_queue_depth_gauges.items()):
+        lines.append(
+            f'archon_queue_depth{{tenant_id="{tenant_id}",queue_name="{queue_name}"}} {depth}'
+        )
+
+    # archon_queue_drain_rate_total{tenant_id, queue_name}
+    lines.append("# HELP archon_queue_drain_rate_total Tasks drained from queue")
+    lines.append("# TYPE archon_queue_drain_rate_total counter")
+    for (tenant_id, queue_name), count in sorted(_queue_drain_counts.items()):
+        lines.append(
+            f'archon_queue_drain_rate_total{{tenant_id="{tenant_id}",queue_name="{queue_name}"}} {count}'
+        )
+
+    # archon_worker_heartbeats_total{worker_id}
+    lines.append("# HELP archon_worker_heartbeats_total Worker heartbeat count")
+    lines.append("# TYPE archon_worker_heartbeats_total counter")
+    for worker_id, count in sorted(_worker_heartbeat_counts.items()):
+        lines.append(
+            f'archon_worker_heartbeats_total{{worker_id="{worker_id}"}} {count}'
+        )
+
+    # archon_worker_active_tasks{worker_id}
+    lines.append("# HELP archon_worker_active_tasks Active tasks per worker")
+    lines.append("# TYPE archon_worker_active_tasks gauge")
+    for worker_id, value in sorted(_worker_active_tasks.items()):
+        lines.append(
+            f'archon_worker_active_tasks{{worker_id="{worker_id}"}} {value}'
+        )
+
+    # archon_tasks_claimed_total{queue_name}
+    lines.append("# HELP archon_tasks_claimed_total Tasks claimed by workers")
+    lines.append("# TYPE archon_tasks_claimed_total counter")
+    for queue_name, count in sorted(_tasks_claimed_counts.items()):
+        lines.append(
+            f'archon_tasks_claimed_total{{queue_name="{queue_name}"}} {count}'
+        )
+
+    # archon_tasks_completed_total{queue_name}
+    lines.append("# HELP archon_tasks_completed_total Tasks completed")
+    lines.append("# TYPE archon_tasks_completed_total counter")
+    for queue_name, count in sorted(_tasks_completed_counts.items()):
+        lines.append(
+            f'archon_tasks_completed_total{{queue_name="{queue_name}"}} {count}'
+        )
+
+    # archon_tasks_failed_total{queue_name}
+    lines.append("# HELP archon_tasks_failed_total Tasks that reached failed status")
+    lines.append("# TYPE archon_tasks_failed_total counter")
+    for queue_name, count in sorted(_tasks_failed_counts.items()):
+        lines.append(
+            f'archon_tasks_failed_total{{queue_name="{queue_name}"}} {count}'
+        )
+
+    # archon_runs_total{status, trigger_type}
+    lines.append("# HELP archon_runs_total Workflow runs dispatched by status and trigger")
+    lines.append("# TYPE archon_runs_total counter")
+    for (status, trigger_type), count in sorted(_runs_total_counts.items()):
+        lines.append(
+            f'archon_runs_total{{status="{status}",trigger_type="{trigger_type}"}} {count}'
+        )
+
+    # archon_run_duration_seconds{status, trigger_type}
+    lines.append("# HELP archon_run_duration_seconds Dispatch-to-terminal wall-clock duration")
+    lines.append("# TYPE archon_run_duration_seconds histogram")
+    for key in sorted(_run_duration_counts.keys()):
+        status, trigger_type = key
+        for bucket in _HISTOGRAM_BUCKETS:
+            val = _run_duration_buckets.get((status, trigger_type, bucket), 0)
+            lines.append(
+                f'archon_run_duration_seconds_bucket{{status="{status}",trigger_type="{trigger_type}",le="{bucket}"}} {val}'
+            )
+        lines.append(
+            f'archon_run_duration_seconds_bucket{{status="{status}",trigger_type="{trigger_type}",le="+Inf"}} {_run_duration_counts[key]}'
+        )
+        lines.append(
+            f'archon_run_duration_seconds_sum{{status="{status}",trigger_type="{trigger_type}"}} {_run_duration_sums[key]:.6f}'
+        )
+        lines.append(
+            f'archon_run_duration_seconds_count{{status="{status}",trigger_type="{trigger_type}"}} {_run_duration_counts[key]}'
+        )
+
+    # archon_activity_retries_total{activity_type}
+    lines.append("# HELP archon_activity_retries_total Activity retry attempts")
+    lines.append("# TYPE archon_activity_retries_total counter")
+    for activity_type, count in sorted(_activity_retry_counts.items()):
+        lines.append(
+            f'archon_activity_retries_total{{activity_type="{activity_type}"}} {count}'
+        )
+
+    # archon_activity_heartbeat_age_seconds{activity_type}
+    lines.append("# HELP archon_activity_heartbeat_age_seconds Age of the last activity heartbeat")
+    lines.append("# TYPE archon_activity_heartbeat_age_seconds gauge")
+    for activity_type, age in sorted(_activity_heartbeat_age.items()):
+        lines.append(
+            f'archon_activity_heartbeat_age_seconds{{activity_type="{activity_type}"}} {age:.6f}'
+        )
+
+    # archon_schedule_fires_total{schedule_id}
+    lines.append("# HELP archon_schedule_fires_total Schedule occurrences fired")
+    lines.append("# TYPE archon_schedule_fires_total counter")
+    for schedule_id, count in sorted(_schedule_fires_counts.items()):
+        lines.append(
+            f'archon_schedule_fires_total{{schedule_id="{schedule_id}"}} {count}'
+        )
+
+    # archon_schedule_missed_total{schedule_id}
+    lines.append("# HELP archon_schedule_missed_total Schedule occurrences missed")
+    lines.append("# TYPE archon_schedule_missed_total counter")
+    for schedule_id, count in sorted(_schedule_missed_counts.items()):
+        lines.append(
+            f'archon_schedule_missed_total{{schedule_id="{schedule_id}"}} {count}'
+        )
+
+    # archon_pipeline_ingress_total{provider}
+    lines.append("# HELP archon_pipeline_ingress_total Pipeline webhook events ingested")
+    lines.append("# TYPE archon_pipeline_ingress_total counter")
+    for provider, count in sorted(_pipeline_ingress_counts.items()):
+        lines.append(
+            f'archon_pipeline_ingress_total{{provider="{provider}"}} {count}'
+        )
+
+    # archon_pipeline_callback_total{provider}
+    lines.append("# HELP archon_pipeline_callback_total Pipeline callback deliveries")
+    lines.append("# TYPE archon_pipeline_callback_total counter")
+    for provider, count in sorted(_pipeline_callback_counts.items()):
+        lines.append(
+            f'archon_pipeline_callback_total{{provider="{provider}"}} {count}'
+        )
+
+    # archon_policy_denies_total{action, reason}
+    lines.append("# HELP archon_policy_denies_total Policy denials by action and reason")
+    lines.append("# TYPE archon_policy_denies_total counter")
+    for (action, reason), count in sorted(_policy_deny_counts.items()):
+        lines.append(
+            f'archon_policy_denies_total{{action="{action}",reason="{reason}"}} {count}'
+        )
+
+    # archon_dlp_blocks_total{tenant_id}
+    lines.append("# HELP archon_dlp_blocks_total DLP-triggered run blocks")
+    lines.append("# TYPE archon_dlp_blocks_total counter")
+    for tenant_id, count in sorted(_dlp_block_counts.items()):
+        lines.append(
+            f'archon_dlp_blocks_total{{tenant_id="{tenant_id}"}} {count}'
+        )
+
+    # archon_budget_denies_total{tenant_id}
+    lines.append("# HELP archon_budget_denies_total Budget gate denials")
+    lines.append("# TYPE archon_budget_denies_total counter")
+    for tenant_id, count in sorted(_budget_deny_counts.items()):
+        lines.append(
+            f'archon_budget_denies_total{{tenant_id="{tenant_id}"}} {count}'
         )
 
     return "\n".join(lines) + "\n"

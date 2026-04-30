@@ -48,6 +48,10 @@ jobs:
           else
             echo "::warning::scripts/check-feature-matrix.py not yet present (owned by feature-matrix agent in current wave)"
           fi
+      - name: Direct WorkflowRun bypass detection
+        run: bash scripts/check-direct-run-bypasses.sh
+      - name: Vendor reference scan
+        run: bash scripts/check-vendor-refs.sh
 
   verify-unit:
     runs-on: ubuntu-latest
@@ -187,6 +191,27 @@ jobs:
       - name: Run verify-slice
         run: bash scripts/verify-slice.sh
 
+  verify-worker-canary:
+    # P0-B (durable orchestration plan): hard gate that proves the production
+    # fire-and-forget worker dispatch path end-to-end. Uses the SAME REST
+    # surface as verify-slice but with ARCHON_DISPATCH_INLINE=0 — so the route
+    # returns 201 with a queued WorkflowRun and the dispatcher (called via
+    # the same entry point worker._drain_loop uses) drains it to completion.
+    # Adding ARCHON_DISPATCH_INLINE here would defeat the purpose — the
+    # canary's job is to prove non-inline dispatch.
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      - name: Install backend dependencies
+        run: pip install -r backend/requirements.txt
+      - name: Run worker canary (non-inline dispatch)
+        run: bash scripts/test-worker-canary.sh
+
   build:
     runs-on: ubuntu-latest
     needs:
@@ -195,6 +220,7 @@ jobs:
       - verify-frontend
       - verify-contracts
       - verify-slice
+      - verify-worker-canary
       - feature-matrix-validate
       - security-scan
     steps:

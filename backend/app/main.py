@@ -118,6 +118,27 @@ from app.routes.mcp_containers import router as mcp_containers_router
 # Phase 5 — Observability/Artifacts (large step output persistence)
 from app.routes.artifacts import router as artifacts_router
 
+# Wave 1 — Task queues (durable activity queue admin/CRUD)
+from app.routes.task_queues import router as task_queues_router
+
+# Wave 1 — Worker registry (W2: worker registration + capability matching)
+from app.routes.workers import router as workers_router
+
+# W5 — Signals, Queries, and Updates (durable message passing)
+from app.routes.signals import router as signals_router
+
+# W6 — Run lifecycle controls (cancel, terminate, pause, resume)
+from app.routes.runs import router as runs_router
+
+# W7 — Schedule engine (durable recurring/delayed workflow starts)
+from app.routes.schedules import router as schedules_router
+
+# W8 — Pipeline ingress (CI/CD webhook ingestion and run correlation)
+from app.routes.pipelines import router as pipelines_router
+
+# W10 — Replay service (event-log replay + hash-chain verification)
+from app.routes.replay import router as replay_router
+
 logger = get_logger(__name__)
 
 
@@ -307,6 +328,27 @@ def create_app() -> FastAPI:
 
     # -- Phase 5 — Artifacts (large step output persistence) ---------
     application.include_router(artifacts_router, prefix=settings.API_PREFIX)
+
+    # -- Wave 1 — Task queues (durable activity queue admin/CRUD) ----
+    application.include_router(task_queues_router, prefix=settings.API_PREFIX)
+
+    # -- Wave 1 — Worker registry (W2: worker registration + capability) ----
+    application.include_router(workers_router, prefix=settings.API_PREFIX)
+
+    # -- W5 — Signals, Queries, and Updates (durable message passing) --
+    application.include_router(signals_router)
+
+    # -- W6 — Run lifecycle controls (cancel, terminate, pause, resume) --
+    application.include_router(runs_router, prefix=settings.API_PREFIX)
+
+    # -- W7 — Schedule engine (recurring/delayed workflow starts) -----
+    application.include_router(schedules_router, prefix=settings.API_PREFIX)
+
+    # -- W8 — Pipeline ingress (CI/CD webhook ingestion and run correlation) --
+    application.include_router(pipelines_router, prefix=settings.API_PREFIX)
+
+    # -- W10 — Replay service (event-log replay + hash-chain verification) --
+    application.include_router(replay_router, prefix=settings.API_PREFIX)
 
     # -- Metrics (Prometheus-compatible) ------------------------------
     application.include_router(metrics_router)

@@ -288,6 +288,7 @@ from app.models.workflow import (  # noqa: E402
     WorkflowSchedule,
 )
 from app.models.worker_registry import WorkerHeartbeat  # noqa: E402
+from app.models.task_queue import Task, TaskQueue  # noqa: E402
 from app.models.timers import Timer  # noqa: E402
 from app.models.approval import Approval, Signal  # noqa: E402
 from app.models.oauth import OAuthPendingState  # noqa: E402
@@ -298,6 +299,12 @@ from app.models.qa import QAWorkflowRequest  # noqa: E402
 from app.models.improvement import ImprovementGap, ImprovementProposal  # noqa: E402
 from app.models.mcp_container import MCPServerContainer  # noqa: E402
 from app.models.artifact import Artifact  # noqa: E402
+from app.models.activity import ActivityExecution  # noqa: E402
+from app.models.schedule import Schedule  # noqa: E402
+from app.models.pipeline import PipelineCorrelation  # noqa: E402
+from app.models.visibility import VisibilityIndex  # noqa: E402
+from app.models.workflow_version import WorkflowDefinitionVersion  # noqa: E402
+from app.models.run_chain import RunChain  # noqa: E402
 
 
 __all__ = [
@@ -305,6 +312,7 @@ __all__ = [
     "A2AMessage",
     "A2ATask",
     "APIKey",
+    "ActivityExecution",
     "Agent",
     "AgentVersion",
     "Approval",
@@ -377,6 +385,8 @@ __all__ = [
     "SentinelScanHistory",
     "SettingsAPIKey",
     "Severity",
+    "Task",
+    "TaskQueue",
     "Template",
     "Tenant",
     "Timer",
@@ -404,4 +414,9 @@ __all__ = [
     "ImprovementGap",
     "ImprovementProposal",
     "MCPServerContainer",
+    "PipelineCorrelation",
+    "RunChain",
+    "Schedule",
+    "VisibilityIndex",
+    "WorkflowDefinitionVersion",
 ]

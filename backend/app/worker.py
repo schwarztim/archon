@@ -236,13 +236,30 @@ async def _run_budget_alerts() -> None:
 
 
 async def _check_scheduled_workflows() -> None:
-    """Check for scheduled workflows that are due and create WorkflowRun records."""
+    """Check for scheduled workflows that are due and create runs via ExecutionFacade.
+
+    P0-E (canonical run path): the schedule tick is one of the four ingress
+    paths the durable orchestration plan identifies. Every run start MUST go
+    through ``ExecutionFacade.create_run`` so the row gets the canonical
+    definition snapshot, run.created/run.queued events, idempotency record,
+    and (in future waves) policy/RBAC/cost gates. Constructing
+    ``WorkflowRun`` directly here would orphan all of that.
+
+    Idempotency: the fire-time is canonicalised to a UTC ISO timestamp so
+    two ticks in the same second cannot create duplicate runs even if the
+    schedule loop reschedules. Key shape:
+        ``schedule:{schedule_id}:{fire_time_iso}``
+    Replay (idempotency hit) returns the existing run, so the schedule
+    advance still proceeds — the run is created once, the schedule clock
+    advances each tick.
+    """
     logger.debug("scheduled_workflow_tick")
     try:
         from croniter import croniter
 
         from app.database import async_session_factory
-        from app.models.workflow import Workflow, WorkflowRun, WorkflowSchedule
+        from app.models.workflow import Workflow, WorkflowSchedule
+        from app.services.execution_facade import ExecutionFacade
         from sqlmodel import select
 
         async with async_session_factory() as session:
@@ -275,14 +292,28 @@ async def _check_scheduled_workflows() -> None:
                     next_run = cron_iter.get_next(datetime)
 
                     if next_run <= now_naive:
-                        run = WorkflowRun(
+                        # Deterministic idempotency: same (schedule, fire_time)
+                        # produces the same key — replay-safe across worker
+                        # restarts and racy double-ticks.
+                        fire_time_iso = next_run.isoformat()
+                        idempotency_key = (
+                            f"schedule:{schedule.id}:{fire_time_iso}"
+                        )
+
+                        # ExecutionFacade.create_run owns its own commit. We
+                        # must commit the schedule clock advance afterwards,
+                        # NOT in the same transaction — facade.commit() ends
+                        # the transaction.
+                        await ExecutionFacade.create_run(
+                            session,
+                            kind="workflow",
                             workflow_id=workflow.id,
                             tenant_id=workflow.tenant_id,
-                            status="pending",
-                            trigger_type="schedule",
+                            input_data={},
                             triggered_by="scheduler",
+                            trigger_type="schedule",
+                            idempotency_key=idempotency_key,
                         )
-                        session.add(run)
 
                         cron_iter2 = croniter(schedule.cron, next_run)
                         following_next = cron_iter2.get_next(datetime)
@@ -291,6 +322,7 @@ async def _check_scheduled_workflows() -> None:
                         schedule.next_run_at = following_next
                         schedule.updated_at = now_naive
                         session.add(schedule)
+                        await session.commit()
 
                         runs_created += 1
                         logger.info(
@@ -299,6 +331,7 @@ async def _check_scheduled_workflows() -> None:
                             workflow_name=workflow.name,
                             cron=schedule.cron,
                             next_run_at=following_next.isoformat(),
+                            idempotency_key=idempotency_key,
                         )
                     else:
                         if schedule.next_run_at is None:
@@ -314,8 +347,9 @@ async def _check_scheduled_workflows() -> None:
                     )
 
             if runs_created:
-                await session.commit()
-                logger.info("scheduled_workflow_runs_created", count=runs_created)
+                logger.info(
+                    "scheduled_workflow_runs_created", count=runs_created
+                )
             elif any(s.next_run_at is None for s, _ in rows):
                 await session.commit()
 

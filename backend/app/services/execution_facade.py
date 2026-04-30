@@ -303,7 +303,6 @@ class ExecutionFacade:
 
             await session.commit()
             await session.refresh(run)
-            return run, True
 
         except IntegrityError:
             # ADR-004 race window: another caller won the unique-index race.
@@ -323,6 +322,98 @@ class ExecutionFacade:
             # Should not reach here — a true race resolves to either replay
             # or conflict; if neither, surface the original error.
             raise
+
+        # Create a Task row in the default queue. This runs after the run
+        # commit so the WorkflowRun FK constraint is satisfied. Failures are
+        # swallowed — the run is already committed and the legacy WorkflowRun
+        # drain covers runs without a Task row.
+        await ExecutionFacade._enqueue_task_for_run(
+            session,
+            run,
+            idempotency_key=idempotency_key,
+        )
+
+        return run, True
+
+    @staticmethod
+    async def _enqueue_task_for_run(
+        session: AsyncSession,
+        run: WorkflowRun,
+        *,
+        idempotency_key: str | None = None,
+    ) -> None:
+        """Create a Task row in the default queue for a newly created run.
+
+        Called after ``create_run`` commits. Uses a fresh flush (not commit)
+        so the caller owns the transaction boundary. Failures are logged and
+        swallowed — a missing Task row degrades to the legacy WorkflowRun
+        drain path; it must never roll back the already-committed run.
+
+        The default queue "default" is created idempotently when it doesn't
+        exist. task_type mirrors the run's kind (workflow/agent).
+        """
+        from app.models.task_queue import Task, TaskQueue  # noqa: PLC0415
+
+        if run.tenant_id is None:
+            # Tasks require a tenant_id for the polling predicate.
+            # Runs without a tenant fall through to the legacy drain.
+            return
+
+        try:
+            # Ensure the default queue exists for this tenant (idempotent).
+            from sqlmodel import select as _select  # noqa: PLC0415
+
+            queue_stmt = (
+                _select(TaskQueue)
+                .where(TaskQueue.tenant_id == run.tenant_id)
+                .where(TaskQueue.name == "default")
+                .limit(1)
+            )
+            result = await session.execute(queue_stmt)
+            queue = result.scalars().first()
+            if queue is None:
+                queue = TaskQueue(
+                    tenant_id=run.tenant_id,
+                    name="default",
+                    queue_type="default",
+                )
+                session.add(queue)
+                await session.flush()
+
+            # Build the task idempotency key from the run's own key so a
+            # replayed run creation cannot create a duplicate task.
+            task_idem_key: str | None = None
+            if idempotency_key is not None:
+                task_idem_key = f"task:{idempotency_key}"
+
+            from datetime import timezone as _tz  # noqa: PLC0415
+
+            task = Task(
+                tenant_id=run.tenant_id,
+                run_id=run.id,
+                queue_name="default",
+                task_type=run.kind or "workflow",
+                status="visible",
+                visible_at=datetime.now(_tz.utc).replace(tzinfo=None),
+                priority=100,
+                idempotency_key=task_idem_key,
+            )
+            session.add(task)
+            await session.flush()
+            await session.commit()
+
+        except Exception as exc:  # noqa: BLE001
+            # The run is already committed — swallow task creation errors so
+            # the run is not lost. The legacy WorkflowRun drain covers it.
+            log.warning(
+                "execution_facade: failed to create Task for run %s: %s",
+                run.id,
+                exc,
+            )
+            try:
+                await session.rollback()
+            except Exception:  # noqa: BLE001
+                pass
 
     # ──────────────────────────────────────────────────────────────────
     # Read path

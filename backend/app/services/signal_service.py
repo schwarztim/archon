@@ -1,13 +1,23 @@
 """Signal service — durable signal queue for the resume path.
 
 Owned by WS8. Closes Conflict 5 (Phase 2 of master plan).
+Extended by W5 (Signals, Queries, and Updates) to add the vendor-neutral
+durable message-passing surface.
 
 Public surface
 --------------
 
+    # Original dispatcher-internal helpers
     send_signal(session, *, run_id, step_id, signal_type, payload) -> Signal
     consume_pending_signals(session, *, run_id, signal_types=None) -> list[Signal]
     peek_pending_signals(session, *, run_id, signal_types=None) -> list[Signal]
+
+    # W5 additions — vendor-neutral durable message passing
+    send_named_signal(session, *, run_id, signal_name, payload,
+                      sender_id=None) -> Signal
+    query_run_state(session, *, run_id) -> dict
+    send_update(session, *, run_id, update_name, payload,
+                sender_id=None) -> UpdateResult
 
 Atomicity model
 ---------------
@@ -39,6 +49,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from app.models.approval import Signal
+from app.models.signal import UpdateResult
 
 
 def _utcnow() -> datetime:
@@ -165,8 +176,195 @@ async def consume_pending_signals(
     return claimed
 
 
+# ---------------------------------------------------------------------------
+# W5 additions — vendor-neutral durable message-passing surface
+# ---------------------------------------------------------------------------
+
+
+async def send_named_signal(
+    session: AsyncSession,
+    *,
+    run_id: UUID,
+    signal_name: str,
+    payload: dict[str, Any] | None = None,
+    sender_id: str | None = None,
+) -> Signal:
+    """Persist a named signal for a run and return it.
+
+    This is the W5 API surface for async fire-and-forget signals.
+    Internally it delegates to ``send_signal`` using ``signal_name`` as
+    the ``signal_type``.  The ``sender_id`` is stored in the payload so
+    it survives without a schema change to the existing Signal table.
+
+    The persisted Signal row IS the durable event history for this signal —
+    consumers query ``peek_pending_signals`` / ``consume_pending_signals``
+    to inspect or drain it.
+    """
+    merged_payload = dict(payload or {})
+    if sender_id is not None:
+        merged_payload.setdefault("sender_id", sender_id)
+
+    return await send_signal(
+        session,
+        run_id=run_id,
+        step_id=None,
+        signal_type=signal_name,
+        payload=merged_payload,
+    )
+
+
+# _UPDATE_HANDLERS is a lightweight in-process registry that maps
+# update_name → callable(payload) -> dict.  An empty registry means all
+# updates are accepted by default (open contract).  Register handlers via
+# ``register_update_handler``.
+_UPDATE_HANDLERS: dict[str, Any] = {}
+
+
+def register_update_handler(
+    update_name: str,
+    handler: Any,
+) -> None:
+    """Register a validation + mutation handler for the given update_name.
+
+    The handler is called with the request payload dict and must return a
+    response dict.  If it raises ``ValueError``, the update is rejected
+    and the error message is recorded in the UpdateResult row.
+    """
+    _UPDATE_HANDLERS[update_name] = handler
+
+
+async def query_run_state(
+    session: AsyncSession,
+    *,
+    run_id: UUID,
+) -> dict[str, Any]:
+    """Read-only snapshot of a run's current state.
+
+    Returns status, input_data, latest step outputs, pending signal names,
+    and active (non-fired) timers.  Makes NO mutations.
+
+    Raises:
+        ValueError — run_id does not exist.
+    """
+    from app.models.workflow import WorkflowRun, WorkflowRunStep
+    from app.models.timers import Timer
+
+    run = await session.get(WorkflowRun, run_id)
+    if run is None:
+        raise ValueError(f"run {run_id} not found")
+
+    # Latest step outputs — collect most recent step per step_id.
+    steps_stmt = (
+        select(WorkflowRunStep)
+        .where(WorkflowRunStep.run_id == run_id)
+        .order_by(WorkflowRunStep.created_at.asc())
+    )
+    steps_result = await session.execute(steps_stmt)
+    steps = list(steps_result.scalars().all())
+
+    # Collapse to latest-per-step_id snapshot.
+    latest_steps: dict[str, dict[str, Any]] = {}
+    for step in steps:
+        latest_steps[step.step_id] = {
+            "step_id": step.step_id,
+            "name": step.name,
+            "status": step.status,
+            "output_data": step.output_data,
+            "error": step.error,
+        }
+
+    # Pending signals (unconsumed).
+    pending_sigs = await peek_pending_signals(session, run_id=run_id)
+
+    # Active timers (pending, not fired/cancelled).
+    timers_stmt = (
+        select(Timer)
+        .where(Timer.run_id == run_id)
+        .where(Timer.status == "pending")
+    )
+    timers_result = await session.execute(timers_stmt)
+    active_timers = [
+        {
+            "id": str(t.id),
+            "purpose": t.purpose,
+            "step_id": t.step_id,
+            "fire_at": t.fire_at.isoformat() if t.fire_at else None,
+        }
+        for t in timers_result.scalars().all()
+    ]
+
+    return {
+        "run_id": str(run_id),
+        "status": run.status,
+        "input_data": run.input_data or {},
+        "step_outputs": latest_steps,
+        "pending_signals": [s.signal_type for s in pending_sigs],
+        "active_timers": active_timers,
+    }
+
+
+async def send_update(
+    session: AsyncSession,
+    *,
+    run_id: UUID,
+    update_name: str,
+    payload: dict[str, Any] | None = None,
+    sender_id: str | None = None,
+) -> UpdateResult:
+    """Validate and apply a synchronous state change, recording the result.
+
+    If a handler is registered for ``update_name`` it is called with the
+    request payload.  On success (no exception), an ``UpdateResult`` with
+    status ``applied`` is persisted.  On ``ValueError`` from the handler,
+    status is ``rejected`` and ``error_message`` is set.
+
+    If no handler is registered, the update is accepted unconditionally
+    (open contract — the caller is responsible for acting on the result).
+
+    Returns the persisted ``UpdateResult``.  Caller commits.
+    """
+    from app.models.workflow import WorkflowRun
+
+    run = await session.get(WorkflowRun, run_id)
+    if run is None:
+        raise ValueError(f"run {run_id} not found")
+
+    request_payload = dict(payload or {})
+    handler = _UPDATE_HANDLERS.get(update_name)
+
+    status = "applied"
+    response_payload: dict[str, Any] = {}
+    error_message: str | None = None
+
+    if handler is not None:
+        try:
+            result = handler(request_payload)
+            response_payload = result if isinstance(result, dict) else {}
+        except ValueError as exc:
+            status = "rejected"
+            error_message = str(exc)
+
+    record = UpdateResult(
+        run_id=run_id,
+        tenant_id=run.tenant_id,
+        update_name=update_name,
+        sender_id=sender_id,
+        request_payload=request_payload,
+        response_payload=response_payload,
+        status=status,
+        error_message=error_message,
+    )
+    session.add(record)
+    await session.flush()
+    return record
+
+
 __all__ = [
     "send_signal",
     "peek_pending_signals",
     "consume_pending_signals",
+    "send_named_signal",
+    "query_run_state",
+    "send_update",
+    "register_update_handler",
 ]

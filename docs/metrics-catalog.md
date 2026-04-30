@@ -159,6 +159,70 @@ Step IDs and run IDs are never used as label values.
 7. Reference the metric from a dashboard panel or alert rule.
 8. Run `python3 scripts/check-grafana-metric-parity.py` — it must exit 0.
 
+## W17a Runtime-Path Metrics
+
+Emitted from `backend/app/services/metrics_service.py` (central emission
+service). All emissions delegate storage to `metrics_middleware.py`; the
+`record_*()` functions are non-blocking wrappers.
+
+### Queue Metrics
+
+| Metric | Type | Labels | Description | Emitter |
+|--------|------|--------|-------------|---------|
+| `archon_queue_depth` | gauge | `tenant_id`, `queue_name` | Current depth of the durable task queue | `metrics_service.record_queue_depth` |
+| `archon_queue_drain_rate_total` | counter | `tenant_id`, `queue_name` | Tasks drained from queue | `metrics_service.record_queue_drained` |
+
+### Worker Metrics
+
+| Metric | Type | Labels | Description | Emitter |
+|--------|------|--------|-------------|---------|
+| `archon_worker_heartbeats_total` | counter | `worker_id` | Worker heartbeat count | `metrics_service.record_worker_heartbeat` |
+| `archon_worker_active_tasks` | gauge | `worker_id` | Active tasks per worker | `metrics_service.record_worker_active_tasks` |
+
+### Task Metrics
+
+| Metric | Type | Labels | Description | Emitter |
+|--------|------|--------|-------------|---------|
+| `archon_tasks_claimed_total` | counter | `queue_name` | Tasks claimed by workers | `task_queue_service.claim_task` → `metrics_service.record_task_claimed` |
+| `archon_tasks_completed_total` | counter | `queue_name` | Tasks completed | `task_queue_service.complete_task` → `metrics_service.record_task_completed` |
+| `archon_tasks_failed_total` | counter | `queue_name` | Tasks that reached failed status | `task_queue_service.fail_task` → `metrics_service.record_task_failed` |
+
+### Run Metrics
+
+| Metric | Type | Labels | Description | Emitter |
+|--------|------|--------|-------------|---------|
+| `archon_runs_total` | counter | `status`, `trigger_type` | Workflow runs dispatched by status and trigger | `run_dispatcher._execute_claimed_run_inner` → `metrics_service.record_run` |
+| `archon_run_duration_seconds` | histogram | `status`, `trigger_type` | Dispatch-to-terminal wall-clock duration | `run_dispatcher._execute_claimed_run_inner` → `metrics_service.record_run_duration` |
+
+### Activity Metrics
+
+| Metric | Type | Labels | Description | Emitter |
+|--------|------|--------|-------------|---------|
+| `archon_activity_retries_total` | counter | `activity_type` | Activity retry attempts | `activity_runtime.ActivityRuntime._finalise` → `metrics_service.record_activity_retry` |
+| `archon_activity_heartbeat_age_seconds` | gauge | `activity_type` | Age of the last activity heartbeat | `metrics_service.record_activity_heartbeat_age` |
+
+### Schedule Metrics
+
+| Metric | Type | Labels | Description | Emitter |
+|--------|------|--------|-------------|---------|
+| `archon_schedule_fires_total` | counter | `schedule_id` | Schedule occurrences fired | `schedule_service._fire_schedule` → `metrics_service.record_schedule_fire` |
+| `archon_schedule_missed_total` | counter | `schedule_id` | Schedule occurrences missed | `metrics_service.record_schedule_missed` |
+
+### Pipeline Metrics
+
+| Metric | Type | Labels | Description | Emitter |
+|--------|------|--------|-------------|---------|
+| `archon_pipeline_ingress_total` | counter | `provider` | Pipeline webhook events ingested | `pipeline_service.ingest_pipeline_event` → `metrics_service.record_pipeline_ingress` |
+| `archon_pipeline_callback_total` | counter | `provider` | Pipeline callback deliveries | `metrics_service.record_pipeline_callback` |
+
+### Policy / DLP / Budget Metrics
+
+| Metric | Type | Labels | Description | Emitter |
+|--------|------|--------|-------------|---------|
+| `archon_policy_denies_total` | counter | `action`, `reason` | Policy denials by action and reason | `metrics_service.record_policy_deny` |
+| `archon_dlp_blocks_total` | counter | `tenant_id` | DLP-triggered run blocks | `metrics_service.record_dlp_block` |
+| `archon_budget_denies_total` | counter | `tenant_id` | Budget gate denials | `metrics_service.record_budget_deny` |
+
 ## Cross-References
 
 - Emitter / storage: `backend/app/middleware/metrics_middleware.py`
@@ -166,9 +230,11 @@ Step IDs and run IDs are never used as label values.
 - Workflow + step emission: `backend/app/services/run_dispatcher.py`
 - LLM emission: `backend/app/langgraph/llm.py`
 - Checkpoint emission: `backend/app/langgraph/checkpointer.py`
+- W17a emission service: `backend/app/services/metrics_service.py`
 - Tests: `backend/tests/test_metrics_canonical.py`,
   `backend/tests/test_metrics_emission_dispatch.py`,
-  `backend/tests/test_metrics_emission.py`
+  `backend/tests/test_metrics_emission.py`,
+  `backend/tests/test_metrics_live.py` (W17a live proof)
 - Dashboards: `infra/grafana/dashboards/archon-*.json`
 - Alert rules: `infra/monitoring/alerts/archon-orchestration.yaml` and
   `infra/monitoring/prometheus-values.yaml` (`additionalPrometheusRulesMap`).

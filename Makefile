@@ -1,4 +1,4 @@
-.PHONY: up down logs db migrate migrate-up migrate-down db-reset test clean dev install vault-up keycloak-up secrets-init dev-enterprise enterprise-status worker worker-bg verify verify-unit verify-integration verify-frontend verify-contracts verify-slice verify-fast known-failures test-slice test-worker-canary slice-up slice-down lint typecheck test-fast chaos load load-ci helm-lint helm-render helm-smoke security-scan backup-test sso-test test-metrics-real
+.PHONY: up down logs db migrate migrate-up migrate-down db-reset test clean dev install vault-up keycloak-up secrets-init dev-enterprise enterprise-status worker worker-bg verify verify-unit verify-integration verify-frontend verify-contracts verify-slice verify-fast verify-bypass verify-vendor known-failures test-slice test-worker-canary slice-up slice-down lint typecheck test-fast chaos load load-ci helm-lint helm-render helm-smoke security-scan backup-test sso-test test-metrics-real
 
 up: ## Start all services in background
 	docker compose up -d
@@ -91,7 +91,7 @@ worker-bg: ## Run the background worker in the background (logs to /tmp/archon-w
 	cd backend && PYTHONPATH=. nohup python3 -m app.worker > /tmp/archon-worker.log 2>&1 &
 	@echo "Worker started, PID=$$!"
 
-verify: ## Run all 5 verification gates in order (unit, integration, frontend, contracts, slice)
+verify: verify-bypass verify-vendor ## Run all 5 verification gates in order (unit, integration, frontend, contracts, slice). Static gates (bypass, vendor) run first as dependencies.
 	bash scripts/verify.sh
 
 verify-unit: ## Gate 1: backend + gateway unit tests (no live infra required)
@@ -110,6 +110,12 @@ verify-slice: ## Gate 5: vertical-slice REST heartbeat (set ARCHON_TRANSITION=1 
 	bash scripts/verify-slice.sh
 
 verify-fast: verify-unit verify-frontend ## Quick local iteration: unit + frontend only
+
+verify-bypass: ## Static gate: no production code may construct WorkflowRun outside ExecutionFacade
+	bash scripts/check-direct-run-bypasses.sh
+
+verify-vendor: ## Static gate: no upstream vendor/product references in code, docs, or UI surface
+	bash scripts/check-vendor-refs.sh
 
 known-failures: ## Print the curated list of explicitly excluded tests with reasons
 	@cat scripts/known-failures.txt

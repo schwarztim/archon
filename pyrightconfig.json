@@ -1,0 +1,14 @@
+{
+  "include": ["backend"],
+  "exclude": [
+    "**/__pycache__",
+    "**/.venv",
+    "frontend",
+    "docs"
+  ],
+  "extraPaths": ["backend"],
+  "pythonVersion": "3.11",
+  "typeCheckingMode": "basic",
+  "reportMissingImports": "error",
+  "reportMissingTypeStubs": "none"
+}

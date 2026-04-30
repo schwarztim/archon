@@ -24,7 +24,7 @@ Build, deploy, and govern AI agents at scale — with a visual canvas, intellige
 
 Pre-1.0. **Substantial canonical orchestration substrate** with the official REST durable heartbeat passing through `bash scripts/verify-slice.sh` and `bash scripts/test-slice.sh` (inline-dispatch contract: `ARCHON_DISPATCH_INLINE=1`).
 
-This is **not yet** a Temporal-class production-proven platform. Production fire-and-forget worker dispatch end-to-end, mandatory Postgres RLS in CI, Keycloak/OIDC end-to-end, live observability scrape, scale/chaos under load, and the security-scan severity threshold remain open. `RunHistoryPage`, `ApprovalsPage`, and `ArtifactsPage` exist with tests but are not yet registered in `frontend/src/App.tsx`.
+This is **not yet** a production-proven durable workflow platform. Production fire-and-forget worker dispatch end-to-end, mandatory Postgres RLS in CI, Keycloak/OIDC end-to-end, live observability scrape, scale/chaos under load, and the security-scan severity threshold remain open. `RunHistoryPage`, `ApprovalsPage`, and `ArtifactsPage` exist with tests but are not yet registered in `frontend/src/App.tsx`.
 
 See [`CURRENT_STATE.md`](CURRENT_STATE.md) for the canonical truth-table — what is proven vs script-green only vs implemented-but-unproven vs missing vs deferred. The phrase "production ready" does not appear in this repo by deliberate policy.
 
