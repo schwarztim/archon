@@ -450,7 +450,8 @@ async def test_schedule_trigger_node():
         # and backend/tests/test_embeddings_wrapper.py.
         # NOTE: structuredOutputNode promoted from STUB to BETA — covered
         # by backend/tests/test_node_executors/test_structured_output_node_contract.py.
-        ("visionNode", {"model": "gpt-4o"}),
+        # NOTE: visionNode promoted from STUB to BETA — covered by
+        # backend/tests/test_node_executors/test_vision_node_contract.py.
         ("toolNode", {"toolName": "calculator"}),
         ("mcpToolNode", {"serverName": "my-server", "toolName": "search"}),
         ("databaseQueryNode", {"query": "SELECT 1", "connectorId": "pg1"}),

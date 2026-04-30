@@ -81,6 +81,7 @@ NODE_STATUS: dict[str, NodeStatus] = {
     "scheduleTriggerNode": NodeStatus.BETA,
     "embeddingNode": NodeStatus.BETA,
     "structuredOutputNode": NodeStatus.BETA,
+    "visionNode": NodeStatus.BETA,
     # ── Stub (must be blocked in production / staging) ────────────────
     "loopNode": NodeStatus.STUB,
     "humanInputNode": NodeStatus.STUB,
@@ -90,7 +91,6 @@ NODE_STATUS: dict[str, NodeStatus] = {
     "functionCallNode": NodeStatus.STUB,
     "vectorSearchNode": NodeStatus.STUB,
     "documentLoaderNode": NodeStatus.STUB,
-    "visionNode": NodeStatus.STUB,
     "streamOutputNode": NodeStatus.STUB,
 }
 

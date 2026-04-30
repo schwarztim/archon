@@ -196,12 +196,16 @@ categories:
       gap: "MUST BE BLOCKED in enterprise mode."
 
     - id: visionNode
-      status: stub
-      source_files: ["backend/app/services/node_executors/vision.py"]
-      test_files: []
+      status: beta
+      source_files:
+        - "backend/app/services/node_executors/vision.py"
+        - "backend/app/langgraph/llm.py"
+      test_files:
+        - "backend/tests/test_node_executors/test_vision_node_contract.py"
+        - "backend/tests/test_node_executors/test_all_executors.py"
       doc_refs: []
-      notes: "Returns {_stub: true, model, image_url, analysis: 'Vision analysis not yet implemented — stub response'}."
-      gap: "MUST BE BLOCKED in enterprise mode."
+      notes: "Real LiteLLM vision via call_llm with OpenAI-style multi-modal messages ([{type:text}, {type:image_url, image_url:{url, detail}}]). Supports image_url (HTTP(S) or data: URI) and image_base64 (auto-wrapped as data URI with configurable image_mime). Stub mode (LLM_STUB_MODE=true) synthesises a deterministic vision-response string seeded from sha256(prompt + image_id_hash + model). image_id_hash (sha256[:16]) is the only image identifier surfaced in output — the URL and base64 content are never echoed back. Promoted from STUB to BETA per executor workstream 3."
+      gap: "Single image per call (no batched multi-image input yet). No image preprocessing/resize/format conversion — bytes flow through unchanged. Streaming not supported — node always waits for the full response before returning."
 
     - id: structuredOutputNode
       status: beta
@@ -2080,8 +2084,8 @@ categories:
 status_summary:
 # ──────────────────────────────────────────────────────────────────
   production: 95
-  beta: 81
-  stub: 11
+  beta: 82
+  stub: 10
   designed: 4
   missing: 15
   blocked: 0

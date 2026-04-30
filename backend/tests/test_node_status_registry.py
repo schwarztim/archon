@@ -122,6 +122,7 @@ def test_node_status_enum_str_values() -> None:
         ("delayNode", NodeStatus.BETA),
         ("embeddingNode", NodeStatus.BETA),
         ("structuredOutputNode", NodeStatus.BETA),
+        ("visionNode", NodeStatus.BETA),
         # Stub — sample (must be blocked in production)
         ("loopNode", NodeStatus.STUB),
         ("mcpToolNode", NodeStatus.STUB),
@@ -131,7 +132,6 @@ def test_node_status_enum_str_values() -> None:
         ("functionCallNode", NodeStatus.STUB),
         ("vectorSearchNode", NodeStatus.STUB),
         ("documentLoaderNode", NodeStatus.STUB),
-        ("visionNode", NodeStatus.STUB),
         ("streamOutputNode", NodeStatus.STUB),
     ],
 )
