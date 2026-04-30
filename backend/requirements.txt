@@ -11,7 +11,10 @@ alembic>=1.14.0
 greenlet>=3.1.0
 
 # Auth
-python-jose[cryptography]>=3.3.0
+# 2026-04-30 — bumped from >=3.3.0 to >=3.4.0 to address CVE-2024-33664 (JWE
+# decompression DoS, "critical" by advisory keyword) and CVE-2024-33663
+# (algorithm confusion).
+python-jose[cryptography]>=3.4.0
 msal>=1.28.0
 pyotp>=2.9.0
 qrcode[pil]>=7.4
@@ -27,9 +30,18 @@ redis>=5.2.0
 celery>=5.4.0
 
 # AI / LLM
-langgraph>=0.2.0
-langchain-core>=0.3.0
-litellm>=1.55.0
+# 2026-04-30 — security floor bumps (CVE remediation R2):
+#   langchain-core: <1.2.22 has SSRF (CVE-2026-26013), Path Traversal (CVE-2026-34070),
+#     Deserialization (CVE-2025-68664), Template Injection (CVE-2025-65106), Arbitrary File
+#     Read (CVE-2024-10940). Pinned >=1.2.22.
+#   langgraph: <=1.0.9 has unsafe msgpack deserialization (CVE-2026-28277). Pinned >=1.0.10.
+#   litellm: many auth/SSRF/SQLi findings <1.82.6.rc.1; versions 1.82.7-1.82.8 contained
+#     supply-chain malware (SFTY-20260325-42188). Pinned >=1.83.0,<2.0.0 to skip the
+#     compromised window and stay on the patched 1.83+ line. Litellm releases frequently;
+#     do not over-constrain the upper bound within the same major.
+langchain-core>=1.2.22,<2.0.0
+langgraph>=1.0.10,<2.0.0
+litellm>=1.83.0,<2.0.0
 # Added by A3 (LangGraph checkpointing): AsyncPostgresSaver + psycopg3 connection pool
 langgraph-checkpoint-postgres>=2.0.0
 
@@ -51,7 +63,10 @@ opentelemetry-instrumentation-fastapi>=0.51b0
 croniter>=2.0.0
 
 # Misc
-python-multipart>=0.0.17
+# 2026-04-30 — bumped from >=0.0.17 to >=0.0.22 to address CVE-2026-24486
+# (path traversal in upload filename handling, "high") and CVE-2024-53981
+# (multipart resource exhaustion, "critical").
+python-multipart>=0.0.22
 
 # Cloud / Storage connectors
 boto3>=1.35.0
@@ -68,7 +83,7 @@ h11>=0.16.0          # Critical: HTTP Request Smuggling (CVE in h11<0.16.0)
 idna>=3.7            # Medium: Resource Exhaustion
 jinja2>=3.1.6        # Medium: Template Injection (3 CVEs in jinja2<3.1.6)
 orjson>=3.11.6       # Medium: Uncontrolled Recursion
-pyasn1>=0.6.2        # High: Resource Allocation
+pyasn1>=0.6.3        # High: Resource Allocation; 2026-04-30 bumped 0.6.2->0.6.3 for CVE-2026-30922 (DoS via deeply nested ASN.1)
 setuptools>=78.1.1   # High: Code Injection; Medium: ReDoS, Directory Traversal
 tqdm>=4.66.3         # Medium: Injection
 urllib3>=2.6.3       # High(x3) + Medium(x2): multiple CVEs in urllib3<2.6.3
@@ -78,10 +93,18 @@ urllib3>=2.6.3       # High(x3) + Medium(x2): multiple CVEs in urllib3<2.6.3
 # precedence, making the ecdsa code paths unreachable.
 
 # A15: enable safe expression eval in node_executors/condition.py and switch.py
-simpleeval>=0.9.13
+# 2026-04-30 — bumped from >=0.9.13 to >=1.0.5 to address CVE-2026-32640
+# (sandbox escape via attribute chain). Note: condition_node and switch_node
+# only evaluate authenticated tenant-operator-supplied expressions, not raw
+# user input, but the upgrade is still warranted as defense in depth.
+simpleeval>=1.0.5
 
 # Testing
-pytest>=8.0.0
+# 2026-04-30 — bumped from >=8.0.0 to >=9.0.3 to address SFTY-20260122-20373
+# (CVE-2025-71176, /tmp/pytest-of-{user} path predictability). Test-only
+# dependency; the issue requires local user co-tenancy on a shared host
+# which is not how our CI runners or developer machines are deployed.
+pytest>=9.0.3
 pytest-asyncio>=0.24.0
 
 # Docker (MCP container management)
