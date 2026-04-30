@@ -167,12 +167,17 @@ categories:
       gap: "Stub fallback hides missing definitions in enterprise mode; cycle detection absent. No tests in this slice."
 
     - id: embeddingNode
-      status: stub
-      source_files: ["backend/app/services/node_executors/embedding.py"]
-      test_files: []
+      status: beta
+      source_files:
+        - "backend/app/services/node_executors/embedding.py"
+        - "backend/app/langgraph/embeddings.py"
+      test_files:
+        - "backend/tests/test_node_executors/test_embedding_node_contract.py"
+        - "backend/tests/test_embeddings_wrapper.py"
+        - "backend/tests/test_node_executors/test_all_executors.py"
       doc_refs: []
-      notes: "Returns {_stub: true, model, text_length, embedding: []}. TODO(v2) calls for litellm.aembedding."
-      gap: "MUST BE BLOCKED in enterprise mode."
+      notes: "Real LiteLLM aembedding wrapper (app.langgraph.embeddings.call_embedding) with deterministic stub mode (LLM_STUB_MODE=true → sha256-seeded L2-normalised vector); promoted from STUB to BETA per executor workstream 1."
+      gap: "Single-text per call only (no batched input=[t1, t2, ...] yet); no tenant-aware routing — embeddings have no tenant model mapping today, isolation is upstream."
 
     - id: vectorSearchNode
       status: stub
@@ -199,12 +204,14 @@ categories:
       gap: "MUST BE BLOCKED in enterprise mode."
 
     - id: structuredOutputNode
-      status: stub
+      status: beta
       source_files: ["backend/app/services/node_executors/structured_output.py"]
-      test_files: []
+      test_files:
+        - "backend/tests/test_node_executors/test_structured_output_node_contract.py"
+        - "backend/tests/test_node_executors/test_all_executors.py"
       doc_refs: []
-      notes: "Returns {_stub: true, model, schema, result: {}}. No json-mode call_llm path."
-      gap: "MUST BE BLOCKED in enterprise mode."
+      notes: "Real call_llm wrapper with jsonschema.validate. Stub mode (LLM_STUB_MODE=true) walks the schema to synthesise a deterministic schema-valid object (uses default/const/enum where present, else type-appropriate placeholders). Real mode parses the LLM response as JSON, strips Markdown fences, then validates. Promoted from STUB to BETA per executor workstream 2."
+      gap: "Single-shot only — no multi-turn refinement when validation fails (schema_validation_failed surfaces immediately). Streaming not supported. Provider-side response_format={'type':'json_object'} not yet wired into call_llm — the prompt is augmented with explicit JSON instructions instead."
 
     - id: streamOutputNode
       status: stub
@@ -2073,8 +2080,8 @@ categories:
 status_summary:
 # ──────────────────────────────────────────────────────────────────
   production: 95
-  beta: 79
-  stub: 13
+  beta: 81
+  stub: 11
   designed: 4
   missing: 15
   blocked: 0

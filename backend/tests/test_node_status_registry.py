@@ -120,6 +120,8 @@ def test_node_status_enum_str_values() -> None:
         ("dlpScanNode", NodeStatus.BETA),
         ("costGateNode", NodeStatus.BETA),
         ("delayNode", NodeStatus.BETA),
+        ("embeddingNode", NodeStatus.BETA),
+        ("structuredOutputNode", NodeStatus.BETA),
         # Stub — sample (must be blocked in production)
         ("loopNode", NodeStatus.STUB),
         ("mcpToolNode", NodeStatus.STUB),
@@ -127,11 +129,9 @@ def test_node_status_enum_str_values() -> None:
         ("humanInputNode", NodeStatus.STUB),
         ("databaseQueryNode", NodeStatus.STUB),
         ("functionCallNode", NodeStatus.STUB),
-        ("embeddingNode", NodeStatus.STUB),
         ("vectorSearchNode", NodeStatus.STUB),
         ("documentLoaderNode", NodeStatus.STUB),
         ("visionNode", NodeStatus.STUB),
-        ("structuredOutputNode", NodeStatus.STUB),
         ("streamOutputNode", NodeStatus.STUB),
     ],
 )

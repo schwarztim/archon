@@ -445,9 +445,12 @@ async def test_schedule_trigger_node():
     "node_type,config",
     [
         ("streamOutputNode", {}),
-        ("embeddingNode", {"model": "text-embedding-ada-002"}),
+        # NOTE: embeddingNode promoted from STUB to BETA — covered by
+        # backend/tests/test_node_executors/test_embedding_node_contract.py
+        # and backend/tests/test_embeddings_wrapper.py.
+        # NOTE: structuredOutputNode promoted from STUB to BETA — covered
+        # by backend/tests/test_node_executors/test_structured_output_node_contract.py.
         ("visionNode", {"model": "gpt-4o"}),
-        ("structuredOutputNode", {"model": "gpt-4o-mini", "schema": {}}),
         ("toolNode", {"toolName": "calculator"}),
         ("mcpToolNode", {"serverName": "my-server", "toolName": "search"}),
         ("databaseQueryNode", {"query": "SELECT 1", "connectorId": "pg1"}),
