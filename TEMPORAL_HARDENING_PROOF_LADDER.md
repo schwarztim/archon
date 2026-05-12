@@ -1,7 +1,7 @@
-# Temporal Hardening Proof Ladder
+# Durable Execution Hardening Proof Ladder
 
-Archon has implemented a broad architectural skeleton inspired by Temporal's
-durable execution model. This document defines the proof gates required
+Archon has implemented a broad architectural skeleton for durable workflow
+execution. This document defines the proof gates required
 before each capability can be called production-hardened.
 
 Do not implement all of this at once. Each rung is a self-contained proof
